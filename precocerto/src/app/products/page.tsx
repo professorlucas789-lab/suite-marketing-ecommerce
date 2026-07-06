@@ -7,13 +7,17 @@ import { Nav } from '@/components/layout/nav'
 import { ProductList } from '@/components/products/product-list'
 import { Product } from '@/types'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import Link from 'next/link'
+import { Search } from 'lucide-react'
 
 export default function ProductsPage() {
   const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState<string>('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
 
   useEffect(() => {
     fetchProducts()
@@ -72,6 +76,21 @@ export default function ProductsPage() {
     }
   }
 
+  const uniqueCategories = Array.from(new Set(products.map(p => p.category))).sort()
+
+  const filteredProducts = products.filter((product) => {
+    const query = searchQuery.toLowerCase()
+    const matchesSearch =
+      product.name.toLowerCase().includes(query) ||
+      product.category.toLowerCase().includes(query) ||
+      (product.supplier && product.supplier.toLowerCase().includes(query)) ||
+      (product.notes && product.notes.toLowerCase().includes(query))
+
+    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory
+
+    return matchesSearch && matchesCategory
+  })
+
   return (
     <>
       <Nav />
@@ -91,13 +110,54 @@ export default function ProductsPage() {
             <p className="text-slate-600">Carregando produtos...</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
-            <ProductList
-              products={products}
-              onDelete={handleDelete}
-              isDeleting={isDeleting}
-            />
-          </div>
+          <>
+            <div className="mb-6 space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                <Input
+                  type="text"
+                  placeholder="Buscar produtos por nome, categoria, fornecedor ou notas..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              {uniqueCategories.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  <label className="text-sm font-medium text-slate-700 flex items-center">
+                    Categoria:
+                  </label>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="px-3 py-2 border border-slate-300 rounded-md text-sm bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Todas</option>
+                    {uniqueCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {(searchQuery || selectedCategory !== 'all') && (
+                <div className="text-sm text-slate-600">
+                  {filteredProducts.length} de {products.length} produtos encontrados
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
+              <ProductList
+                products={filteredProducts}
+                onDelete={handleDelete}
+                isDeleting={isDeleting}
+              />
+            </div>
+          </>
         )}
       </main>
     </>
