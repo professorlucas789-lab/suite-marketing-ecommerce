@@ -17,6 +17,7 @@ type SortField = 'name' | 'category' | 'totalCost' | 'price' | 'profit' | 'margi
 type SortDirection = 'asc' | 'desc'
 
 export function ProductList({ products, onDelete, isDeleting }: ProductListProps) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
@@ -38,6 +39,36 @@ export function ProductList({ products, onDelete, isDeleting }: ProductListProps
       newExpanded.add(productId)
     }
     setExpandedRows(newExpanded)
+  }
+
+  const toggleSelectProduct = (productId: string) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(productId)) {
+      newSelected.delete(productId)
+    } else {
+      newSelected.add(productId)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === sortedProducts.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(sortedProducts.map(p => p.id)))
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`Tem certeza que deseja apagar ${selectedIds.size} produto(s)?`)) {
+      return
+    }
+
+    for (const id of selectedIds) {
+      await onDelete(id)
+    }
+    setSelectedIds(new Set())
   }
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -113,13 +144,39 @@ export function ProductList({ products, onDelete, isDeleting }: ProductListProps
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
-            <th className="px-4 py-3 text-center text-sm font-semibold text-slate-900 w-12">
-              Detalhes
-            </th>
+    <div className="space-y-4">
+      {selectedIds.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex justify-between items-center">
+          <span className="text-sm text-slate-700">
+            {selectedIds.size} produto(s) selecionado(s)
+          </span>
+          <Button
+            onClick={handleBulkDelete}
+            className="bg-red-600 hover:bg-red-700"
+            size="sm"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Apagar Selecionados
+          </Button>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50">
+              <th className="px-4 py-3 text-center text-sm font-semibold text-slate-900 w-12">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === sortedProducts.length && sortedProducts.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 cursor-pointer"
+                  title="Selecionar todos"
+                />
+              </th>
+              <th className="px-4 py-3 text-center text-sm font-semibold text-slate-900 w-12">
+                Detalhes
+              </th>
             <th
               onClick={() => handleSort('name')}
               className="px-6 py-3 text-left text-sm font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors"
@@ -173,7 +230,15 @@ export function ProductList({ products, onDelete, isDeleting }: ProductListProps
 
             return (
               <>
-                <tr key={product.id} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                <tr key={product.id} className={`border-b border-slate-200 transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
+                  <td className="px-4 py-4 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(product.id)}
+                      onChange={() => toggleSelectProduct(product.id)}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                  </td>
                   <td className="px-4 py-4 text-center">
                     <button
                       onClick={() => toggleRowExpand(product.id)}
@@ -221,7 +286,7 @@ export function ProductList({ products, onDelete, isDeleting }: ProductListProps
               </tr>
               {isExpanded && (
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <td colSpan={8} className="px-6 py-4">
+                  <td colSpan={9} className="px-6 py-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-3">
                         <div>
@@ -269,6 +334,7 @@ export function ProductList({ products, onDelete, isDeleting }: ProductListProps
           })}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
