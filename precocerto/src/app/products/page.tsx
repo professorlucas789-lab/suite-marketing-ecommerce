@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Nav } from '@/components/layout/nav'
 import { ProductList } from '@/components/products/product-list'
+import { CSVImport } from '@/components/products/csv-import'
 import { Product } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +20,8 @@ export default function ProductsPage() {
   const [isDeleting, setIsDeleting] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [userId, setUserId] = useState<string>('')
+  const [showImportModal, setShowImportModal] = useState(false)
 
   useEffect(() => {
     fetchProducts()
@@ -34,6 +37,8 @@ export default function ProductsPage() {
         router.push('/login')
         return
       }
+
+      setUserId(user.id)
 
       const { data, error } = await supabase
         .from('products')
@@ -117,11 +122,38 @@ export default function ProductsPage() {
                 Exportar CSV
               </Button>
             )}
+            <Button
+              onClick={() => setShowImportModal(!showImportModal)}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              Importar CSV
+            </Button>
             <Link href="/products/new">
               <Button>Novo Produto</Button>
             </Link>
           </div>
         </div>
+
+        {showImportModal && userId && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h2 className="text-lg font-semibold mb-4 text-slate-900">Importar Produtos</h2>
+              <CSVImport
+                userId={userId}
+                onImportSuccess={() => {
+                  setShowImportModal(false)
+                  fetchProducts()
+                }}
+              />
+              <Button
+                onClick={() => setShowImportModal(false)}
+                className="w-full mt-4 bg-slate-200 text-slate-900 hover:bg-slate-300"
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="text-center py-12">
