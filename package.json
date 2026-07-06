@@ -1,0 +1,84 @@
+{
+  "name": "suite-marketing-ecommerce",
+  "version": "1.0.0",
+  "description": "Suite Marketing Ecommerce Platform",
+  "private": true,
+  "main": "server/index.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:coverage:report": "jest --coverage && open coverage/lcov-report/index.html",
+    "test:unit": "jest --testPathPattern='tests/unit'",
+    "test:integration": "jest --testPathPattern='tests/integration'",
+    "test:e2e": "playwright test",
+    "test:backend": "jest tests/unit/backend tests/integration/backend",
+    "test:frontend": "jest tests/unit/frontend tests/integration/frontend",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "dev": "node server/index.js",
+    "start": "NODE_ENV=production node server/index.js"
+  },
+  "keywords": ["ecommerce", "marketing", "suite"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "@testing-library/jest-dom": "^6.1.4",
+    "@testing-library/dom": "^9.3.3",
+    "babel-jest": "^29.7.0",
+    "@babel/preset-env": "^7.23.3",
+    "jest-environment-jsdom": "^29.7.0",
+    "supertest": "^6.3.3",
+    "@playwright/test": "^1.40.0",
+    "eslint": "^8.52.0",
+    "prettier": "^3.0.3",
+    "nodemon": "^3.0.1"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
+    "collectCoverageFrom": [
+      "server/**/*.js",
+      "client/**/*.{js,jsx}",
+      "!server/**/*.test.js",
+      "!client/**/*.test.{js,jsx}",
+      "!**/node_modules/**",
+      "!**/dist/**"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 70,
+        "functions": 70,
+        "lines": 70,
+        "statements": 70
+      },
+      "./server/middleware/": {
+        "branches": 85,
+        "functions": 85,
+        "lines": 85,
+        "statements": 85
+      },
+      "./server/routes/": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    },
+    "testMatch": [
+      "<rootDir>/tests/**/*.test.js",
+      "<rootDir>/server/**/*.test.js",
+      "<rootDir>/client/**/*.test.{js,jsx}"
+    ],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1"
+    }
+  }
+}
