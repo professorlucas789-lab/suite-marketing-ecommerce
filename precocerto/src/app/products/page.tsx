@@ -9,7 +9,8 @@ import { Product } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import Link from 'next/link'
-import { Search } from 'lucide-react'
+import { Search, Download } from 'lucide-react'
+import { exportProductsToCSV, downloadCSV } from '@/lib/export'
 
 export default function ProductsPage() {
   const router = useRouter()
@@ -76,6 +77,12 @@ export default function ProductsPage() {
     }
   }
 
+  function handleExportCSV() {
+    const csv = exportProductsToCSV(filteredProducts.length > 0 ? filteredProducts : products)
+    const filename = `produtos_precocerto_${new Date().toISOString().split('T')[0]}.csv`
+    downloadCSV(csv, filename)
+  }
+
   const uniqueCategories = Array.from(new Set(products.map(p => p.category))).sort()
 
   const filteredProducts = products.filter((product) => {
@@ -100,9 +107,20 @@ export default function ProductsPage() {
             <h1 className="text-4xl font-bold text-slate-900">Produtos</h1>
             <p className="text-slate-600 mt-2">Gerencie seus produtos e precificação</p>
           </div>
-          <Link href="/products/new">
-            <Button>Novo Produto</Button>
-          </Link>
+          <div className="flex gap-2">
+            {products.length > 0 && (
+              <Button
+                onClick={handleExportCSV}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Exportar CSV
+              </Button>
+            )}
+            <Link href="/products/new">
+              <Button>Novo Produto</Button>
+            </Link>
+          </div>
         </div>
 
         {isLoading ? (
