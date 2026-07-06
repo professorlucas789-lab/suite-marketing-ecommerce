@@ -3,8 +3,9 @@
 import { Product } from '@/types'
 import { calculatePrice, formatCurrency, formatPercentage } from '@/lib/calculations'
 import { Button } from '@/components/ui/button'
-import { Edit, Trash2 } from 'lucide-react'
+import { Edit, Trash2, ArrowUp, ArrowDown } from 'lucide-react'
 import Link from 'next/link'
+import { useState } from 'react'
 
 interface ProductListProps {
   products: Product[]
@@ -12,7 +13,83 @@ interface ProductListProps {
   isDeleting?: string
 }
 
+type SortField = 'name' | 'category' | 'totalCost' | 'price' | 'profit' | 'margin'
+type SortDirection = 'asc' | 'desc'
+
 export function ProductList({ products, onDelete, isDeleting }: ProductListProps) {
+  const [sortField, setSortField] = useState<SortField>('name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return null
+    return sortDirection === 'asc' ?
+      <ArrowUp className="w-4 h-4 inline ml-1" /> :
+      <ArrowDown className="w-4 h-4 inline ml-1" />
+  }
+
+  const sortedProducts = [...products].sort((a, b) => {
+    let aVal: string | number = ''
+    let bVal: string | number = ''
+
+    const aCalc = calculatePrice(
+      a.costOfPurchase,
+      a.transportCost,
+      a.packagingCost,
+      a.otherCosts,
+      a.desiredMargin
+    )
+
+    const bCalc = calculatePrice(
+      b.costOfPurchase,
+      b.transportCost,
+      b.packagingCost,
+      b.otherCosts,
+      b.desiredMargin
+    )
+
+    switch (sortField) {
+      case 'name':
+        aVal = a.name.toLowerCase()
+        bVal = b.name.toLowerCase()
+        break
+      case 'category':
+        aVal = a.category.toLowerCase()
+        bVal = b.category.toLowerCase()
+        break
+      case 'totalCost':
+        aVal = aCalc.totalCost
+        bVal = bCalc.totalCost
+        break
+      case 'price':
+        aVal = aCalc.recommendedPrice
+        bVal = bCalc.recommendedPrice
+        break
+      case 'profit':
+        aVal = aCalc.estimatedProfit
+        bVal = bCalc.estimatedProfit
+        break
+      case 'margin':
+        aVal = aCalc.realMargin
+        bVal = bCalc.realMargin
+        break
+    }
+
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+    }
+
+    return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
+  })
+
   if (products.length === 0) {
     return (
       <div className="text-center py-12">
@@ -29,17 +106,47 @@ export function ProductList({ products, onDelete, isDeleting }: ProductListProps
       <table className="w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
-            <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Produto</th>
-            <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Categoria</th>
-            <th className="px-6 py-3 text-right text-sm font-semibold text-slate-900">Custo Total</th>
-            <th className="px-6 py-3 text-right text-sm font-semibold text-slate-900">Preço</th>
-            <th className="px-6 py-3 text-right text-sm font-semibold text-slate-900">Lucro</th>
-            <th className="px-6 py-3 text-right text-sm font-semibold text-slate-900">Margem</th>
+            <th
+              onClick={() => handleSort('name')}
+              className="px-6 py-3 text-left text-sm font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors"
+            >
+              Produto <SortIcon field="name" />
+            </th>
+            <th
+              onClick={() => handleSort('category')}
+              className="px-6 py-3 text-left text-sm font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors"
+            >
+              Categoria <SortIcon field="category" />
+            </th>
+            <th
+              onClick={() => handleSort('totalCost')}
+              className="px-6 py-3 text-right text-sm font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors"
+            >
+              Custo Total <SortIcon field="totalCost" />
+            </th>
+            <th
+              onClick={() => handleSort('price')}
+              className="px-6 py-3 text-right text-sm font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors"
+            >
+              Preço <SortIcon field="price" />
+            </th>
+            <th
+              onClick={() => handleSort('profit')}
+              className="px-6 py-3 text-right text-sm font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors"
+            >
+              Lucro <SortIcon field="profit" />
+            </th>
+            <th
+              onClick={() => handleSort('margin')}
+              className="px-6 py-3 text-right text-sm font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors"
+            >
+              Margem <SortIcon field="margin" />
+            </th>
             <th className="px-6 py-3 text-center text-sm font-semibold text-slate-900">Ações</th>
           </tr>
         </thead>
         <tbody>
-          {products.map((product) => {
+          {sortedProducts.map((product) => {
             const calculation = calculatePrice(
               product.costOfPurchase,
               product.transportCost,
