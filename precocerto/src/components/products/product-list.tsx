@@ -3,7 +3,7 @@
 import { Product } from '@/types'
 import { calculatePrice, formatCurrency, formatPercentage } from '@/lib/calculations'
 import { Button } from '@/components/ui/button'
-import { Edit, Trash2, ArrowUp, ArrowDown } from 'lucide-react'
+import { Edit, Trash2, ArrowUp, ArrowDown, ChevronDown, ChevronUp } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 
@@ -19,6 +19,7 @@ type SortDirection = 'asc' | 'desc'
 export function ProductList({ products, onDelete, isDeleting }: ProductListProps) {
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -27,6 +28,16 @@ export function ProductList({ products, onDelete, isDeleting }: ProductListProps
       setSortField(field)
       setSortDirection('asc')
     }
+  }
+
+  const toggleRowExpand = (productId: string) => {
+    const newExpanded = new Set(expandedRows)
+    if (newExpanded.has(productId)) {
+      newExpanded.delete(productId)
+    } else {
+      newExpanded.add(productId)
+    }
+    setExpandedRows(newExpanded)
   }
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -106,6 +117,9 @@ export function ProductList({ products, onDelete, isDeleting }: ProductListProps
       <table className="w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
+            <th className="px-4 py-3 text-center text-sm font-semibold text-slate-900 w-12">
+              Detalhes
+            </th>
             <th
               onClick={() => handleSort('name')}
               className="px-6 py-3 text-left text-sm font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 transition-colors"
@@ -155,9 +169,25 @@ export function ProductList({ products, onDelete, isDeleting }: ProductListProps
               product.desiredMargin
             )
 
+            const isExpanded = expandedRows.has(product.id)
+
             return (
-              <tr key={product.id} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 text-sm font-medium text-slate-900">{product.name}</td>
+              <>
+                <tr key={product.id} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-4 text-center">
+                    <button
+                      onClick={() => toggleRowExpand(product.id)}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded hover:bg-slate-200 transition-colors"
+                      title={isExpanded ? 'Ocultar detalhes' : 'Ver detalhes'}
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5 text-slate-600" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-slate-600" />
+                      )}
+                    </button>
+                  </td>
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{product.name}</td>
                 <td className="px-6 py-4 text-sm text-slate-600">{product.category}</td>
                 <td className="px-6 py-4 text-sm text-right text-slate-900">
                   {formatCurrency(calculation.totalCost)}
@@ -189,6 +219,52 @@ export function ProductList({ products, onDelete, isDeleting }: ProductListProps
                   </div>
                 </td>
               </tr>
+              {isExpanded && (
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <td colSpan={8} className="px-6 py-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Fornecedor</p>
+                          <p className="text-sm text-slate-900">{product.supplier || 'Não informado'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Margem Desejada</p>
+                          <p className="text-sm text-slate-900">{product.desiredMargin.toFixed(2)}%</p>
+                        </div>
+                      </div>
+                      {(product.notes) && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Notas</p>
+                          <p className="text-sm text-slate-700 whitespace-pre-wrap">{product.notes}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs font-semibold text-slate-600 uppercase">Detalhamento de Custos</p>
+                        <div className="text-sm space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-slate-600">Compra:</span>
+                            <span className="font-medium">{formatCurrency(product.costOfPurchase)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600">Transporte:</span>
+                            <span className="font-medium">{formatCurrency(product.transportCost)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600">Embalagem:</span>
+                            <span className="font-medium">{formatCurrency(product.packagingCost)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600">Outros:</span>
+                            <span className="font-medium">{formatCurrency(product.otherCosts)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </>
             )
           })}
         </tbody>
