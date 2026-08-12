@@ -5,46 +5,76 @@
 
 import { CategoryMarginConfig } from '../types/category';
 import { Product } from '../types';
+import { calculateProductFields, CalculationInput } from './pricing';
 
 /**
- * Validar se margem está dentro dos limites regulatórios
+ * NOVO (Fase 2): Validar se margem está dentro dos limites regulatórios
+ * Aceita ambos os formatos de argumentos para compatibilidade
  */
 export function validateMarginCompliance(
-  margin: number,
-  category: CategoryMarginConfig
+  categoryOrMargin: CategoryMarginConfig | number,
+  marginOrCategory?: number | CategoryMarginConfig
 ): {
-  isValid: boolean;
+  isCompliant: boolean;
+  reason?: string;
+  isValid?: boolean;
   error?: string;
   warnings?: string[];
 } {
+  // Aceita ambos os formatos: (category, margin) ou (margin, category)
+  let category: CategoryMarginConfig;
+  let margin: number;
+
+  if (typeof categoryOrMargin === 'number') {
+    // Formato: (margin, category)
+    margin = categoryOrMargin;
+    category = marginOrCategory as CategoryMarginConfig;
+  } else {
+    // Formato: (category, margin)
+    category = categoryOrMargin;
+    margin = marginOrCategory as number;
+  }
+
   const { marginRules, regulatoryConstraints } = category;
 
   // Verificar min/max da categoria
   if (margin < marginRules.minMargin) {
+    const reason = `Margem ${margin}% é abaixo do mínimo (${marginRules.minMargin}%) para ${category.name}`;
     return {
+      isCompliant: false,
+      reason,
       isValid: false,
-      error: `Margem ${margin}% é abaixo do mínimo (${marginRules.minMargin}%) para categoria ${category.name}`,
+      error: reason,
     };
   }
 
   if (margin > marginRules.maxMargin) {
+    const reason = `Margem ${margin}% é acima do máximo (${marginRules.maxMargin}%) para ${category.name}`;
     return {
+      isCompliant: false,
+      reason,
       isValid: false,
-      error: `Margem ${margin}% é acima do máximo (${marginRules.maxMargin}%) para categoria ${category.name}`,
+      error: reason,
     };
   }
 
   // Verificar limites regulatórios
   if (regulatoryConstraints?.maxMarginPercentage) {
     if (margin > regulatoryConstraints.maxMarginPercentage) {
+      const reason = `Margem ${margin}% excede limite regulatório (${regulatoryConstraints.maxMarginPercentage}%) - ${regulatoryConstraints.restrictionBody}`;
       return {
+        isCompliant: false,
+        reason,
         isValid: false,
-        error: `Margem ${margin}% excede limite regulatório (${regulatoryConstraints.maxMarginPercentage}%) - ${regulatoryConstraints.restrictionBody}`,
+        error: reason,
       };
     }
   }
 
-  return { isValid: true };
+  return {
+    isCompliant: true,
+    isValid: true
+  };
 }
 
 /**
@@ -190,4 +220,45 @@ export function validateCategoryData(data: any): {
     valid: errors.length === 0,
     errors,
   };
+}
+
+/**
+ * NOVO (Fase 2): Calcular preços de produto usando margem da categoria
+ * Integra a lógica de herança de margem e validação de conformidade
+ *
+ * @param calculationInput - Dados de cálculo sem margem definida
+ * @param category - Categoria do produto (contém regras de margem)
+ * @param overrideMargin - Margem override se houver
+ * @returns Resultado completo do cálculo de preços com margem da categoria
+ */
+export function calculateProductPricesWithCategoryMargin(
+  calculationInput: Omit<CalculationInput, 'margemDesejada'>,
+  category?: CategoryMarginConfig,
+  overrideMargin?: number
+) {
+  // Determinar margem a usar
+  let effectiveMargin = 0;
+
+  if (overrideMargin !== undefined && overrideMargin !== null) {
+    effectiveMargin = overrideMargin;
+  } else if (category) {
+    effectiveMargin = category.marginRules.baseMargin;
+  } else {
+    // Fallback se não houver categoria
+    effectiveMargin = calculationInput.margemDesejada || 0;
+  }
+
+  // Validar conformidade se houver categoria
+  if (category && overrideMargin !== undefined) {
+    const compliance = validateMarginCompliance(category, overrideMargin);
+    if (!compliance.isCompliant) {
+      console.warn(`Margem não está em conformidade: ${compliance.reason}`);
+    }
+  }
+
+  // Executar cálculo com margem efetiva
+  return calculateProductFields({
+    ...calculationInput,
+    margemDesejada: effectiveMargin,
+  });
 }
