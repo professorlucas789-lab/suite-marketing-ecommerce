@@ -1,0 +1,3 @@
+#!/bin/sh
+# Auto-push após commit
+git push origin master
