@@ -1,0 +1,6 @@
+{
+  "name": "PreçoCerto",
+  "description": "Calculadora de preços de venda para cadastrar produtos com cálculo automático de lucro, margens e custos (Kz).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

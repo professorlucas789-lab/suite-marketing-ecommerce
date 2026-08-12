@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Google AI Studio App</title>
+    <script>
+      (function() {
+        try {
+          const globalObj = typeof globalThis !== 'undefined' ? globalThis : window;
+
+          // 1. Prevent formdata-polyfill from executing by pre-emptively making FormData compliant
+          if (globalObj.FormData) {
+            const proto = globalObj.FormData.prototype;
+            if (proto) {
+              if (!proto.keys) {
+                try { proto.keys = function* () { yield* []; }; } catch(e) {}
+              }
+              if (!proto.values) {
+                try { proto.values = function* () { yield* []; }; } catch(e) {}
+              }
+              if (!proto.entries) {
+                try { proto.entries = function* () { yield* []; }; } catch(e) {}
+              }
+              if (!proto[Symbol.iterator]) {
+                try { proto[Symbol.iterator] = function() { return this.entries(); }; } catch(e) {}
+              }
+            }
+          } else {
+            try {
+              globalObj.FormData = class FormData {
+                constructor() { this._data = []; }
+                append(k, v) { this._data.push([k, v]); }
+                delete(k) { this._data = this._data.filter(([key]) => key !== k); }
+                get(k) { const found = this._data.find(([key]) => key === k); return found ? found[1] : null; }
+                getAll(k) { return this._data.filter(([key]) => key === k).map(([, v]) => v); }
+                has(k) { return this._data.some(([key]) => key === k); }
+                set(k, v) { this.delete(k); this.append(k, v); }
+                forEach(cb, thisArg) { this._data.forEach(([key, val]) => cb.call(thisArg, val, key, this)); }
+                *keys() { for (const [k] of this._data) yield k; }
+                *values() { for (const [, v] of this._data) yield v; }
+                *entries() { for (const entry of this._data) yield entry; }
+                [Symbol.iterator]() { return this.entries(); }
+              };
+            } catch(e) {}
+          }
+
+          // 2. Safely patch fetch so that assignment (like window.fetch = ...) works
+          const originalFetch = globalObj.fetch;
+          if (originalFetch) {
+            let currentFetch = originalFetch;
+            const descriptor = {
+              get() { return currentFetch; },
+              set(val) { currentFetch = val; },
+              configurable: true,
+              enumerable: true
+            };
+
+            // Define on globalObj/window
+            try {
+              Object.defineProperty(globalObj, 'fetch', descriptor);
+            } catch (e) {
+              console.warn("Could not define fetch on globalObj:", e);
+            }
+
+            if (typeof window !== 'undefined' && window !== globalObj) {
+              try {
+                Object.defineProperty(window, 'fetch', descriptor);
+              } catch (e) {
+                console.warn("Could not define fetch on window:", e);
+              }
+            }
+
+            if (typeof Window !== 'undefined' && Window.prototype) {
+              try {
+                Object.defineProperty(Window.prototype, 'fetch', descriptor);
+              } catch (e) {
+                console.warn("Could not define fetch on Window.prototype:", e);
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Fetch patch error:", e);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
