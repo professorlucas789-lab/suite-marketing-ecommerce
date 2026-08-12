@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Product, BusinessSettings } from "../types";
 import { CATEGORY_PRESETS, formatKz } from "../utils";
 import { calculateProductFields, getPriceHealth } from "../utils/pricing";
+import { useCategories } from "../hooks/useCategories"; // NOVO (Fase 2)
+import { getProductMargin, validateMarginCompliance } from "../utils/categoryUtils"; // NOVO (Fase 2)
 import { motion } from "motion/react";
 import { 
   ArrowLeft, 
@@ -52,6 +54,13 @@ const UNIDADES_PRESETS = [
 export default function ProductForm({ productToEdit, onSave, onCancel, settings }: ProductFormProps) {
   const activeModule = businessModuleRegistry.getModuleById(settings?.businessType || "outro");
   const [extraFieldValues, setExtraFieldValues] = useState<Record<string, any>>({});
+
+  // NOVO (Fase 2): Categories and margin management
+  const { categories, loading: categoriesLoading } = useCategories();
+  const [categoryId, setCategoryId] = useState<string>("");
+  const [margemOverride, setMargemOverride] = useState<string>("");
+  const [margemOverrideReason, setMargemOverrideReason] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<any>(null);
 
   // States for Phase 7 change reason tracking
   const [changeReasonOption, setChangeReasonOption] = useState<string>("aumento do custo de compra");
@@ -142,6 +151,14 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showAdvancedCosts, setShowAdvancedCosts] = useState<boolean>(false);
 
+  // NOVO (Fase 2): Auto-update margin when category changes
+  useEffect(() => {
+    if (selectedCategory && !margemOverride) {
+      // Se não há override, usar margem da categoria
+      setMargemDesejada(selectedCategory.marginRules.baseMargin.toString());
+    }
+  }, [selectedCategory, margemOverride]);
+
   // Auto-calculate available quantity
   useEffect(() => {
     const qComp = parseFloat(quantidade) || 0;
@@ -150,6 +167,23 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
     const qVend = parseFloat(quantidadeVendida) || 0;
     setQuantidadeDisponivel(Math.max(0, totalVend - qVend).toString());
   }, [quantidade, unidadesInternas, venderEmbalagemInteira, quantidadeVendida]);
+
+  // NOVO (Fase 2): Load category data when product is edited or categories change
+  useEffect(() => {
+    if (productToEdit?.categoryId && categories.length > 0) {
+      const cat = categories.find(c => c.id === productToEdit.categoryId);
+      if (cat) {
+        setCategoryId(cat.id);
+        setSelectedCategory(cat);
+        setMargemOverride(productToEdit.margemOverride?.toString() || "");
+        setMargemOverrideReason(productToEdit.margemOverrideReason || "");
+      }
+    } else if (categories.length > 0 && !categoryId) {
+      // Auto-select first category if none selected
+      setCategoryId(categories[0].id);
+      setSelectedCategory(categories[0]);
+    }
+  }, [productToEdit?.categoryId, categories, categoryId]);
 
   // Load product data when editing
   useEffect(() => {
@@ -707,9 +741,53 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
                 />
               </div>
 
+              {/* NOVO (Fase 2): Category selection with margin management */}
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
-                  Categoria
+                  Categoria <span className="text-emerald-500">(Margem Gerida)</span>
+                </label>
+                {categoriesLoading ? (
+                  <div className="w-full px-3.5 py-2 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-500">
+                    Carregando categorias...
+                  </div>
+                ) : categories.length > 0 ? (
+                  <select
+                    id="form-categoryId"
+                    value={categoryId}
+                    onChange={(e) => {
+                      const selected = categories.find(c => c.id === e.target.value);
+                      if (selected) {
+                        setCategoryId(selected.id);
+                        setSelectedCategory(selected);
+                        setMargemDesejada(selected.marginRules.baseMargin.toString());
+                        setMargemOverride("");
+                      }
+                    }}
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-800 text-slate-800 dark:text-slate-100 cursor-pointer transition-colors"
+                  >
+                    <option value="">Selecione uma categoria</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name} ({cat.marginRules.baseMargin}%)
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full px-3.5 py-2 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900 rounded-lg text-sm text-yellow-700 dark:text-yellow-400">
+                    Nenhuma categoria criada. Aceda a "Categorias" para criar uma.
+                  </div>
+                )}
+                {selectedCategory && (
+                  <div className="mt-2 p-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg text-xs text-emerald-700 dark:text-emerald-400">
+                    Margem: {selectedCategory.marginRules.baseMargin}% | Limite: {selectedCategory.marginRules.minMargin}%-{selectedCategory.marginRules.maxMargin}%
+                  </div>
+                )}
+              </div>
+
+              {/* Legacy category field for compatibility */}
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
+                  Categoria (Legacy)
                 </label>
                 <select
                   id="form-categoria"
