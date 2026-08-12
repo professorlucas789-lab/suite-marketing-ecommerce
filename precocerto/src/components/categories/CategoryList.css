@@ -1,0 +1,228 @@
+/**
+ * CategoryList Styles
+ */
+
+.category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-secondary, #f9fafb);
+  border-radius: 0.5rem;
+}
+
+.category-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.category-list-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.category-list-loading,
+.category-list-empty {
+  padding: 2rem;
+  text-align: center;
+  background: var(--bg-primary, #fff);
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.category-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.category-list-empty p {
+  margin: 0;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.95rem;
+}
+
+/* Table Styles */
+.category-list-table {
+  overflow-x: auto;
+}
+
+.category-list-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.category-list-table thead {
+  background: var(--bg-header, #f3f4f6);
+  border-bottom: 2px solid var(--border-color, #e5e7eb);
+}
+
+.category-list-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.category-list-table tbody tr {
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  transition: background-color 0.15s ease;
+}
+
+.category-list-table tbody tr:hover {
+  background: var(--bg-hover, #f9fafb);
+}
+
+.category-list-table td {
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-primary, #111827);
+}
+
+.category-name {
+  font-weight: 500;
+  min-width: 150px;
+}
+
+.category-base-margin {
+  font-weight: 600;
+  color: var(--success-color, #059669);
+  min-width: 80px;
+}
+
+.category-range {
+  color: var(--text-secondary, #6b7280);
+  min-width: 100px;
+}
+
+.category-regulatory {
+  min-width: 140px;
+}
+
+.regulatory-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--warning-bg, #fef3c7);
+  color: var(--warning-text, #92400e);
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.regulatory-badge.none {
+  background: var(--info-bg, #dbeafe);
+  color: var(--info-text, #0c4a6e);
+}
+
+.regulatory-badge small {
+  display: block;
+  font-size: 0.7rem;
+  margin-top: 0.15rem;
+  opacity: 0.8;
+}
+
+.category-products {
+  text-align: center;
+  font-weight: 500;
+  min-width: 70px;
+}
+
+.category-actions {
+  display: flex;
+  gap: 0.5rem;
+  min-width: 100px;
+}
+
+/* Button Styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--primary-color, #0284c7);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-dark, #0369a1);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-secondary {
+  background: var(--secondary-bg, #e5e7eb);
+  color: var(--secondary-text, #374151);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--secondary-hover, #d1d5db);
+}
+
+.btn-danger {
+  background: var(--danger-color, #ef4444);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-dark, #dc2626);
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .category-list-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .category-list-table {
+    font-size: 0.75rem;
+  }
+
+  .category-list-table th,
+  .category-list-table td {
+    padding: 0.5rem;
+  }
+
+  .category-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .category-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

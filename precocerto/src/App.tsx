@@ -28,16 +28,17 @@ import BusinessSettingsView from "./components/BusinessSettingsView";
 import GeneralHistoryView from "./components/GeneralHistoryView";
 import ReportsView from "./components/ReportsView";
 import BackupView from "./components/BackupView";
+import { CategoriesTab } from "./components/CategoriesTab"; // NOVO (Fase 1)
 
 
 // Icons
-import { 
-  TrendingUp, 
-  LogOut, 
-  LayoutDashboard, 
-  Package, 
-  User as UserIcon, 
-  Loader2, 
+import {
+  TrendingUp,
+  LogOut,
+  LayoutDashboard,
+  Package,
+  User as UserIcon,
+  Loader2,
   CheckCircle2,
   X,
   Calculator,
@@ -47,7 +48,8 @@ import {
   History,
   FileText,
   Database,
-  Menu
+  Menu,
+  Folder // NOVO (Fase 1)
 } from "lucide-react";
 
 export default function App() {
@@ -561,7 +563,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "products" | "reverse-calculator" | "history" | "reports" | "settings" | "backup";
+    id: "dashboard" | "products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup"; // NOVO: categories
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -570,6 +572,7 @@ export default function App() {
   const navigationItems: SidebarNavItem[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "products", label: "Lista de Produtos", icon: Package, badge: products.length },
+    { id: "categories", label: "Categorias", icon: Folder }, // NOVO (Fase 1)
     { id: "reverse-calculator", label: "Calculadora Reversa", icon: Calculator },
     { id: "history", label: "Histórico", icon: History },
     { id: "reports", label: "Relatórios", icon: FileText },
@@ -840,13 +843,28 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <ProductList 
-                      products={products} 
+                    <ProductList
+                      products={products}
                       settings={businessSettings}
-                      onAddProduct={handleAddNewTrigger} 
+                      onAddProduct={handleAddNewTrigger}
                       onEditProduct={handleEditTrigger}
                       onDeleteProduct={handleDeleteProduct}
                       onDuplicateProduct={handleDuplicateProduct}
+                    />
+                  </motion.div>
+                )}
+
+                {/* NOVO (Fase 1): Categories Tab */}
+                {activeTab === "categories" && (
+                  <motion.div
+                    key="categories-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <CategoriesTab
+                      businessType={businessSettings?.businessType || "supermercado"}
                     />
                   </motion.div>
                 )}

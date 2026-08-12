@@ -1,8 +1,16 @@
+/**
+ * Imports for new types (Fase 1 - Categories)
+ */
+import type { CategoryMarginConfig } from './types/category';
+
 export interface Product {
   id?: string;
   nome: string;
   categoria: string;
   fornecedor: string;
+
+  // NOVO (Fase 1): Referência à categoria
+  categoryId?: string; // FK para CategoryMarginConfig (opcional por compatibilidade)
   
   // Novas propriedades da Fase 3
   unidadeMedida?: string;
@@ -56,7 +64,22 @@ export interface Product {
   seguranca?: number;
   outrosCustosFixos?: number;
 
-  margemDesejada: number; // in %
+  margemDesejada: number; // in % - Agora herdada da categoria
+
+  // NOVO (Fase 1): Override de margem (exceção quando justificada)
+  margemOverride?: number; // Se null, usar da categoria
+  margemOverrideReason?: string; // Por que é diferente da categoria
+
+  // NOVO (Fase 1): Performance Metrics (será preenchido ao longo do tempo)
+  performanceMetrics?: {
+    unitsSoldLastMonth?: number;
+    totalRevenueLastMonth?: number;
+    observedMarginLastMonth?: number;
+    turnoverRate?: number; // 0-1
+    priceElasticity?: number;
+    lastAnalyzedAt?: string; // ISO date
+  };
+
   precoVendaRecomendado: number;
   lucroEstimado: number;
   margemReal: number; // in %
@@ -139,11 +162,20 @@ export interface BusinessSettings {
   dateFormat: string;
   numberFormat: string;
   customCategories?: string[]; // user custom categories (Fase 12)
+
+  // NOVO (Fase 1): Framework regulatório (referência global)
+  regulatoryFramework?: {
+    businessType: string;
+    maxMargins?: Record<string, number>; // "pharmacy" -> 35
+    restrictionBodies?: string[];
+    lastUpdated?: string;
+  };
+
   createdAt?: string;
   updatedAt?: string;
 }
 
-export type ActiveTab = "dashboard" | "products" | "add-product" | "edit-product" | "reverse-calculator" | "settings" | "history" | "reports" | "backup";
+export type ActiveTab = "dashboard" | "products" | "add-product" | "categories" | "edit-product" | "reverse-calculator" | "settings" | "history" | "reports" | "backup";
 
 export interface PriceHistory {
   id?: string;
