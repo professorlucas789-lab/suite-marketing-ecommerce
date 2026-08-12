@@ -565,6 +565,21 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       }
     }
 
+    // NOVO (Fase 2): Validação de compliance de margem com categoria
+    if (selectedCategory && margemOverride) {
+      const marginValue = parseFloat(margemOverride);
+      if (isNaN(marginValue)) {
+        setValidationError("Margem override deve ser um número válido");
+        return;
+      }
+
+      const complianceInfo = validateMarginCompliance(selectedCategory, marginValue);
+      if (!complianceInfo.isCompliant) {
+        setValidationError(`Margem não está em conformidade: ${complianceInfo.reason}`);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const hasChanges = checkHasChanges();
@@ -577,12 +592,17 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
         categoria,
         fornecedor: fornecedor.trim(),
         quantidade: parsedQuantidade,
-        
+
+        // NOVO (Fase 2): Category-based margins
+        categoryId: categoryId || undefined,
+        margemOverride: margemOverride ? parseFloat(margemOverride) : undefined,
+        margemOverrideReason: margemOverrideReason || undefined,
+
         // Phase 3 structural storage
         unidadeMedida,
         modoCalculo,
         quantidadeVendida: parsedQuantidadeVendida,
-        quantidadeDisponivel: parseFloat(quantidadeDisponivel),
+        quantidadeDisponivel: parseFloat(quantidadeDisponível),
 
         // Base
         custoCompra: parsedCustoCompra,
@@ -1482,6 +1502,130 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
               </h3>
             </div>
             
+            {/* NOVO (Fase 2): Category margin information card */}
+            {selectedCategory && (
+              <motion.div
+                id="form-category-margin-info"
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30 rounded-xl space-y-3"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    <Info size={16} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200 mb-2">
+                      Configuração de Margem da Categoria: {selectedCategory.name}
+                    </h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <span className="text-emerald-700 dark:text-emerald-300 font-semibold">Base:</span>
+                        <span className="text-emerald-900 dark:text-emerald-100 block font-mono font-bold">
+                          {selectedCategory.marginRules.baseMargin}%
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-emerald-700 dark:text-emerald-300 font-semibold">Mín-Máx:</span>
+                        <span className="text-emerald-900 dark:text-emerald-100 block font-mono font-bold">
+                          {selectedCategory.marginRules.minMargin}%-{selectedCategory.marginRules.maxMargin}%
+                        </span>
+                      </div>
+                      {selectedCategory.regulatoryConstraints?.maxMarginPercentage && (
+                        <div>
+                          <span className="text-amber-700 dark:text-amber-300 font-semibold">Regulatório:</span>
+                          <span className="text-amber-900 dark:text-amber-100 block font-mono font-bold">
+                            Máx {selectedCategory.regulatoryConstraints.maxMarginPercentage}%
+                          </span>
+                        </div>
+                      )}
+                      {selectedCategory.regulatoryConstraints?.restrictionBody && (
+                        <div>
+                          <span className="text-slate-700 dark:text-slate-300 font-semibold">Regulador:</span>
+                          <span className="text-slate-900 dark:text-slate-100 block text-[10px]">
+                            {selectedCategory.regulatoryConstraints.restrictionBody}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* NOVO (Fase 2): Margin override section */}
+            {selectedCategory && (
+              <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="form-use-margin-override"
+                    type="checkbox"
+                    checked={margemOverride !== ""}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setMargemOverride(selectedCategory.marginRules.baseMargin.toString());
+                      } else {
+                        setMargemOverride("");
+                        setMargemOverrideReason("");
+                      }
+                    }}
+                    className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                  />
+                  <label htmlFor="form-use-margin-override" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    Sobrepor Margem da Categoria
+                  </label>
+                </div>
+
+                {margemOverride !== "" && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700"
+                  >
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
+                        Margem Override %
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="form-margem-override"
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="99.9"
+                          value={margemOverride}
+                          onChange={(e) => setMargemOverride(e.target.value)}
+                          className="w-full pr-10 pl-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-mono focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 text-slate-800 dark:text-slate-100 transition-colors"
+                        />
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs font-bold text-slate-400 pointer-events-none">
+                          %
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
+                        Motivo da Sobreposição (Obrigatório)
+                      </label>
+                      <textarea
+                        id="form-margem-override-reason"
+                        placeholder="Ex: Produto com elevada procura no mercado / Ajuste competitivo / Campanha promocional"
+                        rows={2}
+                        value={margemOverrideReason}
+                        onChange={(e) => setMargemOverrideReason(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-xs focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
+                      />
+                      {!margemOverrideReason && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          Precisa documentar o motivo para sobreposição.
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5 flex items-center justify-between">
