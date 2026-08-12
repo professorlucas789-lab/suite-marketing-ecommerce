@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Product, BusinessSettings } from "../types";
 import { CATEGORY_PRESETS, formatKz } from "../utils";
 import { calculateProductFields, getPriceHealth } from "../utils/pricing";
+import { calculateProductPricesWithCategoryMargin } from "../utils/categoryUtils";
 import { useCategories } from "../hooks/useCategories"; // NOVO (Fase 2)
 import { getProductMargin, validateMarginCompliance } from "../utils/categoryUtils"; // NOVO (Fase 2)
 import { motion } from "motion/react";
@@ -354,13 +355,21 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       return isNaN(parsed) || parsed < 0 ? 0 : parsed;
     };
 
-    const parsedMargem = parseFloat(margemDesejada);
-    const m = isNaN(parsedMargem) ? 0 : parsedMargem;
-
     const parsedQtd = parseFloat(quantidade);
     const q = isNaN(parsedQtd) || parsedQtd <= 0 ? 1 : parsedQtd;
 
-    const baseCalculated = calculateProductFields({
+    // NOVO (Fase 2): Determinar margem a usar (override > base > input)
+    let effectiveMargin = 0;
+    if (margemOverride !== "") {
+      effectiveMargin = parseFloat(margemOverride) || 0;
+    } else if (selectedCategory) {
+      effectiveMargin = selectedCategory.marginRules.baseMargin;
+    } else {
+      effectiveMargin = parseFloat(margemDesejada) || 0;
+    }
+
+    // Preparar dados de cálculo (sem margem, pois a função integrada a adiciona)
+    const calculationData = {
       quantidade: q,
       modoCalculo,
       custoCompra: parseNum(custoCompra),
@@ -370,7 +379,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       custoEmbalagemTipo,
       outrosCustos: parseNum(outrosCustos),
       outrosCustosTipo,
-      
+
       comissaoVenda: parseNum(comissaoVenda),
       comissaoVendaTipo,
       taxaBancaria: parseNum(taxaBancaria),
@@ -405,10 +414,21 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       outrosCustosFixos: parseNum(outrosCustosFixos),
       outrosCustosFixosTipo,
 
-      margemDesejada: m,
       unidadesInternas: parseNum(unidadesInternas),
       venderEmbalagemInteira
-    });
+    };
+
+    // NOVO (Fase 2): Usar cálculo integrado com margem da categoria
+    const baseCalculated = selectedCategory
+      ? calculateProductPricesWithCategoryMargin(
+          calculationData,
+          selectedCategory,
+          margemOverride ? parseFloat(margemOverride) : undefined
+        )
+      : calculateProductFields({
+          ...calculationData,
+          margemDesejada: effectiveMargin
+        });
 
     if (activeModule.calculationRules && typeof activeModule.calculationRules.applyModuleSpecificRules === "function") {
       const currentProductRepresentation = {
