@@ -1,0 +1,1 @@
+# PreçoCerto - Deploy automático ativado
