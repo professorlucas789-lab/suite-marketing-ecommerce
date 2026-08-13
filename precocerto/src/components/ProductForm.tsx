@@ -622,7 +622,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
         unidadeMedida,
         modoCalculo,
         quantidadeVendida: parsedQuantidadeVendida,
-        quantidadeDisponivel: parseFloat(quantidadeDisponível),
+        quantidadeDisponivel: parseFloat(quantidadeDisponivel),
 
         // Base
         custoCompra: parsedCustoCompra,
