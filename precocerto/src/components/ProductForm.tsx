@@ -614,9 +614,9 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
         quantidade: parsedQuantidade,
 
         // NOVO (Fase 2): Category-based margins
-        categoryId: categoryId || undefined,
-        margemOverride: margemOverride ? parseFloat(margemOverride) : undefined,
-        margemOverrideReason: margemOverrideReason || undefined,
+        categoryId: categoryId || null,
+        margemOverride: margemOverride ? parseFloat(margemOverride) : null,
+        margemOverrideReason: margemOverrideReason || null,
 
         // Phase 3 structural storage
         unidadeMedida,
