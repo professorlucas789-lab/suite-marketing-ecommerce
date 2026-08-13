@@ -3,21 +3,20 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCgVdzPJ6fUwvmiXGzbujht8Q9jTSAYtZA",
-  authDomain: "gen-lang-client-0862839570.firebaseapp.com",
-  projectId: "gen-lang-client-0862839570",
-  storageBucket: "gen-lang-client-0862839570.firebasestorage.app",
-  messagingSenderId: "326692751245",
-  appId: "1:326692751245:web:2108ae8960d447ca6e5fc4"
+  apiKey: "AIzaSyC0VIZYQvNPbwWb4QrX33OV0yL180HA-08",
+  authDomain: "precocerto-cc04a.firebaseapp.com",
+  projectId: "precocerto-cc04a",
+  storageBucket: "precocerto-cc04a.firebasestorage.app",
+  messagingSenderId: "336447205443",
+  appId: "1:336447205443:web:b7d420f055884e38fc64f6",
+  measurementId: "G-DKD3ZCNTF5"
 };
-
-const databaseId = "ai-studio-eb3a33f4-cfa9-48ad-81e5-58623671b24e";
 
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 
-export const db = getFirestore(app, databaseId);
+export const db = getFirestore(app);
 
 export enum OperationType {
   CREATE = 'create',
