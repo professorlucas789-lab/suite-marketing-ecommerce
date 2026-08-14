@@ -35,6 +35,8 @@ import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fas
 import { ReportBuilder, ReportConfig } from "./components/ReportBuilder"; // NOVO (Fase 5B Item 3)
 import { UsersManagementView } from "./components/UsersManagementView"; // NOVO (Fase 10 - User Management)
 import { StoreList } from "./components/StoreList"; // NOVO (Fase 6 - Multi-Store)
+import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
+import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
   exportReportToExcel,
   exportReportToPDF,
@@ -77,6 +79,9 @@ export default function App() {
   const [productsLoading, setProductsLoading] = useState<boolean>(true);
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null);
   const [settingsLoading, setSettingsLoading] = useState<boolean>(true);
+
+  // NOVO (Fase 10 - RBAC): Obter dados do utilizador com papel
+  const { papel, isAdmin, isLojaManager, isFuncionario } = useUserAuth();
 
   // DEBUG LOGS
   useEffect(() => {
@@ -755,7 +760,23 @@ export default function App() {
     badge?: number;
   }
 
-  const navigationItems: SidebarNavItem[] = [
+  // Mapa de ícones baseado no nome
+  const iconMap: Record<string, React.ComponentType<any>> = {
+    LayoutDashboard,
+    Package,
+    Boxes,
+    Folder,
+    Calculator,
+    Building2,
+    History,
+    FileText,
+    User: UserIcon,
+    Settings,
+    Database,
+  };
+
+  // NOVO (Fase 10 - RBAC): Gerar navigationItems dinamicamente baseado no papel
+  const allNavigationItems: SidebarNavItem[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "products", label: "Lista de Produtos", icon: Package, badge: products.length },
     { id: "batch-products", label: "Cadastro em Lote", icon: Boxes }, // NOVO (Fase 3)
@@ -768,6 +789,12 @@ export default function App() {
     { id: "settings", label: "Configurações", icon: Settings },
     { id: "backup", label: "Backup e Dados", icon: Database }
   ];
+
+  // Filtrar itens baseado no papel do utilizador (NOVO Fase 10 - RBAC)
+  const configItems = getNavItemsForRole(papel);
+  const navigationItems = allNavigationItems.filter((item) =>
+    configItems.some((cfgItem) => cfgItem.id === item.id)
+  );
 
   const isTabActive = (tabId: string) => {
     if (tabId === "products" && (activeTab === "add-product" || activeTab === "edit-product")) {
