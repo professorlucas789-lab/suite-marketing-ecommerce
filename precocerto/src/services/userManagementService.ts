@@ -172,9 +172,6 @@ export class UserManagementService {
         entityId: userId,
         entityName: data.nome || 'Utilizador',
         storeId,
-        mudancas: {
-          ...data,
-        },
       });
     } catch (error) {
       console.error('Erro ao atualizar utilizador:', error);
