@@ -141,12 +141,19 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
 
       console.log('✅ Lojas atribuídas com sucesso no Firestore!');
 
+      // Aguardar um pouco para garantir que o Firestore foi atualizado
+      console.log('⏳ Aguardando 500ms para sincronização do Firestore...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Recarregar dados de loja
-      console.log('🔄 Recarregando dados de loja...');
+      console.log('🔄 Recarregando dados de loja via refreshStoreData()...');
       await refreshStoreData();
 
       console.log('✅ Dados de loja recarregados com sucesso!');
+
+      // Mensagem de sucesso
       setMensagemErro(null);
+      console.log('✅ handleAtribuirLojas completado com sucesso!');
 
     } catch (error) {
       console.error('❌ Erro completo:', error);
