@@ -2,21 +2,23 @@ import React, { useState, useMemo } from "react";
 import { Product, BusinessSettings } from "../types";
 import { formatKz, CATEGORY_PRESETS, getPriceHealth } from "../utils";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Search, 
-  Filter, 
-  Trash2, 
-  Edit3, 
-  Plus, 
-  ArrowUpDown, 
-  ChevronDown, 
+import {
+  Search,
+  Filter,
+  Trash2,
+  Edit3,
+  Plus,
+  ArrowUpDown,
+  ChevronDown,
   FileText,
   AlertTriangle,
   Activity,
   Award,
-  Copy
+  Copy,
+  X // NOVO (Fase 5A Item 3 - Search enhancement)
 } from "lucide-react";
 import ProductDetailsModal from "./ProductDetailsModal";
+import { SearchHighlight } from "./SearchHighlight"; // NOVO (Fase 5A Item 3)
 
 interface ProductListProps {
   products: Product[];
@@ -224,8 +226,17 @@ export default function ProductList({ products, onAddProduct, onEditProduct, onD
               placeholder="Pesquisar por nome do produto ou fornecedor..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-950 transition-all text-slate-800 dark:text-slate-100"
+              className="w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-950 transition-all text-slate-800 dark:text-slate-100"
             />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400 transition-colors"
+                title="Limpar pesquisa"
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
 
           {/* Category Filter */}
@@ -251,6 +262,28 @@ export default function ProductList({ products, onAddProduct, onEditProduct, onD
             </span>
           </div>
         </div>
+
+        {/* NOVO (Fase 5A Item 3): Results counter and filters info */}
+        {(search || selectedCategory !== "all") && (
+          <div className="text-sm text-slate-600 dark:text-slate-400 flex items-center justify-between">
+            <span>
+              {filteredAndSortedProducts.length} de {products.length} produtos
+              {search && ` encontrados para "${search}"`}
+              {selectedCategory !== "all" && ` em "${selectedCategory}"`}
+            </span>
+            {(search || selectedCategory !== "all") && (
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setSelectedCategory('all');
+                }}
+                className="text-emerald-600 dark:text-emerald-400 hover:underline text-xs font-medium"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main content list */}
@@ -337,7 +370,7 @@ export default function ProductList({ products, onAddProduct, onEditProduct, onD
                         {/* Produto / Fornecedor */}
                         <td className="py-4 px-6 min-w-[200px]">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-semibold text-slate-800 dark:text-slate-100">{product.nome}</span>
+                            <SearchHighlight text={product.nome} search={search} className="font-semibold text-slate-800 dark:text-slate-100" />
                             {product.tipoProduto === "medicamento/farmácia" && (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30">
                                 Medicamento
@@ -526,7 +559,7 @@ export default function ProductList({ products, onAddProduct, onEditProduct, onD
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center flex-wrap gap-1.5">
-                        <span>{product.nome}</span>
+                        <SearchHighlight text={product.nome} search={search} className="text-inherit" />
                         {product.tipoProduto === "medicamento/farmácia" && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30">
                             Medicamento
