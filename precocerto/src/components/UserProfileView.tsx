@@ -12,6 +12,8 @@ import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { motion } from 'motion/react';
+import ActivityHistoryCard from './ActivityHistoryCard'; // NOVO (Fase 11)
+import { logPasswordChange, logAvatarUpdate } from '../utils/activityLogger'; // NOVO (Fase 11)
 
 interface UserData {
   id: string;
@@ -172,6 +174,9 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
       // Atualizar state local
       setUserData(prev => prev ? { ...prev, avatar: downloadURL } : null);
 
+      // NOVO (Fase 11): Registar atividade
+      await logAvatarUpdate('upload');
+
       setMessage({ type: 'success', text: 'Avatar atualizado com sucesso!' });
       setTimeout(() => setMessage(null), 3000);
 
@@ -209,6 +214,9 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
       // Atualizar state
       setUserData(prev => prev ? { ...prev, avatar: undefined } : null);
       setAvatarPreview(null);
+
+      // NOVO (Fase 11): Registar atividade
+      await logAvatarUpdate('remove');
 
       setMessage({ type: 'success', text: 'Avatar removido com sucesso!' });
       setTimeout(() => setMessage(null), 3000);
@@ -254,6 +262,9 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
 
       // Update password
       await updatePassword(user, newPassword);
+
+      // NOVO (Fase 11): Registar atividade
+      await logPasswordChange();
 
       setMessage({ type: 'success', text: 'Senha alterada com sucesso!' });
 
@@ -767,6 +778,9 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
           )}
         </div>
       </div>
+
+      {/* NOVO (Fase 11): Activity History Card */}
+      <ActivityHistoryCard />
     </div>
   );
 };
