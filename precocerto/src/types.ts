@@ -182,7 +182,7 @@ export interface BusinessSettings {
   updatedAt?: string;
 }
 
-export type ActiveTab = "dashboard" | "products" | "add-product" | "batch-products" | "categories" | "edit-product" | "reverse-calculator" | "settings" | "history" | "reports" | "backup" | "users";
+export type ActiveTab = "dashboard" | "products" | "add-product" | "batch-products" | "categories" | "edit-product" | "reverse-calculator" | "settings" | "history" | "reports" | "backup" | "users" | "stores"; // NOVO (Fase 6 - Stores)
 
 export interface PriceHistory {
   id?: string;

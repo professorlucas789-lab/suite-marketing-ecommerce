@@ -34,6 +34,7 @@ import { ImportCSVModal } from "./components/ImportCSVModal"; // NOVO (Fase 5A)
 import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fase 5A)
 import { ReportBuilder, ReportConfig } from "./components/ReportBuilder"; // NOVO (Fase 5B Item 3)
 import { UsersManagementView } from "./components/UsersManagementView"; // NOVO (Fase 10 - User Management)
+import { StoreList } from "./components/StoreList"; // NOVO (Fase 6 - Multi-Store)
 import {
   exportReportToExcel,
   exportReportToPDF,
@@ -64,7 +65,8 @@ import {
   Boxes, // NOVO (Fase 3 - Batch products) - Changed from Layers to Boxes
   Upload, // NOVO (Fase 5A - CSV Import)
   Download, // NOVO (Fase 5A - Excel Export)
-  BarChart3 // NOVO (Fase 5B Item 3 - Custom Reports)
+  BarChart3, // NOVO (Fase 5B Item 3 - Custom Reports)
+  Building2 // NOVO (Fase 6 - Multi-Store)
 } from "lucide-react";
 
 export default function App() {
@@ -747,7 +749,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users"; // NOVO: batch-products, users
+    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users" | "stores"; // NOVO: batch-products, users, stores
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -759,6 +761,7 @@ export default function App() {
     { id: "batch-products", label: "Cadastro em Lote", icon: Boxes }, // NOVO (Fase 3)
     { id: "categories", label: "Categorias", icon: Folder }, // NOVO (Fase 1)
     { id: "reverse-calculator", label: "Calculadora Reversa", icon: Calculator },
+    { id: "stores", label: "Lojas", icon: Building2 }, // NOVO (Fase 6 - Multi-Store)
     { id: "history", label: "Histórico", icon: History },
     { id: "reports", label: "Relatórios", icon: FileText },
     { id: "users", label: "Utilizadores", icon: UserIcon }, // NOVO (Fase 10)
@@ -1150,6 +1153,18 @@ export default function App() {
                   </motion.div>
                 )}
 
+                {activeTab === "stores" && (
+                  <motion.div
+                    key="stores-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <StoreList />
+                  </motion.div>
+                )}
+
                 {activeTab === "settings" && (
                   <motion.div
                     key="settings-view"
@@ -1158,9 +1173,9 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <BusinessSettingsView 
-                      settings={businessSettings} 
-                      onSave={handleSaveBusinessSettings} 
+                    <BusinessSettingsView
+                      settings={businessSettings}
+                      onSave={handleSaveBusinessSettings}
                     />
                   </motion.div>
                 )}
