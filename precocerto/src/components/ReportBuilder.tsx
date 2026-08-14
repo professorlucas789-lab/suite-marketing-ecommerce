@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Product } from '../types';
 import { Download, Plus, X, FileJson, FileSpreadsheet, FileText, Filter } from 'lucide-react';
 
@@ -34,8 +34,9 @@ export interface ReportConfig {
  * Componente construtor de relatórios personalizados
  * Permite ao utilizador criar relatórios customizados
  * Fase 5B Item 3: Custom Reports
+ * Performance optimized with React.memo and useCallback
  */
-export function ReportBuilder({
+function ReportBuilderComponent({
   products,
   onGenerateReport,
   onExport
@@ -84,29 +85,29 @@ export function ReportBuilder({
     { id: 'roi', label: 'ROI %', key: 'roi', enabled: false, sortable: true },
   ];
 
-  const toggleColumn = (columnId: string) => {
+  const toggleColumn = useCallback((columnId: string) => {
     setSelectedColumns(prev =>
       prev.map(col =>
         col.id === columnId ? { ...col, enabled: !col.enabled } : col
       )
     );
-  };
+  }, []);
 
-  const addColumn = (columnId: string) => {
-    const availableCol = availableColumns.find(c => c.id === columnId);
-    if (availableCol && !selectedColumns.find(c => c.id === columnId)) {
-      setSelectedColumns([
-        ...selectedColumns,
-        { ...availableCol, enabled: true }
-      ]);
-    }
-  };
+  const addColumn = useCallback((columnId: string) => {
+    setSelectedColumns(prev => {
+      const availableCol = availableColumns.find(c => c.id === columnId);
+      if (availableCol && !prev.find(c => c.id === columnId)) {
+        return [...prev, { ...availableCol, enabled: true }];
+      }
+      return prev;
+    });
+  }, [availableColumns]);
 
-  const removeColumn = (columnId: string) => {
+  const removeColumn = useCallback((columnId: string) => {
     setSelectedColumns(prev => prev.filter(col => col.id !== columnId));
-  };
+  }, []);
 
-  const addFilter = () => {
+  const addFilter = useCallback(() => {
     let newFilter: ReportFilter | null = null;
     const filterId = `${filterType}-${Date.now()}`;
 
@@ -159,13 +160,23 @@ export function ReportBuilder({
     if (newFilter) {
       setFilters([...filters, newFilter]);
     }
-  };
+  }, [
+    filterType,
+    categoryValue,
+    priceMin,
+    priceMax,
+    marginMin,
+    marginMax,
+    roiMin,
+    roiMax,
+    filters
+  ]);
 
-  const removeFilter = (filterId: string) => {
+  const removeFilter = useCallback((filterId: string) => {
     setFilters(prev => prev.filter(f => f.id !== filterId));
-  };
+  }, []);
 
-  const handleGenerateReport = () => {
+  const handleGenerateReport = useCallback(() => {
     onGenerateReport({
       title: reportTitle,
       columns: selectedColumns.filter(c => c.enabled),
@@ -173,7 +184,7 @@ export function ReportBuilder({
       sortBy,
       sortOrder
     });
-  };
+  }, [reportTitle, selectedColumns, filters, sortBy, sortOrder, onGenerateReport]);
 
   return (
     <div className="space-y-6">
@@ -533,3 +544,9 @@ export function ReportBuilder({
     </div>
   );
 }
+
+/**
+ * Memoized ReportBuilder component
+ * Prevents unnecessary re-renders when props haven't changed
+ */
+export const ReportBuilder = React.memo(ReportBuilderComponent);
