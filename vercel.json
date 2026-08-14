@@ -1,6 +1,6 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
+  "buildCommand": "cd precocerto && npm install && npm run build",
+  "outputDirectory": "precocerto/dist",
   "cleanUrls": true,
   "headers": [
     {
