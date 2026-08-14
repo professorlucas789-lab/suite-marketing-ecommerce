@@ -1,6 +1,6 @@
 {
   "rootDirectory": "precocerto",
-  "buildCommand": "npm install && npm run build",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "cleanUrls": true,
   "headers": [
