@@ -4,7 +4,7 @@
  * NOVO (Fase 12): Isolado por loja + seletor para admin
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { CategoryList } from './categories/CategoryList';
 import { CategoryForm } from './categories/CategoryForm';
 import { useCategories } from '../hooks/useCategories';
@@ -96,7 +96,7 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
   /**
    * Atribuir automaticamente todas as lojas ao admin
    */
-  const handleAtribuirLojas = async () => {
+  const handleAtribuirLojas = useCallback(async () => {
     console.log('🎯 handleAtribuirLojas foi chamado!');
     try {
       setAtribuindo(true);
@@ -167,7 +167,7 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
       console.log('🏁 handleAtribuirLojas finalizado');
       setAtribuindo(false);
     }
-  };
+  }, [refreshStoreData]);
 
   // FIX: Verificar se há lojas atribuídas
   if (userStores.length === 0) {
@@ -190,7 +190,10 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
 
               {mensagemErro && (
                 <div className="bg-red-50 border border-red-200 rounded p-3 mb-4">
-                  <p className="text-red-700 text-sm">❌ {mensagemErro}</p>
+                  <p className="text-red-700 text-sm font-medium">❌ Erro: {mensagemErro}</p>
+                  <p className="text-red-600 text-xs mt-2">
+                    ℹ️ Se o erro persistir, abra a Consola do Navegador (F12) para ver logs detalhados.
+                  </p>
                 </div>
               )}
 
