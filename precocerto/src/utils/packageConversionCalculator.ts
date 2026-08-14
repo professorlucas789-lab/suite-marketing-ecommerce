@@ -135,8 +135,8 @@ export function formatCurrency(value: number): string {
  */
 export function getPackageOptions(productType: string): { compra: string[]; venda: string[] } {
   const commonOptions = {
-    compra: ["unidade", "caixa", "pacote", "kg", "litro", "saco", "dúzia"],
-    venda: ["unidade", "caixa", "pacote", "kg", "litro"],
+    compra: ["unidade", "caixa", "pacote", "kg", "litro", "saco", "dúzia", "outro"],
+    venda: ["unidade", "caixa", "pacote", "kg", "litro", "outro"],
   };
 
   // Normalize product type

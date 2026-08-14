@@ -23,6 +23,7 @@ import AuthScreen from "./components/AuthScreen";
 import Dashboard from "./components/Dashboard";
 import ProductList from "./components/ProductList";
 import ProductForm from "./components/ProductForm";
+import BatchProductForm from "./components/BatchProductForm";
 import ReverseCalculator from "./components/ReverseCalculator";
 import BusinessSettingsView from "./components/BusinessSettingsView";
 import GeneralHistoryView from "./components/GeneralHistoryView";
@@ -49,7 +50,8 @@ import {
   FileText,
   Database,
   Menu,
-  Folder // NOVO (Fase 1)
+  Folder, // NOVO (Fase 1)
+  Layers // NOVO (Fase 3 - Batch products)
 } from "lucide-react";
 
 export default function App() {
@@ -514,6 +516,86 @@ export default function App() {
     }
   };
 
+  // Batch Products Handler
+  const handleSaveBatchProducts = async (
+    productsData: Omit<Product, "id" | "userId" | "createdAt" | "updatedAt">[]
+  ) => {
+    if (!user) return;
+
+    const timestamp = new Date().toISOString();
+    const savedProducts: string[] = [];
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const productData of productsData) {
+        try {
+          // Create product document
+          const docRef = await addDoc(collection(db, "products"), {
+            ...productData,
+            userId: user.uid,
+            createdAt: timestamp,
+            updatedAt: timestamp
+          });
+
+          // Save initial price history
+          const initialPrice = productData.venderEmbalagemInteira === false && productData.precoRecomendadoUnidadeVenda !== undefined
+            ? productData.precoRecomendadoUnidadeVenda
+            : productData.precoVendaRecomendado;
+
+          const initialCost = productData.custoRealUnidadeVenda !== undefined
+            ? productData.custoRealUnidadeVenda
+            : (productData.custoCompra + (productData.custoTransporte || 0) + (productData.custoEmbalagem || 0) + (productData.outrosCustos || 0)) / (productData.quantidade || 1);
+
+          const initialMargin = productData.margemReal || 0;
+          const initialROI = productData.roi || 0;
+          const initialProfit = productData.venderEmbalagemInteira === false && productData.lucroUnidadeVenda !== undefined
+            ? productData.lucroUnidadeVenda
+            : productData.lucroEstimado;
+
+          await addDoc(collection(db, "priceHistory"), {
+            productId: docRef.id,
+            productName: productData.nome,
+            productCategory: productData.categoria || "Outros",
+            userId: user.uid,
+            previousPrice: 0,
+            newPrice: Math.round((initialPrice || 0) * 100) / 100,
+            previousCost: 0,
+            newCost: Math.round((initialCost || 0) * 100) / 100,
+            previousMargin: 0,
+            newMargin: Math.round((initialMargin || 0) * 100) / 100,
+            previousROI: 0,
+            newROI: Math.round((initialROI || 0) * 100) / 100,
+            previousProfit: 0,
+            newProfit: Math.round((initialProfit || 0) * 100) / 100,
+            changeReason: "Cadastro em lote de produtos",
+            createdAt: timestamp
+          });
+
+          savedProducts.push(productData.nome);
+          successCount++;
+        } catch (error) {
+          console.error(`Erro ao salvar produto ${productData.nome}:`, error);
+          errorCount++;
+          handleFirestoreError(error, OperationType.CREATE, `products (batch item: ${productData.nome})`);
+        }
+      }
+
+      if (successCount > 0) {
+        triggerNotification(
+          `${successCount} produto(s) cadastrado(s) com sucesso!${errorCount > 0 ? ` (${errorCount} falha(s))` : ""}`,
+          errorCount > 0 ? "error" : "success"
+        );
+      }
+
+      // Navigate back to products list
+      setActiveTab("products");
+    } catch (error) {
+      console.error("Erro geral ao salvar lote de produtos: ", error);
+      triggerNotification("Erro ao salvar lote de produtos.", "error");
+    }
+  };
+
   // Navigation callbacks
   const handleEditTrigger = (product: Product) => {
     setEditingProduct(product);
@@ -563,7 +645,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup"; // NOVO: categories
+    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup"; // NOVO: batch-products
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -572,6 +654,7 @@ export default function App() {
   const navigationItems: SidebarNavItem[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "products", label: "Lista de Produtos", icon: Package, badge: products.length },
+    { id: "batch-products", label: "Cadastro em Lote", icon: Layers }, // NOVO (Fase 3)
     { id: "categories", label: "Categorias", icon: Folder }, // NOVO (Fase 1)
     { id: "reverse-calculator", label: "Calculadora Reversa", icon: Calculator },
     { id: "history", label: "Histórico", icon: History },
@@ -850,6 +933,25 @@ export default function App() {
                       onEditProduct={handleEditTrigger}
                       onDeleteProduct={handleDeleteProduct}
                       onDuplicateProduct={handleDuplicateProduct}
+                    />
+                  </motion.div>
+                )}
+
+                {/* NOVO (Fase 3): Batch Products Tab */}
+                {activeTab === "batch-products" && (
+                  <motion.div
+                    key="batch-products-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <BatchProductForm
+                      onSave={handleSaveBatchProducts}
+                      onCancel={() => {
+                        setActiveTab("products");
+                      }}
+                      settings={businessSettings}
                     />
                   </motion.div>
                 )}
