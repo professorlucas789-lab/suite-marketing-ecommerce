@@ -1,15 +1,16 @@
 /**
  * Página de Perfil do Utilizador
- * Permite ver informações da conta e alterar a senha
+ * Permite ver informações da conta, alterar a senha e gerenciar avatar
  * Fase 11: User Account Management
  */
 
 import React, { useState, useEffect } from 'react';
-import { User as UserIcon, Mail, Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2, Calendar, Shield, LogOut } from 'lucide-react';
+import { User as UserIcon, Mail, Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2, Calendar, Shield, LogOut, Camera, Trash2, Upload } from 'lucide-react';
 import { useUserAuth } from '../hooks/useUserAuth';
-import { auth, db } from '../firebase';
+import { auth, db, storage } from '../firebase';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { motion } from 'motion/react';
 
 interface UserData {
@@ -17,6 +18,7 @@ interface UserData {
   nome: string;
   email: string;
   papel: string;
+  avatar?: string; // URL do avatar
   permissoes?: {
     visualizar: boolean;
     criar: boolean;
@@ -49,6 +51,10 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
 
+  // Avatar upload states
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
   // Load user data from Firestore
   useEffect(() => {
     const loadUserData = async () => {
@@ -68,10 +74,14 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
             nome: data.nome || 'Utilizador',
             email: user.email || '',
             papel: data.papel || papel || 'funcionario',
+            avatar: data.avatar, // NOVO (Fase 11)
             permissoes: data.permissoes,
             ultimoLogin: data.ultimoLogin,
             dataCriacao: data.dataCriacao
           });
+          if (data.avatar) {
+            setAvatarPreview(data.avatar);
+          }
         } else {
           // User document doesn't exist, use Firebase auth data
           setUserData({
@@ -121,6 +131,95 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
   const passwordStrength = validatePasswordStrength(newPassword);
   const isPasswordValid = passwordStrength.score >= 4;
   const passwordsMatch = newPassword === confirmPassword && newPassword.length > 0;
+
+  // NOVO (Fase 11): Upload de Avatar
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validações
+    if (!file.type.startsWith('image/')) {
+      setMessage({ type: 'error', text: 'Por favor, seleccione uma imagem válida.' });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB
+      setMessage({ type: 'error', text: 'A imagem não pode ter mais de 5MB.' });
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+
+    try {
+      // Criar preview local
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // Fazer upload para Firebase Storage
+      const storageRef = ref(storage, `users/${user.uid}/avatar/${file.name}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Atualizar Firestore com URL do avatar
+      const userDocRef = doc(db, 'users', user.uid);
+      await updateDoc(userDocRef, {
+        avatar: downloadURL
+      });
+
+      // Atualizar state local
+      setUserData(prev => prev ? { ...prev, avatar: downloadURL } : null);
+
+      setMessage({ type: 'success', text: 'Avatar atualizado com sucesso!' });
+      setTimeout(() => setMessage(null), 3000);
+
+    } catch (error: any) {
+      console.error('Erro ao fazer upload do avatar:', error);
+      setMessage({ type: 'error', text: 'Erro ao fazer upload da imagem. Tente novamente.' });
+    } finally {
+      setIsUploadingAvatar(false);
+      // Limpar input
+      e.target.value = '';
+    }
+  };
+
+  // NOVO (Fase 11): Remover Avatar
+  const handleRemoveAvatar = async () => {
+    if (!user || !userData?.avatar) return;
+
+    setIsUploadingAvatar(true);
+
+    try {
+      // Tentar deletar do Storage (pode falhar se não existir, o que é OK)
+      try {
+        const storageRef = ref(storage, `users/${user.uid}/avatar/`);
+        // Não podemos deletar um diretório, então apenas removemos do Firestore
+      } catch (e) {
+        // Ignorar erro
+      }
+
+      // Remover URL do Firestore
+      const userDocRef = doc(db, 'users', user.uid);
+      await updateDoc(userDocRef, {
+        avatar: null
+      });
+
+      // Atualizar state
+      setUserData(prev => prev ? { ...prev, avatar: undefined } : null);
+      setAvatarPreview(null);
+
+      setMessage({ type: 'success', text: 'Avatar removido com sucesso!' });
+      setTimeout(() => setMessage(null), 3000);
+
+    } catch (error: any) {
+      console.error('Erro ao remover avatar:', error);
+      setMessage({ type: 'error', text: 'Erro ao remover avatar. Tente novamente.' });
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   // Alterar senha
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -239,9 +338,17 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center gap-3">
-        <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-          <UserIcon size={24} />
-        </div>
+        {avatarPreview ? (
+          <img
+            src={avatarPreview}
+            alt="Avatar"
+            className="h-12 w-12 rounded-xl object-cover border-2 border-emerald-500"
+          />
+        ) : (
+          <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+            <UserIcon size={24} />
+          </div>
+        )}
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Meu Perfil</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">Gerencie suas informações pessoais e segurança da conta</p>
@@ -276,6 +383,85 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
           </p>
         </motion.div>
       )}
+
+      {/* NOVO (Fase 11): Avatar Card */}
+      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <Camera size={20} className="text-blue-600" />
+            Foto do Perfil
+          </h2>
+        </div>
+
+        <div className="p-6">
+          <div className="flex items-start gap-6">
+            {/* Avatar Preview */}
+            <div className="flex flex-col items-center gap-3">
+              {avatarPreview ? (
+                <div className="relative">
+                  <img
+                    src={avatarPreview}
+                    alt="Avatar Preview"
+                    className="h-32 w-32 rounded-lg object-cover border-2 border-emerald-500 shadow-lg"
+                  />
+                  <button
+                    onClick={handleRemoveAvatar}
+                    disabled={isUploadingAvatar}
+                    className="absolute -bottom-2 -right-2 p-2 bg-red-500 hover:bg-red-600 disabled:bg-slate-400 text-white rounded-full shadow-lg transition-colors"
+                    title="Remover avatar"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ) : (
+                <div className="h-32 w-32 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-600">
+                  <UserIcon size={48} className="text-slate-400" />
+                </div>
+              )}
+              <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
+                Máx. 5MB • JPG, PNG
+              </p>
+            </div>
+
+            {/* Upload Form */}
+            <div className="flex-1">
+              <label className="block cursor-pointer">
+                <div className="p-6 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg hover:border-emerald-400 dark:hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <Upload size={24} className="text-emerald-600 dark:text-emerald-400" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        Clique para fazer upload
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        ou arraste uma imagem aqui
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    disabled={isUploadingAvatar}
+                    className="hidden"
+                  />
+                </div>
+              </label>
+
+              {isUploadingAvatar && (
+                <div className="mt-3 flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+                  <Loader2 size={16} className="animate-spin" />
+                  A fazer upload...
+                </div>
+              )}
+
+              <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+                <span className="font-semibold">Dica:</span> Use uma foto clara do seu rosto para melhor identificação. Evite imagens muito escuras ou desfocadas.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* User Information Card */}
       <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
