@@ -21,7 +21,7 @@ export interface AuditEntry {
   userAgent: string;
   status: 'SUCCESS' | 'FAILURE' | 'PARTIAL';
   errorMessage?: string;
-  metadata: Record<string, any>;
+  metadata?: Record<string, any>;
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
 

@@ -26,6 +26,8 @@ export function useAudit() {
           ...entry,
           id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           timestamp: new Date().toISOString(),
+          // FIX: Garantir que metadata nunca é undefined
+          metadata: entry.metadata || {},
         };
 
         // Adicionar localmente

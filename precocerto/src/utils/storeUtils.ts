@@ -125,6 +125,12 @@ export async function logAudit(data: Omit<AuditLog, 'id' | 'timestamp'>) {
     const auditLog: Omit<AuditLog, 'id'> = {
       ...data,
       timestamp: new Date().toISOString(),
+      // FIX: Garantir que metadata nunca é undefined (previne erro Firestore)
+      metadata: {
+        action: data.acao,
+        entityType: data.entityType,
+        entityId: data.entityId,
+      },
     };
 
     await addDoc(collection(db, 'audit_logs'), auditLog);
