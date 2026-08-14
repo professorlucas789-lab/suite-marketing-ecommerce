@@ -55,12 +55,24 @@ import {
 } from "lucide-react";
 
 export default function App() {
+  console.log("✅ APP COMPONENT MOUNTED");
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState<boolean>(true);
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null);
   const [settingsLoading, setSettingsLoading] = useState<boolean>(true);
+
+  // DEBUG LOGS
+  useEffect(() => {
+    console.log("🔍 APP DEBUG:", {
+      authLoading,
+      productsLoading,
+      settingsLoading,
+      userEmail: user?.email,
+      productsCount: products.length
+    });
+  }, [authLoading, productsLoading, settingsLoading, user, products]);
   
   // Theme state
   const [theme, setTheme] = useState<"light" | "dark">(() => {
