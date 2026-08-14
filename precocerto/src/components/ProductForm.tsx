@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { businessModuleRegistry } from "../modules/business-types";
 import DynamicFieldRenderer from "./DynamicFieldRenderer";
-import PackageConversionSection from "./PackageConversionSection"; // NOVO (Fase 3)
+import PackageConversionSection from "./PackageConversionSection"; // NOVO (Fase 3 - v2)
 
 interface ProductFormProps {
   productToEdit?: Product | null;
