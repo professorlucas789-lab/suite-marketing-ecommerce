@@ -654,8 +654,7 @@ export default function App() {
   const navigationItems: SidebarNavItem[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "products", label: "Lista de Produtos", icon: Package, badge: products.length },
-    // TEMPORÁRIO: Desabilitado para debug
-    // { id: "batch-products", label: "Cadastro em Lote", icon: Layers }, // NOVO (Fase 3)
+    { id: "batch-products", label: "Cadastro em Lote", icon: Layers }, // NOVO (Fase 3)
     { id: "categories", label: "Categorias", icon: Folder }, // NOVO (Fase 1)
     { id: "reverse-calculator", label: "Calculadora Reversa", icon: Calculator },
     { id: "history", label: "Histórico", icon: History },
