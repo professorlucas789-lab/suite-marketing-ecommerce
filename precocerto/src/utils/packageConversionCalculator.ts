@@ -139,8 +139,11 @@ export function getPackageOptions(productType: string): { compra: string[]; vend
     venda: ["unidade", "caixa", "pacote", "kg", "litro"],
   };
 
+  // Normalize product type
+  const type = (productType || "").toLowerCase();
+
   // Pharmacy products
-  if (productType === "medicamento/farmácia") {
+  if (type === "farmacia" || type === "medicamento/farmácia" || type === "farmácia") {
     return {
       compra: ["caixa", "blister", "frasco", "tubo"],
       venda: ["unidade", "blister", "comprimido", "cápsula"],
@@ -148,7 +151,7 @@ export function getPackageOptions(productType: string): { compra: string[]; vend
   }
 
   // Food products
-  if (productType === "alimentar") {
+  if (type === "alimentar" || type === "alimentos") {
     return {
       compra: ["caixa", "kg", "litro", "saco"],
       venda: ["unidade", "kg", "litro", "g", "ml"],
@@ -156,7 +159,7 @@ export function getPackageOptions(productType: string): { compra: string[]; vend
   }
 
   // Cosmetics
-  if (productType === "cosmético") {
+  if (type === "cosmético" || type === "cosmetico" || type === "cosméticos") {
     return {
       compra: ["caixa", "frasco"],
       venda: ["unidade", "ml", "g"],
