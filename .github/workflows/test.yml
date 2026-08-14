@@ -1,0 +1,42 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [ main, develop, 'claude/**' ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: precocerto/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./precocerto
+      run: npm ci
+
+    - name: Run linter
+      working-directory: ./precocerto
+      run: npm run lint
+      continue-on-error: true
+
+    - name: Run tests
+      working-directory: ./precocerto
+      run: npm test -- --run
+
+    - name: Build application
+      working-directory: ./precocerto
+      run: npm run build
