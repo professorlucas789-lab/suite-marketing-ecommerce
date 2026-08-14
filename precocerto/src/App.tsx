@@ -31,6 +31,7 @@ import ReportsView from "./components/ReportsView";
 import BackupView from "./components/BackupView";
 import { CategoriesTab } from "./components/CategoriesTab"; // NOVO (Fase 1)
 import { ImportCSVModal } from "./components/ImportCSVModal"; // NOVO (Fase 5A)
+import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fase 5A)
 
 
 // Icons
@@ -53,7 +54,8 @@ import {
   Menu,
   Folder, // NOVO (Fase 1)
   Boxes, // NOVO (Fase 3 - Batch products) - Changed from Layers to Boxes
-  Upload // NOVO (Fase 5A - CSV Import)
+  Upload, // NOVO (Fase 5A - CSV Import)
+  Download // NOVO (Fase 5A - Excel Export)
 } from "lucide-react";
 
 export default function App() {
@@ -957,6 +959,10 @@ export default function App() {
                         <Upload size={18} />
                         Importar CSV
                       </button>
+                      <ExportExcelButton
+                        products={products}
+                        settings={businessSettings}
+                      />
                     </div>
 
                     <ProductList
