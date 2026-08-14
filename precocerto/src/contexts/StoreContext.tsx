@@ -223,6 +223,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    */
   useEffect(() => {
     console.log('🔌 [StoreProvider] useEffect montado - a aguardar mudanças de autenticação...');
+
+    // Carregar dados imediatamente se o utilizador já está autenticado
+    if (auth.currentUser) {
+      console.log('👤 [StoreProvider] Utilizador já autenticado ao montar, carregando dados...');
+      loadUserAndStores();
+    }
+
     const unsubscribe = auth.onAuthStateChanged((user) => {
       console.log('🔐 [StoreProvider] Auth state changed:', user?.uid, user?.email);
       loadUserAndStores();
