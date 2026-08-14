@@ -35,6 +35,7 @@ import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fas
 import { ReportBuilder, ReportConfig } from "./components/ReportBuilder"; // NOVO (Fase 5B Item 3)
 import { UsersManagementView } from "./components/UsersManagementView"; // NOVO (Fase 10 - User Management)
 import { StoreList } from "./components/StoreList"; // NOVO (Fase 6 - Multi-Store)
+import { UserStoresDashboard } from "./components/UserStoresDashboard"; // NOVO (Fase 14)
 import { UserProfileView } from "./components/UserProfileView"; // NOVO (Fase 11 - User Profile)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
@@ -1190,7 +1191,8 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <StoreList />
+                    {/* NOVO (Fase 14): UserStoresDashboard para não-admin, StoreList para admin */}
+                    {isAdmin ? <StoreList /> : <UserStoresDashboard />}
                   </motion.div>
                 )}
 
