@@ -70,12 +70,12 @@ export const navigationConfig: NavigationConfig[] = [
     section: 'main',
   },
 
-  // SECÇÃO DE GESTÃO - Apenas Admins e Gerentes
+  // SECÇÃO DE GESTÃO - Apenas Admins
   {
     id: 'stores',
     label: 'Lojas',
     icon: 'Building2',
-    roles: ['admin', 'loja-manager'],
+    roles: ['admin'], // EXCLUSIVO: Apenas admin pode criar/editar lojas
     section: 'management',
   },
 
