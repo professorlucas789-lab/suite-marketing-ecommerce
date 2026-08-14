@@ -12,7 +12,7 @@ import { useStore } from '../contexts/StoreContext';
 import { useUserAuth } from '../hooks/useUserAuth';
 import { CategoryMarginConfig } from '../types/category';
 import { motion } from 'motion/react';
-import { Building2 } from 'lucide-react';
+import { Building2, RefreshCw } from 'lucide-react';
 
 interface CategoriesTabProps {
   businessType: string;
@@ -90,13 +90,42 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
   // FIX: Verificar se há lojas atribuídas
   if (userStores.length === 0) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-        <p className="text-red-900 font-semibold mb-2">❌ Nenhuma Loja Atribuída</p>
-        <p className="text-red-700 text-sm">
-          Para gerenciar categorias, você precisa ter uma loja atribuída.
-          Contacte o administrador do sistema.
-        </p>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-4"
+      >
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0">
+              <p className="text-2xl">❌</p>
+            </div>
+            <div className="flex-1">
+              <p className="text-red-900 font-semibold mb-2">Nenhuma Loja Atribuída</p>
+              <p className="text-red-700 text-sm mb-4">
+                Para gerenciar categorias, você precisa ter pelo menos uma loja atribuída.
+              </p>
+              <p className="text-red-600 text-xs mb-4">
+                <strong>O que fazer:</strong>
+              </p>
+              <ol className="text-red-600 text-xs list-decimal list-inside space-y-1 mb-4">
+                <li>Certifique-se que tem lojas criadas (vá a "Lojas")</li>
+                <li>Contacte o administrador para atribuir lojas à sua conta</li>
+                <li>Ou recarregue a página para sincronizar dados</li>
+              </ol>
+              <button
+                onClick={() => {
+                  window.location.reload();
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <RefreshCw size={16} />
+                Recarregar Página
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
     );
   }
 
