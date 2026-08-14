@@ -11,6 +11,13 @@ export interface Product {
 
   // NOVO (Fase 1): Referência à categoria
   categoryId?: string; // FK para CategoryMarginConfig (opcional por compatibilidade)
+
+  // NOVO (Fase 6): Multi-loja
+  storeId: string; // ID da loja proprietária (obrigatório)
+  storeName?: string; // Nome da loja (desnormalizado para queries)
+  criadoPor?: string; // ID do utilizador que criou
+  atualizadoPor?: string; // ID do último utilizador que editou
+  dataAtualizacao?: string; // ISO 8601 do último update
   
   // Novas propriedades da Fase 3
   unidadeMedida?: string;
