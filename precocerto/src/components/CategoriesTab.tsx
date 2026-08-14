@@ -139,6 +139,27 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
   }, [papel, userStores, currentStore]);
 
   /**
+   * Carregar lojas sem atualizar Firestore (fallback)
+   */
+  const handleCarregarLojasLocalmente = useCallback(async () => {
+    console.log('🔄 [Fallback] Carregando lojas localmente...');
+    try {
+      const allStoresSnap = await getDocs(collection(db, 'stores'));
+      const allStores = allStoresSnap.docs
+        .filter(doc => doc.data().ativo !== false)
+        .map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+
+      if (allStores.length > 0) {
+        console.log('✅ [Fallback] Lojas carregadas:', allStores.map(s => s.nome));
+        // Simplesmente recarregar a página para que o StoreContext detecte as lojas
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error('❌ [Fallback] Erro:', err);
+    }
+  }, []);
+
+  /**
    * Atribuir automaticamente todas as lojas ao admin
    */
   const handleAtribuirLojas = useCallback(async () => {
@@ -181,6 +202,7 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
 
       console.log(`🔄 Atualizando documento do utilizador ${user.uid} com lojas:`, allStoreIds);
 
+      let updateSuccess = false;
       try {
         const userDocRef = doc(db, 'users', user.uid);
         console.log('📍 Referência do documento:', userDocRef.path);
@@ -190,6 +212,7 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
         });
 
         console.log('✅ Lojas atribuídas com sucesso no Firestore!');
+        updateSuccess = true;
       } catch (updateError) {
         console.error('❌ Erro ao atualizar Firestore:', updateError);
 
@@ -197,44 +220,46 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
         if (updateError instanceof Error) {
           if (updateError.message.includes('permission')) {
             console.error('🔐 ERRO DE PERMISSÃO - Verifique as regras de segurança do Firestore');
+            setMensagemErro('Erro de permissão ao atualizar Firestore. Contacte o administrador.');
           } else if (updateError.message.includes('not-found')) {
             console.error('📄 ERRO - Documento do utilizador não encontrado');
+            setMensagemErro('Documento do utilizador não encontrado no Firestore.');
+          } else {
+            setMensagemErro(updateError.message);
           }
         }
-
-        // Re-lançar o erro para ser capturado pelo catch externo
-        throw updateError;
       }
 
-      // Aguardar um pouco para garantir que o Firestore foi atualizado
-      console.log('⏳ Aguardando 1000ms para sincronização do Firestore...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (updateSuccess) {
+        // Aguardar um pouco para garantir que o Firestore foi atualizado
+        console.log('⏳ Aguardando 1000ms para sincronização do Firestore...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Recarregar dados de loja com timeout
-      console.log('🔄 Recarregando dados de loja via refreshStoreData()...');
+        // Recarregar dados de loja com timeout
+        console.log('🔄 Recarregando dados de loja via refreshStoreData()...');
 
-      const refreshPromise = refreshStoreData();
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout ao recarregar dados')), 5000)
-      );
+        const refreshPromise = refreshStoreData();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout ao recarregar dados')), 5000)
+        );
 
-      try {
-        await Promise.race([refreshPromise, timeoutPromise]);
-        console.log('✅ Dados de loja recarregados com sucesso!');
-      } catch (refreshError) {
-        console.error('⚠️ Erro ao recarregar dados:', refreshError);
-        console.log('🔄 Tentando reload manual da página em 2 segundos...');
-        // Se refreshStoreData falhar, fazer reload da página
-        setTimeout(() => {
-          console.log('🔄 Recarregando página...');
-          window.location.reload();
-        }, 2000);
+        try {
+          await Promise.race([refreshPromise, timeoutPromise]);
+          console.log('✅ Dados de loja recarregados com sucesso!');
+        } catch (refreshError) {
+          console.error('⚠️ Erro ao recarregar dados:', refreshError);
+          console.log('🔄 Tentando reload manual da página em 2 segundos...');
+          // Se refreshStoreData falhar, fazer reload da página
+          setTimeout(() => {
+            console.log('🔄 Recarregando página...');
+            window.location.reload();
+          }, 2000);
+        }
+
+        // Mensagem de sucesso
+        setMensagemErro(null);
+        console.log('✅ handleAtribuirLojas completado com sucesso!');
       }
-
-      // Mensagem de sucesso
-      setMensagemErro(null);
-      console.log('✅ handleAtribuirLojas completado com sucesso!');
-
     } catch (error) {
       console.error('❌ Erro completo:', error);
       console.error('  - Tipo de erro:', error instanceof Error ? 'Error' : typeof error);
