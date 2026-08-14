@@ -33,6 +33,7 @@ import { CategoriesTab } from "./components/CategoriesTab"; // NOVO (Fase 1)
 import { ImportCSVModal } from "./components/ImportCSVModal"; // NOVO (Fase 5A)
 import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fase 5A)
 import { ReportBuilder, ReportConfig } from "./components/ReportBuilder"; // NOVO (Fase 5B Item 3)
+import { UsersManagementView } from "./components/UsersManagementView"; // NOVO (Fase 10 - User Management)
 import {
   exportReportToExcel,
   exportReportToPDF,
@@ -746,7 +747,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup"; // NOVO: batch-products
+    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users"; // NOVO: batch-products, users
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -760,6 +761,7 @@ export default function App() {
     { id: "reverse-calculator", label: "Calculadora Reversa", icon: Calculator },
     { id: "history", label: "Histórico", icon: History },
     { id: "reports", label: "Relatórios", icon: FileText },
+    { id: "users", label: "Utilizadores", icon: UserIcon }, // NOVO (Fase 10)
     { id: "settings", label: "Configurações", icon: Settings },
     { id: "backup", label: "Backup e Dados", icon: Database }
   ];
@@ -1163,6 +1165,18 @@ export default function App() {
                   </motion.div>
                 )}
 
+                {activeTab === "users" && (
+                  <motion.div
+                    key="users-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <UsersManagementView />
+                  </motion.div>
+                )}
+
                 {activeTab === "backup" && (
                   <motion.div
                     key="backup-view"
@@ -1171,8 +1185,8 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <BackupView 
-                      products={products} 
+                    <BackupView
+                      products={products}
                       settings={businessSettings}
                       userId={user ? user.uid : ""}
                     />
