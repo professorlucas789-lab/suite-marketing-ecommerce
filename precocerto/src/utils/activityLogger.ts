@@ -58,7 +58,8 @@ export async function logActivity(
       description,
       timestamp: Timestamp.now(),
       device: getDeviceInfo(),
-      metadata
+      // FIX: Garantir que metadata nunca é undefined
+      metadata: metadata || {}
     };
 
     await addDoc(collection(db, 'audit_logs'), activityData);
