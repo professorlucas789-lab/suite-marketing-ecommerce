@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { businessModuleRegistry } from "../modules/business-types";
 import DynamicFieldRenderer from "./DynamicFieldRenderer";
+import PackageConversionSection from "./PackageConversionSection"; // NOVO (Fase 3)
 
 interface ProductFormProps {
   productToEdit?: Product | null;
@@ -1080,6 +1081,24 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
               </div>
             </div>
           </div>
+
+          {/* NOVO (Fase 3): Conversão de Embalagem */}
+          <PackageConversionSection
+            tipoProduto={tipoProduto}
+            unidadeCompra={unidadeCompra}
+            unidadeVenda={unidadeVenda}
+            unidadesInternas={unidadesInternas}
+            venderEmbalagemInteira={venderEmbalagemInteira}
+            custoCompra={parseNum(custoCompra)}
+            quantidade={quantidade}
+            precoVendaRecomendado={calculated.precoVendaRecomendado}
+            margemDesejada={parseNum(margemDesejada)}
+            onUnidadeCompraChange={setUnidadeCompra}
+            onUnidadeVendaChange={setUnidadeVenda}
+            onUnidadesInternasChange={setUnidadesInternas}
+            onVenderEmbalagemInteiraChange={setVenderEmbalagemInteira}
+            showResults={true}
+          />
 
           {/* SECÇÃO: CUSTOS */}
           <div className="space-y-4 bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-xs">
