@@ -12,14 +12,16 @@ import { useStore } from '../contexts/StoreContext';
 import { useUserAuth } from '../hooks/useUserAuth';
 import { CategoryMarginConfig } from '../types/category';
 import { motion } from 'motion/react';
-import { Building2, RefreshCw } from 'lucide-react';
+import { Building2, RefreshCw, Loader2 } from 'lucide-react';
+import { db, auth } from '../firebase';
+import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 
 interface CategoriesTabProps {
   businessType: string;
 }
 
 export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) => {
-  const { currentStore, userStores, switchStore } = useStore();
+  const { currentStore, userStores, switchStore, refreshStoreData } = useStore();
   const { papel } = useUserAuth();
 
   // FIX (Fase 12+): Se não há loja selecionada, usar primeira loja disponível
@@ -33,6 +35,10 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
   const [editingCategory, setEditingCategory] = useState<
     CategoryMarginConfig | undefined
   >();
+
+  // Estado para atribuição de lojas
+  const [atribuindo, setAtribuindo] = useState(false);
+  const [mensagemErro, setMensagemErro] = useState<string | null>(null);
 
   const isAdmin = papel === 'admin';
   const displayStoreId = selectedStoreId || currentStore?.storeId;
@@ -87,6 +93,49 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
     }
   };
 
+  /**
+   * Atribuir automaticamente todas as lojas ao admin
+   */
+  const handleAtribuirLojas = async () => {
+    try {
+      setAtribuindo(true);
+      setMensagemErro(null);
+      const user = auth.currentUser;
+
+      if (!user) {
+        setMensagemErro('Utilizador não autenticado');
+        return;
+      }
+
+      console.log('🔧 Buscando todas as lojas ativas...');
+      const allStoresSnap = await getDocs(collection(db, 'stores'));
+      const allStoreIds = allStoresSnap.docs
+        .filter(doc => doc.data().ativo !== false)
+        .map(doc => doc.id);
+
+      if (allStoreIds.length === 0) {
+        setMensagemErro('Nenhuma loja ativa encontrada. Crie uma loja primeiro.');
+        return;
+      }
+
+      console.log(`✅ Atribuindo ${allStoreIds.length} loja(s) ao admin...`);
+      await updateDoc(doc(db, 'users', user.uid), {
+        lojas: allStoreIds
+      });
+
+      console.log('✅ Lojas atribuídas com sucesso!');
+      // Recarregar dados de loja
+      await refreshStoreData();
+
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Erro ao atribuir lojas';
+      console.error('❌ Erro:', msg);
+      setMensagemErro(msg);
+    } finally {
+      setAtribuindo(false);
+    }
+  };
+
   // FIX: Verificar se há lojas atribuídas
   if (userStores.length === 0) {
     return (
@@ -95,33 +144,61 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
         animate={{ opacity: 1, y: 0 }}
         className="space-y-4"
       >
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
-              <p className="text-2xl">❌</p>
+              <p className="text-2xl">⚠️</p>
             </div>
             <div className="flex-1">
-              <p className="text-red-900 font-semibold mb-2">Nenhuma Loja Atribuída</p>
-              <p className="text-red-700 text-sm mb-4">
+              <p className="text-amber-900 font-semibold mb-2">Nenhuma Loja Atribuída</p>
+              <p className="text-amber-700 text-sm mb-4">
                 Para gerenciar categorias, você precisa ter pelo menos uma loja atribuída.
               </p>
-              <p className="text-red-600 text-xs mb-4">
+
+              {mensagemErro && (
+                <div className="bg-red-50 border border-red-200 rounded p-3 mb-4">
+                  <p className="text-red-700 text-sm">❌ {mensagemErro}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleAtribuirLojas}
+                  disabled={atribuindo}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  {atribuindo ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Atribuindo...
+                    </>
+                  ) : (
+                    <>
+                      <Building2 size={16} />
+                      Atribuir Lojas Automaticamente
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => {
+                    window.location.reload();
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  <RefreshCw size={16} />
+                  Recarregar
+                </button>
+              </div>
+
+              <p className="text-amber-600 text-xs mt-4 mb-2">
                 <strong>O que fazer:</strong>
               </p>
-              <ol className="text-red-600 text-xs list-decimal list-inside space-y-1 mb-4">
-                <li>Certifique-se que tem lojas criadas (vá a "Lojas")</li>
-                <li>Contacte o administrador para atribuir lojas à sua conta</li>
-                <li>Ou recarregue a página para sincronizar dados</li>
-              </ol>
-              <button
-                onClick={() => {
-                  window.location.reload();
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                <RefreshCw size={16} />
-                Recarregar Página
-              </button>
+              <ul className="text-amber-600 text-xs space-y-1">
+                <li>✓ Clique em "Atribuir Lojas Automaticamente" (recomendado)</li>
+                <li>✓ Ou verifique se tem lojas criadas (vá a "Lojas")</li>
+                <li>✓ Ou recarregue a página para sincronizar dados</li>
+              </ul>
             </div>
           </div>
         </div>
