@@ -9,7 +9,8 @@
  */
 export interface CategoryMarginConfig {
   id: string;
-  userId: string;
+  storeId: string; // NOVO (Fase 12): Cada categoria é isolada por loja
+  // userId?: string; // Deprecated - usar storeId
 
   // Identificação
   name: string; // "Medicamentos", "Genéricos", "Cosméticos"

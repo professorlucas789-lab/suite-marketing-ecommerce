@@ -1,6 +1,7 @@
 /**
  * Category Service
  * Operações CRUD para categorias no Firestore
+ * NOVO (Fase 12): Categorias isoladas por loja
  */
 
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
@@ -26,30 +27,32 @@ import { CategoryMarginConfig } from '../types/category';
  */
 
 /**
- * Criar nova categoria
- * @param userId ID do utilizador
- * @param categoryData Dados da categoria (sem id, createdAt, updatedAt)
+ * Criar nova categoria para uma loja específica
+ * @param storeId ID da loja
+ * @param categoryData Dados da categoria (sem id, storeId, createdAt, updatedAt)
  * @returns ID da categoria criada
  */
 export async function createCategory(
-  userId: string,
-  categoryData: Omit<CategoryMarginConfig, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
+  storeId: string,
+  categoryData: Omit<CategoryMarginConfig, 'id' | 'storeId' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
   try {
-    const categoryId = doc(collection(db, 'users', userId, 'categories')).id;
+    const categoryId = doc(collection(db, 'lojas', storeId, 'categories')).id;
     const now = new Date().toISOString();
 
     const newCategory: CategoryMarginConfig = {
       id: categoryId,
-      userId,
+      storeId,
       ...categoryData,
       createdAt: now,
       updatedAt: now,
     };
 
-    await setDoc(doc(db, 'users', userId, 'categories', categoryId), newCategory);
+    await setDoc(doc(db, 'lojas', storeId, 'categories', categoryId), newCategory);
+    console.log(`✅ Categoria criada: ${categoryData.name} (${categoryId}) para loja: ${storeId}`);
     return categoryId;
   } catch (error) {
+    console.error('❌ Erro ao criar categoria:', error);
     handleFirestoreError(error, OperationType.CREATE, `categories/${categoryData.name}`);
   }
 }
@@ -64,12 +67,12 @@ export async function createCategory(
  * Obter categoria por ID
  */
 export async function getCategoryById(
-  userId: string,
+  storeId: string,
   categoryId: string
 ): Promise<CategoryMarginConfig | null> {
   try {
     const docSnap = await getDoc(
-      doc(db, 'users', userId, 'categories', categoryId)
+      doc(db, 'lojas', storeId, 'categories', categoryId)
     );
 
     if (!docSnap.exists()) {
@@ -78,37 +81,39 @@ export async function getCategoryById(
 
     return docSnap.data() as CategoryMarginConfig;
   } catch (error) {
+    console.error('❌ Erro ao obter categoria:', error);
     handleFirestoreError(error, OperationType.GET, `categories/${categoryId}`);
   }
 }
 
 /**
- * Obter todas as categorias do utilizador
+ * Obter todas as categorias de uma loja
  */
-export async function getUserCategories(userId: string): Promise<CategoryMarginConfig[]> {
+export async function getStoreCategories(storeId: string): Promise<CategoryMarginConfig[]> {
   try {
     const q = query(
-      collection(db, 'users', userId, 'categories'),
-      where('userId', '==', userId)
+      collection(db, 'lojas', storeId, 'categories'),
+      where('storeId', '==', storeId)
     );
 
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map((doc) => doc.data() as CategoryMarginConfig);
   } catch (error) {
+    console.error('❌ Erro ao obter categorias da loja:', error);
     handleFirestoreError(error, OperationType.LIST, 'categories');
   }
 }
 
 /**
- * Listener real-time para categorias
+ * Listener real-time para categorias de uma loja
  */
-export function subscribeToCategories(
-  userId: string,
+export function subscribeToStoreCategories(
+  storeId: string,
   onUpdate: (categories: CategoryMarginConfig[]) => void
 ): Unsubscribe {
   const q = query(
-    collection(db, 'users', userId, 'categories'),
-    where('userId', '==', userId)
+    collection(db, 'lojas', storeId, 'categories'),
+    where('storeId', '==', storeId)
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -127,7 +132,7 @@ export function subscribeToCategories(
  * Atualizar categoria
  */
 export async function updateCategory(
-  userId: string,
+  storeId: string,
   categoryId: string,
   updates: Partial<CategoryMarginConfig>
 ): Promise<void> {
@@ -135,13 +140,15 @@ export async function updateCategory(
     const now = new Date().toISOString();
 
     await updateDoc(
-      doc(db, 'users', userId, 'categories', categoryId),
+      doc(db, 'lojas', storeId, 'categories', categoryId),
       {
         ...updates,
         updatedAt: now,
       }
     );
+    console.log(`✅ Categoria atualizada: ${categoryId} para loja: ${storeId}`);
   } catch (error) {
+    console.error('❌ Erro ao atualizar categoria:', error);
     handleFirestoreError(error, OperationType.UPDATE, `categories/${categoryId}`);
   }
 }
@@ -150,7 +157,7 @@ export async function updateCategory(
  * Atualizar apenas regras de margem
  */
 export async function updateCategoryMarginRules(
-  userId: string,
+  storeId: string,
   categoryId: string,
   marginRules: any
 ): Promise<void> {
@@ -158,13 +165,15 @@ export async function updateCategoryMarginRules(
     const now = new Date().toISOString();
 
     await updateDoc(
-      doc(db, 'users', userId, 'categories', categoryId),
+      doc(db, 'lojas', storeId, 'categories', categoryId),
       {
         marginRules,
         updatedAt: now,
       }
     );
+    console.log(`✅ Regras de margem atualizadas: ${categoryId} para loja: ${storeId}`);
   } catch (error) {
+    console.error('❌ Erro ao atualizar regras de margem:', error);
     handleFirestoreError(error, OperationType.UPDATE, `categories/${categoryId}`);
   }
 }
@@ -180,12 +189,14 @@ export async function updateCategoryMarginRules(
  * NOTA: Não deleta produtos associados (apenas remove referência)
  */
 export async function deleteCategory(
-  userId: string,
+  storeId: string,
   categoryId: string
 ): Promise<void> {
   try {
-    await deleteDoc(doc(db, 'users', userId, 'categories', categoryId));
+    await deleteDoc(doc(db, 'lojas', storeId, 'categories', categoryId));
+    console.log(`✅ Categoria deletada: ${categoryId} da loja: ${storeId}`);
   } catch (error) {
+    console.error('❌ Erro ao deletar categoria:', error);
     handleFirestoreError(error, OperationType.DELETE, `categories/${categoryId}`);
   }
 }
@@ -200,12 +211,39 @@ export async function deleteCategory(
  * Obter categoria padrão (primeira categoria criada)
  * Útil para migração de produtos antigos
  */
-export async function getDefaultCategory(userId: string): Promise<CategoryMarginConfig | null> {
+export async function getDefaultCategory(storeId: string): Promise<CategoryMarginConfig | null> {
   try {
-    const categories = await getUserCategories(userId);
+    const categories = await getStoreCategories(storeId);
     return categories.length > 0 ? categories[0] : null;
   } catch (error) {
-    console.error('Error getting default category:', error);
+    console.error('Erro ao obter categoria padrão:', error);
     return null;
   }
+}
+
+/**
+ * ============================================================================
+ * BACKWARDS COMPATIBILITY (Para código legado)
+ * ============================================================================
+ */
+
+/**
+ * DEPRECATED: Use getStoreCategories em seu lugar
+ * Função legada para compatibilidade
+ */
+export async function getUserCategories(userId: string): Promise<CategoryMarginConfig[]> {
+  console.warn('⚠️ getUserCategories é deprecated. Use getStoreCategories(storeId) em seu lugar');
+  // Tenta buscar pelo storeId com mesmo valor do userId (pode quebrar)
+  return getStoreCategories(userId);
+}
+
+/**
+ * DEPRECATED: Use subscribeToStoreCategories em seu lugar
+ */
+export function subscribeToCategories(
+  userId: string,
+  onUpdate: (categories: CategoryMarginConfig[]) => void
+): Unsubscribe {
+  console.warn('⚠️ subscribeToCategories é deprecated. Use subscribeToStoreCategories(storeId) em seu lugar');
+  return subscribeToStoreCategories(userId, onUpdate);
 }

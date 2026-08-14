@@ -1,30 +1,32 @@
 /**
  * useCategories Hook
  * Hook para gerir categorias com real-time updates
+ * NOVO (Fase 12): Categorias isoladas por loja
  */
 
 import { useEffect, useState } from 'react';
 import { CategoryMarginConfig } from '../types/category';
 import {
-  getUserCategories,
-  subscribeToCategories,
+  getStoreCategories,
+  subscribeToStoreCategories,
   createCategory,
   updateCategory,
   deleteCategory,
   getCategoryById,
 } from '../services/categoryService';
-import { auth } from '../firebase';
 
-export function useCategories() {
+interface UseCategoriesProps {
+  storeId: string;
+}
+
+export function useCategories({ storeId }: UseCategoriesProps) {
   const [categories, setCategories] = useState<CategoryMarginConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const userId = auth.currentUser?.uid;
-
   // Subscribe to real-time updates
   useEffect(() => {
-    if (!userId) {
+    if (!storeId) {
       setLoading(false);
       return;
     }
@@ -33,45 +35,47 @@ export function useCategories() {
     setError(null);
 
     try {
-      const unsubscribe = subscribeToCategories(userId, (updatedCategories) => {
+      console.log(`📦 Subscrevendo a categorias da loja: ${storeId}`);
+      const unsubscribe = subscribeToStoreCategories(storeId, (updatedCategories) => {
         setCategories(updatedCategories);
         setLoading(false);
       });
 
       return unsubscribe;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
+      setError(errorMsg);
       setLoading(false);
     }
-  }, [userId]);
+  }, [storeId]);
 
   // Operations
   const handleCreateCategory = async (
     categoryData: Omit<
       CategoryMarginConfig,
-      'id' | 'userId' | 'createdAt' | 'updatedAt'
+      'id' | 'storeId' | 'createdAt' | 'updatedAt'
     >
   ) => {
-    if (!userId) throw new Error('User not authenticated');
-    return createCategory(userId, categoryData);
+    if (!storeId) throw new Error('Store ID não fornecido');
+    return createCategory(storeId, categoryData);
   };
 
   const handleUpdateCategory = async (
     categoryId: string,
     updates: Partial<CategoryMarginConfig>
   ) => {
-    if (!userId) throw new Error('User not authenticated');
-    return updateCategory(userId, categoryId, updates);
+    if (!storeId) throw new Error('Store ID não fornecido');
+    return updateCategory(storeId, categoryId, updates);
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (!userId) throw new Error('User not authenticated');
-    return deleteCategory(userId, categoryId);
+    if (!storeId) throw new Error('Store ID não fornecido');
+    return deleteCategory(storeId, categoryId);
   };
 
   const handleGetCategory = async (categoryId: string) => {
-    if (!userId) throw new Error('User not authenticated');
-    return getCategoryById(userId, categoryId);
+    if (!storeId) throw new Error('Store ID não fornecido');
+    return getCategoryById(storeId, categoryId);
   };
 
   return {

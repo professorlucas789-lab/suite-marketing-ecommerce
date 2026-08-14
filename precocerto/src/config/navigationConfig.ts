@@ -59,7 +59,7 @@ export const navigationConfig: NavigationConfig[] = [
     id: 'categories',
     label: 'Categorias',
     icon: 'Folder',
-    roles: ['admin', 'loja-manager'],
+    roles: ['admin'], // FIX (Fase 12): Apenas admin pode criar/editar categorias globalmente
     section: 'main',
   },
 
