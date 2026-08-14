@@ -50,8 +50,17 @@ export default function PackageConversionSection({
   onVenderEmbalagemInteiraChange,
   showResults = true,
 }: PackageConversionSectionProps) {
+  console.log('🔵 PackageConversionSection renderizando com props:', {
+    tipoProduto,
+    unidadeCompra,
+    unidadeVenda,
+    unidadesInternas,
+    venderEmbalagemInteira,
+  });
+
   // Get package options based on product type
   const packageOptions = getPackageOptions(tipoProduto);
+  console.log('📦 Package options:', packageOptions);
 
   // Calculate conversion metrics
   const resultado = calculatePackageConversion({
