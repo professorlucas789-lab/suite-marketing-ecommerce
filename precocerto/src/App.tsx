@@ -32,6 +32,7 @@ import BackupView from "./components/BackupView";
 import { CategoriesTab } from "./components/CategoriesTab"; // NOVO (Fase 1)
 import { ImportCSVModal } from "./components/ImportCSVModal"; // NOVO (Fase 5A)
 import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fase 5A)
+import { ReportBuilder, ReportConfig } from "./components/ReportBuilder"; // NOVO (Fase 5B Item 3)
 
 
 // Icons
@@ -55,7 +56,8 @@ import {
   Folder, // NOVO (Fase 1)
   Boxes, // NOVO (Fase 3 - Batch products) - Changed from Layers to Boxes
   Upload, // NOVO (Fase 5A - CSV Import)
-  Download // NOVO (Fase 5A - Excel Export)
+  Download, // NOVO (Fase 5A - Excel Export)
+  BarChart3 // NOVO (Fase 5B Item 3 - Custom Reports)
 } from "lucide-react";
 
 export default function App() {
@@ -106,6 +108,7 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false); // NOVO (Fase 5A)
+  const [isReportBuilderOpen, setIsReportBuilderOpen] = useState<boolean>(false); // NOVO (Fase 5B Item 3)
 
   // User notifications toast state
   const [notification, setNotification] = useState<{
@@ -530,6 +533,50 @@ export default function App() {
     } catch (error) {
       console.error("Error duplicating product: ", error);
       triggerNotification("Erro ao duplicar o produto.", "error");
+    }
+  };
+
+  // Generate Custom Report Handler (Fase 5B Item 3)
+  const handleGenerateReport = (reportConfig: ReportConfig) => {
+    try {
+      // Apply filters to products if needed
+      let filteredProducts = [...products];
+
+      // Apply column and sort configuration
+      const enabledColumns = reportConfig.columns.filter(c => c.enabled);
+
+      if (enabledColumns.length === 0) {
+        triggerNotification("Seleccione pelo menos uma coluna para o relatório.", "error");
+        return;
+      }
+
+      // Sort products based on configuration
+      if (reportConfig.sortBy) {
+        filteredProducts.sort((a, b) => {
+          const aValue = a[reportConfig.sortBy as keyof Product];
+          const bValue = b[reportConfig.sortBy as keyof Product];
+
+          if (aValue === undefined || aValue === null) return 1;
+          if (bValue === undefined || bValue === null) return -1;
+
+          if (typeof aValue === 'string') {
+            const comparison = (aValue as string).localeCompare(bValue as string);
+            return reportConfig.sortOrder === 'asc' ? comparison : -comparison;
+          } else if (typeof aValue === 'number') {
+            return reportConfig.sortOrder === 'asc' ? (aValue - (bValue as number)) : ((bValue as number) - aValue);
+          }
+
+          return 0;
+        });
+      }
+
+      // For now, just show success notification
+      // Future: Generate Excel or PDF export with the filtered data
+      triggerNotification(`Relatório "${reportConfig.title}" gerado com ${filteredProducts.length} produtos!`);
+      setIsReportBuilderOpen(false);
+    } catch (error) {
+      console.error("Error generating report: ", error);
+      triggerNotification("Erro ao gerar o relatório.", "error");
     }
   };
 
@@ -959,6 +1006,13 @@ export default function App() {
                         <Upload size={18} />
                         Importar CSV
                       </button>
+                      <button
+                        onClick={() => setIsReportBuilderOpen(true)}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                      >
+                        <BarChart3 size={18} />
+                        Relatório Personalizado
+                      </button>
                       <ExportExcelButton
                         products={products}
                         settings={businessSettings}
@@ -1119,6 +1173,47 @@ export default function App() {
           onClose={() => setIsImportModalOpen(false)}
           onImport={handleSaveBatchProducts}
         />
+
+        {/* NOVO (Fase 5B Item 3): Report Builder Modal */}
+        <AnimatePresence>
+          {isReportBuilderOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.4 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsReportBuilderOpen(false)}
+                className="fixed inset-0 bg-black z-40"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-4 sm:inset-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-2xl max-h-[90vh] z-50 bg-white dark:bg-slate-900 rounded-lg shadow-2xl flex flex-col"
+              >
+                <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+                  <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <BarChart3 size={24} className="text-purple-600" />
+                    Construtor de Relatórios
+                  </h2>
+                  <button
+                    onClick={() => setIsReportBuilderOpen(false)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-6">
+                  <ReportBuilder
+                    products={products}
+                    onGenerateReport={handleGenerateReport}
+                  />
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* Toast Alert Component */}
         <Toast notification={notification} onClose={() => setNotification(null)} />
