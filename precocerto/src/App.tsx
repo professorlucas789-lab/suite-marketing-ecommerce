@@ -30,6 +30,7 @@ import GeneralHistoryView from "./components/GeneralHistoryView";
 import ReportsView from "./components/ReportsView";
 import BackupView from "./components/BackupView";
 import { CategoriesTab } from "./components/CategoriesTab"; // NOVO (Fase 1)
+import { ImportCSVModal } from "./components/ImportCSVModal"; // NOVO (Fase 5A)
 
 
 // Icons
@@ -51,7 +52,8 @@ import {
   Database,
   Menu,
   Folder, // NOVO (Fase 1)
-  Boxes // NOVO (Fase 3 - Batch products) - Changed from Layers to Boxes
+  Boxes, // NOVO (Fase 3 - Batch products) - Changed from Layers to Boxes
+  Upload // NOVO (Fase 5A - CSV Import)
 } from "lucide-react";
 
 export default function App() {
@@ -101,6 +103,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false); // NOVO (Fase 5A)
 
   // User notifications toast state
   const [notification, setNotification] = useState<{
@@ -938,6 +941,24 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
+                    {/* NOVO (Fase 5A): Action buttons header */}
+                    <div className="mb-6 flex gap-3 flex-wrap">
+                      <button
+                        onClick={handleAddNewTrigger}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+                      >
+                        <Package size={18} />
+                        Novo Produto
+                      </button>
+                      <button
+                        onClick={() => setIsImportModalOpen(true)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                      >
+                        <Upload size={18} />
+                        Importar CSV
+                      </button>
+                    </div>
+
                     <ProductList
                       products={products}
                       settings={businessSettings}
@@ -1085,6 +1106,13 @@ export default function App() {
           </div>
 
         </main>
+
+        {/* NOVO (Fase 5A): Import CSV Modal */}
+        <ImportCSVModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          onImport={handleSaveBatchProducts}
+        />
 
         {/* Toast Alert Component */}
         <Toast notification={notification} onClose={() => setNotification(null)} />

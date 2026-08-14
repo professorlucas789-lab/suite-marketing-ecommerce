@@ -8,10 +8,30 @@ import {
 import { Product } from '../types';
 import { CategoryMarginConfig } from '../types/category';
 
+// Helper to create valid Product objects for testing
+const createTestProduct = (overrides?: Partial<Product>): Product => ({
+  id: 'test-1',
+  nome: 'Test Product',
+  categoria: 'Test Category',
+  custoCompra: 100,
+  custoTransporte: 0,
+  custoEmbalagem: 0,
+  outrosCustos: 0,
+  margemDesejada: 20,
+  precoVendaRecomendado: 120,
+  lucroEstimado: 20,
+  margemReal: 20,
+  margemAplicada: 20,
+  roi: 20,
+  ...overrides,
+} as Product);
+
 describe('Margin Calculation Utils', () => {
   const mockCategory: CategoryMarginConfig = {
-    categoryId: 'test-cat',
-    categoryName: 'Test Category',
+    id: 'test-cat',
+    userId: 'test-user',
+    name: 'Test Category',
+    businessType: 'test',
     marginRules: {
       baseMargin: 30,
       minMargin: 15,
@@ -20,20 +40,18 @@ describe('Margin Calculation Utils', () => {
     regulatoryConstraints: {
       maxMarginPercentage: 100,
       restrictionBody: 'Government',
+      lastUpdated: new Date().toISOString(),
     },
-  };
+  } as CategoryMarginConfig;
 
   describe('calculateProductPricesWithCategoryMargin', () => {
     it('should calculate prices using category base margin', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
+      const product = createTestProduct({
         custoCompra: 100,
         custoTransporte: 10,
         custoEmbalagem: 5,
         outrosCustos: 5,
-      };
+      });
 
       const result = calculateProductPricesWithCategoryMargin(product, mockCategory);
 
@@ -45,16 +63,10 @@ describe('Margin Calculation Utils', () => {
     });
 
     it('should use product margin override when set', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
+      const product = createTestProduct({
         custoCompra: 100,
-        custoTransporte: 0,
-        custoEmbalagem: 0,
-        outrosCustos: 0,
-        margemOverride: 50, // Override to 50%
-      };
+        margemOverride: 50,
+      });
 
       const result = calculateProductPricesWithCategoryMargin(product, mockCategory);
 
@@ -64,12 +76,9 @@ describe('Margin Calculation Utils', () => {
     });
 
     it('should handle zero additional costs', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
+      const product = createTestProduct({
         custoCompra: 100,
-      };
+      });
 
       const result = calculateProductPricesWithCategoryMargin(product, mockCategory);
 
@@ -78,15 +87,9 @@ describe('Margin Calculation Utils', () => {
     });
 
     it('should calculate real margin correctly', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
+      const product = createTestProduct({
         custoCompra: 100,
-        custoTransporte: 0,
-        custoEmbalagem: 0,
-        outrosCustos: 0,
-      };
+      });
 
       const result = calculateProductPricesWithCategoryMargin(product, mockCategory);
 
@@ -98,12 +101,9 @@ describe('Margin Calculation Utils', () => {
 
   describe('calculateMultiplePricingStrategy', () => {
     it('should calculate three price levels correctly', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
+      const product = createTestProduct({
         custoCompra: 100,
-      };
+      });
 
       const result = calculateMultiplePricingStrategy(product, mockCategory);
 
@@ -116,13 +116,10 @@ describe('Margin Calculation Utils', () => {
     });
 
     it('should respect product margin override in ideal price', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
+      const product = createTestProduct({
         custoCompra: 100,
         margemOverride: 50,
-      };
+      });
 
       const result = calculateMultiplePricingStrategy(product, mockCategory);
 
@@ -160,13 +157,9 @@ describe('Margin Calculation Utils', () => {
 
   describe('validateProductMarginRange', () => {
     it('should accept margin within valid range', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
-        custoCompra: 100,
+      const product = createTestProduct({
         margemOverride: 30, // Within 15-50 range
-      };
+      });
 
       const result = validateProductMarginRange(product, mockCategory);
 
@@ -175,13 +168,9 @@ describe('Margin Calculation Utils', () => {
     });
 
     it('should reject margin below minimum', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
-        custoCompra: 100,
+      const product = createTestProduct({
         margemOverride: 10, // Below 15 minimum
-      };
+      });
 
       const result = validateProductMarginRange(product, mockCategory);
 
@@ -190,13 +179,9 @@ describe('Margin Calculation Utils', () => {
     });
 
     it('should reject margin above maximum', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
-        custoCompra: 100,
+      const product = createTestProduct({
         margemOverride: 60, // Above 50 maximum
-      };
+      });
 
       const result = validateProductMarginRange(product, mockCategory);
 
@@ -210,16 +195,13 @@ describe('Margin Calculation Utils', () => {
         regulatoryConstraints: {
           maxMarginPercentage: 40, // Max allowed by regulation
           restrictionBody: 'Government Agency',
+          lastUpdated: new Date().toISOString(),
         },
       };
 
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
-        custoCompra: 100,
+      const product = createTestProduct({
         margemOverride: 45, // Above regulatory limit
-      };
+      });
 
       const result = validateProductMarginRange(product, restrictedCategory);
 
@@ -228,13 +210,9 @@ describe('Margin Calculation Utils', () => {
     });
 
     it('should warn when using margin override', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
-        custoCompra: 100,
+      const product = createTestProduct({
         margemOverride: 35, // Different from base 30
-      };
+      });
 
       const result = validateProductMarginRange(product, mockCategory);
 
@@ -244,28 +222,7 @@ describe('Margin Calculation Utils', () => {
     });
 
     it('should not warn when no override is set', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
-        custoCompra: 100,
-        // No margemOverride set
-      };
-
-      const result = validateProductMarginRange(product, mockCategory);
-
-      expect(result.isValid).toBe(true);
-      expect(result.warning).toBeUndefined();
-    });
-
-    it('should accept margin without override', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
-        custoCompra: 100,
-        // No margemOverride
-      };
+      const product = createTestProduct();
 
       const result = validateProductMarginRange(product, mockCategory);
 
@@ -275,25 +232,17 @@ describe('Margin Calculation Utils', () => {
 
     it('should accept margin at boundaries', () => {
       // Test minimum boundary
-      const productMin: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
-        custoCompra: 100,
+      const productMin = createTestProduct({
         margemOverride: 15, // Exactly at minimum
-      };
+      });
 
       const resultMin = validateProductMarginRange(productMin, mockCategory);
       expect(resultMin.isValid).toBe(true);
 
       // Test maximum boundary
-      const productMax: Product = {
-        id: '2',
-        nome: 'Test Product',
-        categoria: 'Test Category',
-        custoCompra: 100,
+      const productMax = createTestProduct({
         margemOverride: 50, // Exactly at maximum
-      };
+      });
 
       const resultMax = validateProductMarginRange(productMax, mockCategory);
       expect(resultMax.isValid).toBe(true);
@@ -302,12 +251,9 @@ describe('Margin Calculation Utils', () => {
 
   describe('Edge cases and special scenarios', () => {
     it('should handle product with no additional costs', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Test Product',
-        categoria: 'Test Category',
+      const product = createTestProduct({
         custoCompra: 100,
-      };
+      });
 
       const result = calculateProductPricesWithCategoryMargin(product, mockCategory);
 
@@ -317,12 +263,9 @@ describe('Margin Calculation Utils', () => {
     });
 
     it('should handle very low cost products', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Cheap Product',
-        categoria: 'Test Category',
+      const product = createTestProduct({
         custoCompra: 0.01,
-      };
+      });
 
       const result = calculateProductPricesWithCategoryMargin(product, mockCategory);
 
@@ -332,13 +275,10 @@ describe('Margin Calculation Utils', () => {
     });
 
     it('should handle very high margin requests', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'Luxury Product',
-        categoria: 'Test Category',
+      const product = createTestProduct({
         custoCompra: 100,
         margemOverride: 50, // 50% margin
-      };
+      });
 
       const result = calculateProductPricesWithCategoryMargin(product, mockCategory);
 
@@ -348,13 +288,10 @@ describe('Margin Calculation Utils', () => {
     });
 
     it('should handle zero margin (cost-plus)', () => {
-      const product: Product = {
-        id: '1',
-        nome: 'No Margin Product',
-        categoria: 'Test Category',
+      const product = createTestProduct({
         custoCompra: 100,
         margemOverride: 0, // No margin
-      };
+      });
 
       const result = calculateProductPricesWithCategoryMargin(product, mockCategory);
 
