@@ -52,6 +52,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       const userData = userDoc.data() as User;
 
+      // DEBUG: Verificar papel e lojas
+      console.log('👤 Utilizador autenticado:', {
+        uid: user.uid,
+        papel: userData.papel,
+        lojas: userData.lojas,
+        lojas_length: userData.lojas?.length || 0,
+      });
+
       // FIX: Se admin não tem lojas atribuídas, atribuir automaticamente todas as lojas existentes
       let userLojas = userData.lojas || [];
       if (userData.papel === 'admin' && userLojas.length === 0) {
