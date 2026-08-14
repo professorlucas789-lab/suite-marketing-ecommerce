@@ -17,7 +17,8 @@ export type NavigationItemId =
   | 'reports'
   | 'users'
   | 'settings'
-  | 'backup';
+  | 'backup'
+  | 'user-profile'; // NOVO (Fase 11 - User Profile)
 
 interface NavigationConfig {
   id: NavigationItemId;
@@ -100,6 +101,14 @@ export const navigationConfig: NavigationConfig[] = [
     label: 'Utilizadores',
     icon: 'User',
     roles: ['admin', 'loja-manager'],
+    section: 'management',
+  },
+
+  {
+    id: 'user-profile',
+    label: 'Meu Perfil',
+    icon: 'User',
+    roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 11): Todos podem acessar seu próprio perfil
     section: 'management',
   },
 

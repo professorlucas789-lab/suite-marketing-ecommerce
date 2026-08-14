@@ -35,6 +35,7 @@ import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fas
 import { ReportBuilder, ReportConfig } from "./components/ReportBuilder"; // NOVO (Fase 5B Item 3)
 import { UsersManagementView } from "./components/UsersManagementView"; // NOVO (Fase 10 - User Management)
 import { StoreList } from "./components/StoreList"; // NOVO (Fase 6 - Multi-Store)
+import { UserProfileView } from "./components/UserProfileView"; // NOVO (Fase 11 - User Profile)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -754,7 +755,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users" | "stores"; // NOVO: batch-products, users, stores
+    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 11): user-profile
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -786,6 +787,7 @@ export default function App() {
     { id: "history", label: "Histórico", icon: History },
     { id: "reports", label: "Relatórios", icon: FileText },
     { id: "users", label: "Utilizadores", icon: UserIcon }, // NOVO (Fase 10)
+    { id: "user-profile", label: "Meu Perfil", icon: UserIcon }, // NOVO (Fase 11 - User Profile)
     { id: "settings", label: "Configurações", icon: Settings },
     { id: "backup", label: "Backup e Dados", icon: Database }
   ];
@@ -1216,6 +1218,20 @@ export default function App() {
                     transition={{ duration: 0.15 }}
                   >
                     <UsersManagementView />
+                  </motion.div>
+                )}
+
+                {activeTab === "user-profile" && (
+                  <motion.div
+                    key="user-profile-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <UserProfileView
+                      onNavigate={(tab) => setActiveTab(tab)}
+                    />
                   </motion.div>
                 )}
 
