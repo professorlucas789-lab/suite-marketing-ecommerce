@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Product } from '../types';
-import { Download, Plus, X } from 'lucide-react';
+import { Download, Plus, X, FileJson, FileSpreadsheet, FileText } from 'lucide-react';
 
 interface ReportColumn {
   id: string;
@@ -19,6 +19,7 @@ interface ReportFilter {
 interface ReportBuilderProps {
   products: Product[];
   onGenerateReport: (config: ReportConfig) => void;
+  onExport?: (config: ReportConfig, format: 'excel' | 'pdf') => void;
 }
 
 export interface ReportConfig {
@@ -36,7 +37,8 @@ export interface ReportConfig {
  */
 export function ReportBuilder({
   products,
-  onGenerateReport
+  onGenerateReport,
+  onExport
 }: ReportBuilderProps) {
   const [reportTitle, setReportTitle] = useState('Relatório de Produtos');
   const [selectedColumns, setSelectedColumns] = useState<ReportColumn[]>([
@@ -208,7 +210,7 @@ export function ReportBuilder({
         </div>
       </div>
 
-      {/* Resumo e Botão Gerar */}
+      {/* Resumo e Botões */}
       <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-950/30 dark:to-emerald-900/30 rounded-lg border border-emerald-200 dark:border-emerald-800 p-6">
         <div className="mb-4">
           <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -219,14 +221,50 @@ export function ReportBuilder({
           </p>
         </div>
 
-        <button
-          onClick={handleGenerateReport}
-          disabled={selectedColumns.filter(c => c.enabled).length === 0}
-          className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-        >
-          <Download size={18} />
-          Gerar Relatório
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <button
+            onClick={handleGenerateReport}
+            disabled={selectedColumns.filter(c => c.enabled).length === 0}
+            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <Download size={18} />
+            Gerar
+          </button>
+
+          {onExport && (
+            <>
+              <button
+                onClick={() => onExport({
+                  title: reportTitle,
+                  columns: selectedColumns.filter(c => c.enabled),
+                  filters,
+                  sortBy,
+                  sortOrder
+                }, 'excel')}
+                disabled={selectedColumns.filter(c => c.enabled).length === 0}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <FileSpreadsheet size={18} />
+                Excel
+              </button>
+
+              <button
+                onClick={() => onExport({
+                  title: reportTitle,
+                  columns: selectedColumns.filter(c => c.enabled),
+                  filters,
+                  sortBy,
+                  sortOrder
+                }, 'pdf')}
+                disabled={selectedColumns.filter(c => c.enabled).length === 0}
+                className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <FileText size={18} />
+                PDF
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

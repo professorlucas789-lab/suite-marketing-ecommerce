@@ -33,6 +33,12 @@ import { CategoriesTab } from "./components/CategoriesTab"; // NOVO (Fase 1)
 import { ImportCSVModal } from "./components/ImportCSVModal"; // NOVO (Fase 5A)
 import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fase 5A)
 import { ReportBuilder, ReportConfig } from "./components/ReportBuilder"; // NOVO (Fase 5B Item 3)
+import {
+  exportReportToExcel,
+  exportReportToPDF,
+  filterProductsByConfig,
+  prepareProductsForExport
+} from "./utils/reportExporter"; // NOVO (Fase 5B Item 3 - Export)
 
 
 // Icons
@@ -539,10 +545,6 @@ export default function App() {
   // Generate Custom Report Handler (Fase 5B Item 3)
   const handleGenerateReport = (reportConfig: ReportConfig) => {
     try {
-      // Apply filters to products if needed
-      let filteredProducts = [...products];
-
-      // Apply column and sort configuration
       const enabledColumns = reportConfig.columns.filter(c => c.enabled);
 
       if (enabledColumns.length === 0) {
@@ -550,33 +552,68 @@ export default function App() {
         return;
       }
 
-      // Sort products based on configuration
-      if (reportConfig.sortBy) {
-        filteredProducts.sort((a, b) => {
-          const aValue = a[reportConfig.sortBy as keyof Product];
-          const bValue = b[reportConfig.sortBy as keyof Product];
+      // Filter and sort products
+      const filteredProducts = filterProductsByConfig(products, reportConfig);
 
-          if (aValue === undefined || aValue === null) return 1;
-          if (bValue === undefined || bValue === null) return -1;
-
-          if (typeof aValue === 'string') {
-            const comparison = (aValue as string).localeCompare(bValue as string);
-            return reportConfig.sortOrder === 'asc' ? comparison : -comparison;
-          } else if (typeof aValue === 'number') {
-            return reportConfig.sortOrder === 'asc' ? (aValue - (bValue as number)) : ((bValue as number) - aValue);
-          }
-
-          return 0;
-        });
-      }
-
-      // For now, just show success notification
-      // Future: Generate Excel or PDF export with the filtered data
       triggerNotification(`Relatório "${reportConfig.title}" gerado com ${filteredProducts.length} produtos!`);
       setIsReportBuilderOpen(false);
     } catch (error) {
       console.error("Error generating report: ", error);
       triggerNotification("Erro ao gerar o relatório.", "error");
+    }
+  };
+
+  // Export Report Handler (Fase 5B Item 3)
+  const handleExportReport = (reportConfig: ReportConfig, format: 'excel' | 'pdf') => {
+    try {
+      const enabledColumns = reportConfig.columns.filter(c => c.enabled);
+
+      if (enabledColumns.length === 0) {
+        triggerNotification("Seleccione pelo menos uma coluna para o relatório.", "error");
+        return;
+      }
+
+      // Filter and prepare products
+      const filteredProducts = filterProductsByConfig(products, reportConfig);
+
+      if (filteredProducts.length === 0) {
+        triggerNotification("Nenhum produto corresponde aos critérios de filtro.", "error");
+        return;
+      }
+
+      // Prepare export data
+      const exportColumns = enabledColumns.map(col => ({
+        key: col.key as string,
+        label: col.label
+      }));
+
+      const exportData = prepareProductsForExport(filteredProducts, exportColumns);
+
+      // Export based on format
+      if (format === 'excel') {
+        exportReportToExcel({
+          title: reportConfig.title,
+          columns: exportColumns,
+          data: exportData,
+          generatedAt: new Date().toLocaleDateString('pt-PT'),
+          companyName: businessSettings?.companyName
+        });
+        triggerNotification(`Relatório exportado para Excel com sucesso!`);
+      } else if (format === 'pdf') {
+        exportReportToPDF({
+          title: reportConfig.title,
+          columns: exportColumns,
+          data: exportData,
+          generatedAt: new Date().toLocaleDateString('pt-PT'),
+          companyName: businessSettings?.companyName
+        });
+        triggerNotification(`Relatório exportado para PDF com sucesso!`);
+      }
+
+      setIsReportBuilderOpen(false);
+    } catch (error) {
+      console.error(`Error exporting report to ${format}:`, error);
+      triggerNotification(`Erro ao exportar o relatório para ${format.toUpperCase()}.`, "error");
     }
   };
 
@@ -1208,6 +1245,7 @@ export default function App() {
                   <ReportBuilder
                     products={products}
                     onGenerateReport={handleGenerateReport}
+                    onExport={handleExportReport}
                   />
                 </div>
               </motion.div>
