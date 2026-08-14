@@ -100,7 +100,7 @@ export const navigationConfig: NavigationConfig[] = [
     id: 'users',
     label: 'Utilizadores',
     icon: 'User',
-    roles: ['admin', 'loja-manager'],
+    roles: ['admin'], // FIX (Fase 11): Apenas admin pode gerenciar utilizadores
     section: 'management',
   },
 

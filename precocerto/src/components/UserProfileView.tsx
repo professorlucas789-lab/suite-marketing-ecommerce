@@ -13,7 +13,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { motion } from 'motion/react';
 import ActivityHistoryCard from './ActivityHistoryCard'; // NOVO (Fase 11)
-import { logPasswordChange, logAvatarUpdate } from '../utils/activityLogger'; // NOVO (Fase 11)
+import { logPasswordChange, logAvatarUpdate, logProfileUpdate } from '../utils/activityLogger'; // NOVO (Fase 11)
 
 interface UserData {
   id: string;
@@ -56,6 +56,11 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
   // Avatar upload states
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
+  // NOVO (Fase 11): Edit mode states
+  const [editMode, setEditMode] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [isEditingSubmit, setIsEditingSubmit] = useState(false);
 
   // Load user data from Firestore
   useEffect(() => {
@@ -106,6 +111,48 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
 
     loadUserData();
   }, [user, papel]);
+
+  // NOVO (Fase 11): Editar dados do utilizador
+  const handleEditProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!user || !editedName.trim()) {
+      setMessage({ type: 'error', text: 'Nome não pode estar vazio.' });
+      return;
+    }
+
+    setIsEditingSubmit(true);
+
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      await updateDoc(userDocRef, {
+        nome: editedName.trim(),
+        dataAtualizacao: new Date().toISOString()
+      });
+
+      // Atualizar state local
+      setUserData(prev => prev ? { ...prev, nome: editedName.trim() } : null);
+
+      // Registar atividade
+      await logProfileUpdate(['nome']);
+
+      setMessage({ type: 'success', text: 'Perfil atualizado com sucesso!' });
+      setEditMode(false);
+      setTimeout(() => setMessage(null), 3000);
+
+    } catch (error: any) {
+      console.error('Erro ao atualizar perfil:', error);
+      setMessage({ type: 'error', text: 'Erro ao atualizar perfil. Tente novamente.' });
+    } finally {
+      setIsEditingSubmit(false);
+    }
+  };
+
+  // Iniciar modo de edição
+  const startEditMode = () => {
+    setEditedName(userData?.nome || '');
+    setEditMode(true);
+  };
 
   // Validar força da senha
   const validatePasswordStrength = (password: string): { score: number; feedback: string[] } => {
@@ -476,28 +523,68 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
 
       {/* User Information Card */}
       <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Shield size={20} className="text-emerald-600" />
             Informações da Conta
           </h2>
+          {!editMode && (
+            <button
+              onClick={startEditMode}
+              className="px-3 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-lg border border-emerald-200 dark:border-emerald-800 transition-colors"
+            >
+              Editar Perfil
+            </button>
+          )}
         </div>
 
         <div className="p-6 space-y-6">
-          {/* User Name */}
+          {/* NOVO (Fase 11): User Name Edit/View */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
               Nome
             </label>
-            <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-              <UserIcon size={18} className="text-slate-400" />
-              <input
-                type="text"
-                value={userData?.nome || ''}
-                readOnly
-                className="bg-transparent text-slate-900 dark:text-slate-100 font-medium w-full outline-none"
-              />
-            </div>
+            {editMode ? (
+              <form onSubmit={handleEditProfile} className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <UserIcon size={18} className="text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    placeholder="Digite seu nome"
+                    className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none focus:border-emerald-500 dark:focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500/20 transition-colors"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={isEditingSubmit}
+                    className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isEditingSubmit ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                    Guardar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMode(false)}
+                    className="flex-1 px-3 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-slate-100 text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                <UserIcon size={18} className="text-slate-400" />
+                <input
+                  type="text"
+                  value={userData?.nome || ''}
+                  readOnly
+                  className="bg-transparent text-slate-900 dark:text-slate-100 font-medium w-full outline-none"
+                />
+              </div>
+            )}
           </div>
 
           {/* Email */}
