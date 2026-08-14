@@ -45,6 +45,7 @@ import {
   filterProductsByConfig,
   prepareProductsForExport
 } from "./utils/reportExporter"; // NOVO (Fase 5B Item 3 - Export)
+import { getTailwindColorHex, injectPrimaryColorCSS } from "./utils/colorUtils"; // NOVO: Sistema de cores dinâmicas
 
 
 // Icons
@@ -217,6 +218,14 @@ export default function App() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // NOVO: Injetar cores CSS dinâmicas quando a cor primária mudar
+  useEffect(() => {
+    if (businessSettings?.primaryColor) {
+      const hexColor = getTailwindColorHex(businessSettings.primaryColor);
+      injectPrimaryColorCSS(hexColor);
+    }
+  }, [businessSettings?.primaryColor]);
 
   // Save handler for business settings
   const handleSaveBusinessSettings = async (settingsData: Omit<BusinessSettings, "userId" | "id">) => {
