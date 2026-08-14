@@ -12,9 +12,9 @@ import { useStore } from '../contexts/StoreContext';
 import { useUserAuth } from '../hooks/useUserAuth';
 import { CategoryMarginConfig } from '../types/category';
 import { motion } from 'motion/react';
-import { Building2, RefreshCw, Loader2 } from 'lucide-react';
+import { Building2, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
 import { db, auth } from '../firebase';
-import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs, getDoc } from 'firebase/firestore';
 
 interface CategoriesTabProps {
   businessType: string;
@@ -92,6 +92,51 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
       console.error('❌ Erro ao mudar loja:', error);
     }
   };
+
+  /**
+   * Diagnosticar o estado atual
+   */
+  const handleDiagnosticar = useCallback(() => {
+    console.log('🔍 === DIAGNÓSTICO DO SISTEMA ===');
+    console.log('👤 Utilizador autenticado:', auth.currentUser?.uid, auth.currentUser?.email);
+    console.log('🏢 userStores do contexto:', userStores);
+    console.log('🎯 currentStore do contexto:', currentStore);
+    console.log('👨 papel do utilizador:', papel);
+    console.log('🔐 isAdmin:', papel === 'admin');
+    console.log('📦 Quantidade de lojas:', userStores.length);
+
+    // Tentar carregar lojas do Firestore diretamente
+    console.log('🔄 Tentando carregar lojas do Firestore diretamente...');
+    getDocs(collection(db, 'stores'))
+      .then(snap => {
+        console.log('✅ Lojas no Firestore:', snap.size);
+        snap.docs.forEach(doc => {
+          console.log(`  - ${doc.id}: ${doc.data().nome}, ativo=${doc.data().ativo}`);
+        });
+      })
+      .catch(err => console.error('❌ Erro ao carregar lojas:', err));
+
+    // Tentar carregar dados do utilizador
+    if (auth.currentUser) {
+      console.log('📄 Carregando documento do utilizador...');
+      getDoc(doc(db, 'users', auth.currentUser.uid))
+        .then(snap => {
+          if (snap.exists()) {
+            const data = snap.data();
+            console.log('✅ Dados do utilizador:', {
+              papel: data.papel,
+              lojas: data.lojas,
+              lojas_length: data.lojas?.length || 0,
+            });
+          } else {
+            console.log('❌ Documento do utilizador não existe');
+          }
+        })
+        .catch(err => console.error('❌ Erro ao carregar utilizador:', err));
+    }
+
+    console.log('🏁 === FIM DO DIAGNÓSTICO ===');
+  }, [papel, userStores, currentStore]);
 
   /**
    * Atribuir automaticamente todas as lojas ao admin
@@ -224,6 +269,15 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
                 >
                   <RefreshCw size={16} />
                   Recarregar
+                </button>
+
+                <button
+                  onClick={handleDiagnosticar}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  title="Abrir Consola (F12) para ver os detalhes"
+                >
+                  <AlertCircle size={16} />
+                  Diagnosticar
                 </button>
               </div>
 
