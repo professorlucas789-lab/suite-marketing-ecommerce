@@ -1084,28 +1084,38 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
 
           {/* NOVO (Fase 3): Conversão de Embalagem */}
           {(() => {
-            const parseNum = (val: string) => {
-              const n = parseFloat(val);
-              return isNaN(n) ? 0 : n;
-            };
-            return (
-              <PackageConversionSection
-                tipoProduto={tipoProduto || "produto comum"}
-                unidadeCompra={unidadeCompra || "unidade"}
-                unidadeVenda={unidadeVenda || "unidade"}
-                unidadesInternas={unidadesInternas || "1"}
-                venderEmbalagemInteira={venderEmbalagemInteira}
-                custoCompra={parseNum(custoCompra)}
-                quantidade={quantidade}
-                precoVendaRecomendado={calculated.precoVendaRecomendado || 0}
-                margemDesejada={parseNum(margemDesejada)}
-                onUnidadeCompraChange={setUnidadeCompra}
-                onUnidadeVendaChange={setUnidadeVenda}
-                onUnidadesInternasChange={setUnidadesInternas}
-                onVenderEmbalagemInteiraChange={setVenderEmbalagemInteira}
-                showResults={true}
-              />
-            );
+            try {
+              const parseNum = (val: string) => {
+                const n = parseFloat(val);
+                return isNaN(n) ? 0 : n;
+              };
+              return (
+                <PackageConversionSection
+                  tipoProduto={tipoProduto || "produto comum"}
+                  unidadeCompra={unidadeCompra || "unidade"}
+                  unidadeVenda={unidadeVenda || "unidade"}
+                  unidadesInternas={unidadesInternas || "1"}
+                  venderEmbalagemInteira={venderEmbalagemInteira}
+                  custoCompra={parseNum(custoCompra)}
+                  quantidade={quantidade || "0"}
+                  precoVendaRecomendado={calculated.precoVendaRecomendado || 0}
+                  margemDesejada={parseNum(margemDesejada)}
+                  onUnidadeCompraChange={setUnidadeCompra}
+                  onUnidadeVendaChange={setUnidadeVenda}
+                  onUnidadesInternasChange={setUnidadesInternas}
+                  onVenderEmbalagemInteiraChange={setVenderEmbalagemInteira}
+                  showResults={true}
+                />
+              );
+            } catch (error) {
+              console.error('Erro ao renderizar PackageConversionSection:', error);
+              return (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-800">Erro ao carregar configuração de embalagem</p>
+                  <p className="text-sm text-red-600">{error instanceof Error ? error.message : String(error)}</p>
+                </div>
+              );
+            }
           })()}
 
           {/* SECÇÃO: CUSTOS */}
