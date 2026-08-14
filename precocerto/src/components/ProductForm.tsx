@@ -1083,22 +1083,30 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
           </div>
 
           {/* NOVO (Fase 3): Conversão de Embalagem */}
-          <PackageConversionSection
-            tipoProduto={tipoProduto}
-            unidadeCompra={unidadeCompra}
-            unidadeVenda={unidadeVenda}
-            unidadesInternas={unidadesInternas}
-            venderEmbalagemInteira={venderEmbalagemInteira}
-            custoCompra={parseNum(custoCompra)}
-            quantidade={quantidade}
-            precoVendaRecomendado={calculated.precoVendaRecomendado}
-            margemDesejada={parseNum(margemDesejada)}
-            onUnidadeCompraChange={setUnidadeCompra}
-            onUnidadeVendaChange={setUnidadeVenda}
-            onUnidadesInternasChange={setUnidadesInternas}
-            onVenderEmbalagemInteiraChange={setVenderEmbalagemInteira}
-            showResults={true}
-          />
+          {(() => {
+            const parseNum = (val: string) => {
+              const n = parseFloat(val);
+              return isNaN(n) ? 0 : n;
+            };
+            return (
+              <PackageConversionSection
+                tipoProduto={tipoProduto || "produto comum"}
+                unidadeCompra={unidadeCompra || "unidade"}
+                unidadeVenda={unidadeVenda || "unidade"}
+                unidadesInternas={unidadesInternas || "1"}
+                venderEmbalagemInteira={venderEmbalagemInteira}
+                custoCompra={parseNum(custoCompra)}
+                quantidade={quantidade}
+                precoVendaRecomendado={calculated.precoVendaRecomendado || 0}
+                margemDesejada={parseNum(margemDesejada)}
+                onUnidadeCompraChange={setUnidadeCompra}
+                onUnidadeVendaChange={setUnidadeVenda}
+                onUnidadesInternasChange={setUnidadesInternas}
+                onVenderEmbalagemInteiraChange={setVenderEmbalagemInteira}
+                showResults={true}
+              />
+            );
+          })()}
 
           {/* SECÇÃO: CUSTOS */}
           <div className="space-y-4 bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-xs">
