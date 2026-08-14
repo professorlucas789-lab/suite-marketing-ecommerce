@@ -72,15 +72,31 @@ export class UserManagementService {
     password: string,
     createdBy: string
   ): Promise<User> {
-    try {
-      // 1. Criar conta no Firebase Auth
-      const authResult = await createUserWithEmailAndPassword(auth, data.email, password);
-      const uid = authResult.user.uid;
+    let uid: string | null = null;
 
-      // 2. Usar permissões customizadas ou padrão do papel
+    try {
+      // 1. Validar dados de entrada
+      if (!data.email || !data.nome || !data.papel) {
+        throw new Error('Email, nome e papel são obrigatórios');
+      }
+
+      if (password.length < 6) {
+        throw new Error('A senha deve ter pelo menos 6 caracteres');
+      }
+
+      console.log(`📝 Criando utilizador: ${data.email} (${data.papel})`);
+
+      // 2. Criar conta no Firebase Auth
+      console.log('   1️⃣  Criando conta no Firebase Auth...');
+      const authResult = await createUserWithEmailAndPassword(auth, data.email, password);
+      uid = authResult.user.uid;
+      console.log(`   ✅ Conta criada: ${uid}`);
+
+      // 3. Usar permissões customizadas ou padrão do papel
       const permissoes = data.permissoes || defaultPermissionsByRole[data.papel];
 
-      // 3. Criar documento no Firestore
+      // 4. Criar documento no Firestore
+      console.log('   2️⃣  Criando documento no Firestore...');
       const userData: User = {
         id: uid,
         nome: data.nome,
@@ -94,20 +110,45 @@ export class UserManagementService {
       };
 
       await setDoc(doc(db, 'users', uid), userData);
+      console.log(`   ✅ Documento criado no Firestore`);
 
-      // 4. Registrar na auditoria
-      await this.logAudit({
-        userId: createdBy,
-        acao: 'criar',
-        entityType: 'user',
-        entityId: uid,
-        entityName: data.nome,
-        storeId: data.lojas[0] || 'admin',
-      });
+      // 5. Registrar na auditoria
+      console.log('   3️⃣  Registando na auditoria...');
+      try {
+        await this.logAudit({
+          userId: createdBy,
+          acao: 'criar',
+          entityType: 'user',
+          entityId: uid,
+          entityName: data.nome,
+          storeId: data.lojas[0] || 'admin',
+        });
+        console.log(`   ✅ Auditoria registada`);
+      } catch (auditError) {
+        console.warn('⚠️  Aviso ao registar auditoria:', auditError);
+        // Não rejeitar se a auditoria falhar
+      }
 
+      console.log(`✅ Utilizador criado com sucesso: ${data.nome} (${uid})`);
       return userData;
-    } catch (error) {
-      console.error('Erro ao criar utilizador:', error);
+    } catch (error: any) {
+      console.error('❌ Erro ao criar utilizador:', error);
+
+      // Se a conta foi criada mas o Firestore falhou, informar ao user
+      if (uid) {
+        console.warn(`⚠️  ATENÇÃO: Conta Firebase criada (${uid}) mas documento Firestore falhou!`);
+        console.warn('O utilizador poderá fazer login mas terá permissões padrão.');
+      }
+
+      // Traduzir erros Firebase
+      if (error.code === 'auth/email-already-in-use') {
+        throw new Error('Este email já está registado');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('Email inválido');
+      } else if (error.code === 'auth/weak-password') {
+        throw new Error('Senha muito fraca');
+      }
+
       throw error;
     }
   }

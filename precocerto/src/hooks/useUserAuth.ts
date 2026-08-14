@@ -6,9 +6,10 @@
 
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { User, UserRole } from '../types/store';
+import { logLogin } from '../utils/activityLogger'; // NOVO (Fase 11)
 
 export interface AuthUserData {
   firebaseUser: FirebaseUser | null;
@@ -46,9 +47,47 @@ export function useUserAuth(): AuthUserData {
             if (userSnap.exists()) {
               const userData = userSnap.data() as User;
               setUser(userData);
+
+              // NOVO (Fase 11): Registar login na auditoria
+              try {
+                await logLogin();
+              } catch (logError) {
+                console.warn('Aviso ao registar login:', logError);
+                // Não interromper se o registo falhar
+              }
             } else {
-              setUser(null);
-              setError('Utilizador não encontrado na base de dados');
+              // NOVO (Fase 11): Se o documento não existir, tenta criar um padrão
+              console.warn('Utilizador não encontrado no Firestore. Criando documento padrão...');
+
+              try {
+                const { setDoc } = await import('firebase/firestore');
+                const defaultUser: User = {
+                  id: fbUser.uid,
+                  nome: fbUser.displayName || fbUser.email?.split('@')[0] || 'Utilizador',
+                  email: fbUser.email || '',
+                  papel: 'funcionario', // Papel padrão
+                  lojas: [],
+                  permissoes: {
+                    visualizar: true,
+                    criar: false,
+                    editar: false,
+                    deletar: false,
+                    relatorios: false,
+                  },
+                  ativo: true,
+                  dataCriacao: new Date().toISOString(),
+                };
+
+                await setDoc(doc(db, 'users', fbUser.uid), defaultUser);
+                setUser(defaultUser);
+
+                console.warn('⚠️ Documento padrão criado. Admin deve definir papel correto!');
+                setError('Utilizador criado com dados padrão. Contacte o administrador para definir suas permissões.');
+              } catch (createError) {
+                console.error('Erro ao criar documento padrão:', createError);
+                setUser(null);
+                setError('Utilizador não encontrado e não foi possível criar documento padrão');
+              }
             }
           } else {
             setFirebaseUser(null);
