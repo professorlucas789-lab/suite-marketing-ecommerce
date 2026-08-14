@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Product } from '../types';
-import { Download, Plus, X, FileJson, FileSpreadsheet, FileText } from 'lucide-react';
+import { Download, Plus, X, FileJson, FileSpreadsheet, FileText, Filter } from 'lucide-react';
 
 interface ReportColumn {
   id: string;
@@ -52,6 +52,25 @@ export function ReportBuilder({
   const [sortBy, setSortBy] = useState<keyof Product>('nome');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
+  // Filter form state
+  const [filterType, setFilterType] = useState<'category' | 'priceRange' | 'marginRange' | 'roiRange'>('category');
+  const [categoryValue, setCategoryValue] = useState('');
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
+  const [marginMin, setMarginMin] = useState('');
+  const [marginMax, setMarginMax] = useState('');
+  const [roiMin, setRoiMin] = useState('');
+  const [roiMax, setRoiMax] = useState('');
+
+  // Get unique categories from products
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    products.forEach(p => {
+      if (p.categoria) cats.add(p.categoria);
+    });
+    return Array.from(cats).sort();
+  }, [products]);
+
   const availableColumns: ReportColumn[] = [
     { id: 'nome', label: 'Nome do Produto', key: 'nome', enabled: false, sortable: true },
     { id: 'categoria', label: 'Categoria', key: 'categoria', enabled: false, sortable: true },
@@ -85,6 +104,65 @@ export function ReportBuilder({
 
   const removeColumn = (columnId: string) => {
     setSelectedColumns(prev => prev.filter(col => col.id !== columnId));
+  };
+
+  const addFilter = () => {
+    let newFilter: ReportFilter | null = null;
+    const filterId = `${filterType}-${Date.now()}`;
+
+    switch (filterType) {
+      case 'category':
+        if (categoryValue) {
+          newFilter = {
+            id: filterId,
+            type: 'category',
+            value: categoryValue
+          };
+          setCategoryValue('');
+        }
+        break;
+      case 'priceRange':
+        if (priceMin !== '' && priceMax !== '') {
+          newFilter = {
+            id: filterId,
+            type: 'priceRange',
+            value: { min: parseFloat(priceMin), max: parseFloat(priceMax) }
+          };
+          setPriceMin('');
+          setPriceMax('');
+        }
+        break;
+      case 'marginRange':
+        if (marginMin !== '' && marginMax !== '') {
+          newFilter = {
+            id: filterId,
+            type: 'marginRange',
+            value: { min: parseFloat(marginMin), max: parseFloat(marginMax) }
+          };
+          setMarginMin('');
+          setMarginMax('');
+        }
+        break;
+      case 'roiRange':
+        if (roiMin !== '' && roiMax !== '') {
+          newFilter = {
+            id: filterId,
+            type: 'roiRange',
+            value: { min: parseFloat(roiMin), max: parseFloat(roiMax) }
+          };
+          setRoiMin('');
+          setRoiMax('');
+        }
+        break;
+    }
+
+    if (newFilter) {
+      setFilters([...filters, newFilter]);
+    }
+  };
+
+  const removeFilter = (filterId: string) => {
+    setFilters(prev => prev.filter(f => f.id !== filterId));
   };
 
   const handleGenerateReport = () => {
@@ -166,6 +244,192 @@ export function ReportBuilder({
                 </button>
               ))}
           </div>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">
+          <div className="flex items-center gap-2">
+            <Filter size={18} />
+            Filtros
+          </div>
+        </h3>
+
+        {/* Filtros Aplicados */}
+        {filters.length > 0 && (
+          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+              Filtros Aplicados:
+            </p>
+            <div className="space-y-2">
+              {filters.map(filter => (
+                <div
+                  key={filter.id}
+                  className="flex items-center justify-between bg-white dark:bg-slate-800 p-3 rounded-lg"
+                >
+                  <div className="text-sm text-slate-700 dark:text-slate-300">
+                    {filter.type === 'category' && `Categoria: ${filter.value}`}
+                    {filter.type === 'priceRange' && `Preço: ${filter.value.min} - ${filter.value.max}`}
+                    {filter.type === 'marginRange' && `Margem: ${filter.value.min}% - ${filter.value.max}%`}
+                    {filter.type === 'roiRange' && `ROI: ${filter.value.min}% - ${filter.value.max}%`}
+                  </div>
+                  <button
+                    onClick={() => removeFilter(filter.id)}
+                    className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded transition-colors"
+                    title="Remover filtro"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Adicionar Novo Filtro */}
+        <div className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Tipo de Filtro:
+            </label>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as any)}
+              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+            >
+              <option value="category">Categoria</option>
+              <option value="priceRange">Faixa de Preço</option>
+              <option value="marginRange">Faixa de Margem</option>
+              <option value="roiRange">Faixa de ROI</option>
+            </select>
+          </div>
+
+          {/* Campos específicos por tipo de filtro */}
+          {filterType === 'category' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                Selecionar Categoria:
+              </label>
+              <select
+                value={categoryValue}
+                onChange={(e) => setCategoryValue(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+              >
+                <option value="">-- Selecione uma categoria --</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {filterType === 'priceRange' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="priceMin" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Preço Mínimo:
+                </label>
+                <input
+                  id="priceMin"
+                  type="number"
+                  value={priceMin}
+                  onChange={(e) => setPriceMin(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+                  placeholder="0"
+                  step="0.01"
+                />
+              </div>
+              <div>
+                <label htmlFor="priceMax" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Preço Máximo:
+                </label>
+                <input
+                  id="priceMax"
+                  type="number"
+                  value={priceMax}
+                  onChange={(e) => setPriceMax(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+                  placeholder="0"
+                  step="0.01"
+                />
+              </div>
+            </div>
+          )}
+
+          {filterType === 'marginRange' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="marginMin" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Margem Mínima (%):
+                </label>
+                <input
+                  id="marginMin"
+                  type="number"
+                  value={marginMin}
+                  onChange={(e) => setMarginMin(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+                  placeholder="0"
+                  step="0.01"
+                />
+              </div>
+              <div>
+                <label htmlFor="marginMax" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Margem Máxima (%):
+                </label>
+                <input
+                  id="marginMax"
+                  type="number"
+                  value={marginMax}
+                  onChange={(e) => setMarginMax(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+                  placeholder="0"
+                  step="0.01"
+                />
+              </div>
+            </div>
+          )}
+
+          {filterType === 'roiRange' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="roiMin" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  ROI Mínimo (%):
+                </label>
+                <input
+                  id="roiMin"
+                  type="number"
+                  value={roiMin}
+                  onChange={(e) => setRoiMin(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+                  placeholder="0"
+                  step="0.01"
+                />
+              </div>
+              <div>
+                <label htmlFor="roiMax" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  ROI Máximo (%):
+                </label>
+                <input
+                  id="roiMax"
+                  type="number"
+                  value={roiMax}
+                  onChange={(e) => setRoiMax(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
+                  placeholder="0"
+                  step="0.01"
+                />
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={addFilter}
+            className="w-full px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-900 dark:text-slate-100 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <Plus size={16} />
+            Adicionar Filtro
+          </button>
         </div>
       </div>
 
