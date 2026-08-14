@@ -21,7 +21,10 @@ interface CategoriesTabProps {
 export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) => {
   const { currentStore, userStores, switchStore } = useStore();
   const { papel } = useUserAuth();
-  const [selectedStoreId, setSelectedStoreId] = useState<string>(currentStore?.storeId || '');
+
+  // FIX (Fase 12+): Se não há loja selecionada, usar primeira loja disponível
+  const defaultStoreId = currentStore?.storeId || userStores[0]?.id || '';
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(defaultStoreId);
 
   const { categories, loading, createCategory, updateCategory, deleteCategory } =
     useCategories({ storeId: selectedStoreId });
@@ -79,6 +82,19 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
     setSelectedStoreId(storeId);
     await switchStore(storeId);
   };
+
+  // FIX: Verificar se há lojas atribuídas
+  if (userStores.length === 0) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+        <p className="text-red-900 font-semibold mb-2">❌ Nenhuma Loja Atribuída</p>
+        <p className="text-red-700 text-sm">
+          Para gerenciar categorias, você precisa ter uma loja atribuída.
+          Contacte o administrador do sistema.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="categories-tab space-y-6">
