@@ -37,6 +37,7 @@ import { UsersManagementView } from "./components/UsersManagementView"; // NOVO 
 import { StoreList } from "./components/StoreList"; // NOVO (Fase 6 - Multi-Store)
 import { UserStoresDashboard } from "./components/UserStoresDashboard"; // NOVO (Fase 14)
 import { UserProfileView } from "./components/UserProfileView"; // NOVO (Fase 11 - User Profile)
+import { AdminDiagnostics } from "./components/AdminDiagnostics"; // NOVO: Debug para admin
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -1243,6 +1244,19 @@ export default function App() {
                     <UserProfileView
                       onNavigate={(tab) => setActiveTab(tab)}
                     />
+                  </motion.div>
+                )}
+
+                {/* NOVO: Admin Diagnostics Tab */}
+                {activeTab === "diagnostics" && isAdmin && (
+                  <motion.div
+                    key="diagnostics-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <AdminDiagnostics />
                   </motion.div>
                 )}
 

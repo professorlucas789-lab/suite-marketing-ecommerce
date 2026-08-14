@@ -182,7 +182,7 @@ export interface BusinessSettings {
   updatedAt?: string;
 }
 
-export type ActiveTab = "dashboard" | "products" | "add-product" | "batch-products" | "categories" | "edit-product" | "reverse-calculator" | "settings" | "history" | "reports" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 11 - User Profile)
+export type ActiveTab = "dashboard" | "products" | "add-product" | "batch-products" | "categories" | "edit-product" | "reverse-calculator" | "settings" | "history" | "reports" | "backup" | "users" | "stores" | "user-profile" | "diagnostics"; // NOVO (Fase 11 - User Profile) | NOVO: diagnostics
 
 export interface PriceHistory {
   id?: string;

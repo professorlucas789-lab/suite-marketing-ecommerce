@@ -18,7 +18,8 @@ export type NavigationItemId =
   | 'users'
   | 'settings'
   | 'backup'
-  | 'user-profile'; // NOVO (Fase 11 - User Profile)
+  | 'user-profile' // NOVO (Fase 11 - User Profile)
+  | 'diagnostics'; // NOVO: Admin Diagnostics
 
 interface NavigationConfig {
   id: NavigationItemId;
@@ -125,6 +126,14 @@ export const navigationConfig: NavigationConfig[] = [
     id: 'backup',
     label: 'Backup e Dados',
     icon: 'Database',
+    roles: ['admin'],
+    section: 'admin',
+  },
+
+  {
+    id: 'diagnostics',
+    label: 'Diagnóstico', // NOVO: Debug para admin
+    icon: 'Settings',
     roles: ['admin'],
     section: 'admin',
   },
