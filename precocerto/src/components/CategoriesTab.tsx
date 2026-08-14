@@ -79,8 +79,12 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
   };
 
   const handleStoreChange = async (storeId: string) => {
-    setSelectedStoreId(storeId);
-    await switchStore(storeId);
+    try {
+      setSelectedStoreId(storeId);
+      await switchStore(storeId);
+    } catch (error) {
+      console.error('❌ Erro ao mudar loja:', error);
+    }
   };
 
   // FIX: Verificar se há lojas atribuídas
