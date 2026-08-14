@@ -97,41 +97,67 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
    * Atribuir automaticamente todas as lojas ao admin
    */
   const handleAtribuirLojas = async () => {
+    console.log('🎯 handleAtribuirLojas foi chamado!');
     try {
       setAtribuindo(true);
       setMensagemErro(null);
       const user = auth.currentUser;
 
+      console.log('📱 Utilizador atual:', user?.uid, user?.email);
+
       if (!user) {
-        setMensagemErro('Utilizador não autenticado');
+        const msg = 'Utilizador não autenticado';
+        console.error('❌', msg);
+        setMensagemErro(msg);
         return;
       }
 
-      console.log('🔧 Buscando todas as lojas ativas...');
+      console.log('🔧 Buscando todas as lojas ativas da coleção "stores"...');
       const allStoresSnap = await getDocs(collection(db, 'stores'));
+      console.log('📦 Total de documentos encontrados:', allStoresSnap.size);
+
       const allStoreIds = allStoresSnap.docs
-        .filter(doc => doc.data().ativo !== false)
+        .filter(doc => {
+          const data = doc.data();
+          const ativo = data.ativo !== false;
+          console.log(`  - Loja ${doc.id}: ativo=${data.ativo}, incluída=${ativo}`);
+          return ativo;
+        })
         .map(doc => doc.id);
 
+      console.log('✅ Lojas ativas encontradas:', allStoreIds);
+
       if (allStoreIds.length === 0) {
-        setMensagemErro('Nenhuma loja ativa encontrada. Crie uma loja primeiro.');
+        const msg = 'Nenhuma loja ativa encontrada. Crie uma loja primeiro.';
+        console.error('❌', msg);
+        setMensagemErro(msg);
         return;
       }
 
-      console.log(`✅ Atribuindo ${allStoreIds.length} loja(s) ao admin...`);
+      console.log(`🔄 Atualizando documento do utilizador ${user.uid} com lojas:`, allStoreIds);
       await updateDoc(doc(db, 'users', user.uid), {
         lojas: allStoreIds
       });
 
-      console.log('✅ Lojas atribuídas com sucesso!');
+      console.log('✅ Lojas atribuídas com sucesso no Firestore!');
+
       // Recarregar dados de loja
+      console.log('🔄 Recarregando dados de loja...');
       await refreshStoreData();
 
+      console.log('✅ Dados de loja recarregados com sucesso!');
+      setMensagemErro(null);
+
     } catch (error) {
+      console.error('❌ Erro completo:', error);
+      console.error('  - Tipo de erro:', error instanceof Error ? 'Error' : typeof error);
+      console.error('  - Stack:', error instanceof Error ? error.stack : 'N/A');
+
       const msg = error instanceof Error ? error.message : 'Erro ao atribuir lojas';
-      console.error('❌ Erro:', msg);
+      console.error('❌ Mensagem de erro:', msg);
       setMensagemErro(msg);
     } finally {
+      console.log('🏁 handleAtribuirLojas finalizado');
       setAtribuindo(false);
     }
   };

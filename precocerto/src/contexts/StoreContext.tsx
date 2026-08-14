@@ -32,12 +32,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    * Carrega dados do utilizador e suas lojas
    */
   const loadUserAndStores = async () => {
+    console.log('📂 [StoreProvider] loadUserAndStores iniciado...');
     try {
       setLoading(true);
       setError(null);
 
       const user = auth.currentUser;
+      console.log('🔍 [StoreProvider] auth.currentUser:', user?.uid, user?.email);
+
       if (!user) {
+        console.log('❌ [StoreProvider] Nenhum utilizador autenticado');
         setCurrentUser(null);
         setUserStores([]);
         setCurrentStore(null);
@@ -45,6 +49,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
 
       // Obter documento do utilizador
+      console.log('📄 [StoreProvider] Buscando documento do utilizador:', user.uid);
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (!userDoc.exists()) {
         throw new Error('Utilizador não encontrado no Firestore');
@@ -53,8 +58,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const userData = userDoc.data() as User;
 
       // DEBUG: Verificar papel e lojas
-      console.log('👤 Utilizador autenticado:', {
+      console.log('👤 [StoreProvider] Utilizador autenticado:', {
         uid: user.uid,
+        email: user.email,
         papel: userData.papel,
         lojas: userData.lojas,
         lojas_length: userData.lojas?.length || 0,
@@ -62,44 +68,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       // FIX: Se admin não tem lojas atribuídas, atribuir automaticamente todas as lojas existentes
       let userLojas = userData.lojas || [];
+      console.log('🔍 [StoreProvider] Verificando se precisa auto-atribuir lojas:', {
+        papel: userData.papel,
+        tem_lojas: userLojas.length > 0,
+        devia_atribuir: userData.papel === 'admin' && userLojas.length === 0,
+      });
+
       if (userData.papel === 'admin' && userLojas.length === 0) {
-        console.log('🔧 Admin sem lojas atribuídas. Buscando lojas existentes...');
+        console.log('🔧 [StoreProvider] Admin sem lojas atribuídas. Buscando lojas existentes...');
 
         try {
           const allStoresSnap = await getDocs(collection(db, 'stores'));
+          console.log('📦 [StoreProvider] Documentos de loja encontrados:', allStoresSnap.size);
+
           const allStoreIds = allStoresSnap.docs
-            .filter(doc => doc.data().ativo !== false)
+            .filter(doc => {
+              const ativo = doc.data().ativo !== false;
+              console.log(`    - ${doc.id}: ativo=${doc.data().ativo}, incluída=${ativo}`);
+              return ativo;
+            })
             .map(doc => doc.id);
 
+          console.log('✅ [StoreProvider] Lojas ativas para atribuir:', allStoreIds);
+
           if (allStoreIds.length > 0) {
-            console.log(`✅ Atribuindo ${allStoreIds.length} loja(s) ao admin...`);
+            console.log(`🔄 [StoreProvider] Atribuindo ${allStoreIds.length} loja(s) ao admin...`);
             // Atribuir lojas ao admin
             await updateDoc(doc(db, 'users', user.uid), {
               lojas: allStoreIds
             });
             userLojas = allStoreIds;
-            console.log('✅ Lojas atribuídas com sucesso!');
+            console.log('✅ [StoreProvider] Lojas atribuídas com sucesso!');
+          } else {
+            console.log('⚠️ [StoreProvider] Nenhuma loja ativa encontrada para atribuir');
           }
         } catch (err) {
-          console.error('⚠️ Erro ao atribuir lojas automaticamente:', err);
+          console.error('❌ [StoreProvider] Erro ao atribuir lojas automaticamente:', err);
           // Continuar mesmo se falhar
         }
       }
 
       // Obter lojas do utilizador
+      console.log('🏢 [StoreProvider] Carregando lojas:', userLojas);
       const storesData: Store[] = [];
       for (const storeId of userLojas) {
         const storeDoc = await getDoc(doc(db, 'stores', storeId));
         if (storeDoc.exists()) {
           storesData.push({ id: storeDoc.id, ...storeDoc.data() } as Store);
+          console.log(`  ✓ Loja carregada: ${storeId}`);
+        } else {
+          console.log(`  ✗ Loja não encontrada: ${storeId}`);
         }
       }
 
+      console.log('📊 [StoreProvider] Total de lojas carregadas:', storesData.length);
       setUserStores(storesData);
 
       // Definir primeira loja como padrão (ou recuperar última usada)
       const lastUsedStoreId = localStorage.getItem('lastUsedStoreId');
       const defaultStore = storesData.find(s => s.id === lastUsedStoreId) || storesData[0];
+
+      console.log('🎯 [StoreProvider] Loja padrão selecionada:', defaultStore?.id, defaultStore?.nome);
 
       if (defaultStore) {
         const storeContext: IStoreContext = {
@@ -119,12 +148,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         setCurrentUser(userSession);
         localStorage.setItem('lastUsedStoreId', defaultStore.id);
+        console.log('✅ [StoreProvider] Contexto de loja definido com sucesso');
+      } else {
+        console.log('⚠️ [StoreProvider] Nenhuma loja padrão disponível');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao carregar dados da loja';
       setError(message);
-      console.error('Erro no StoreProvider:', err);
+      console.error('❌ [StoreProvider] Erro completo:', err);
+      console.error('❌ [StoreProvider] Mensagem:', message);
+      if (err instanceof Error) {
+        console.error('❌ [StoreProvider] Stack:', err.stack);
+      }
     } finally {
+      console.log('🏁 [StoreProvider] loadUserAndStores finalizado');
       setLoading(false);
     }
   };
@@ -185,7 +222,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    * Carrega dados quando componente monta ou utilizador muda
    */
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(() => {
+    console.log('🔌 [StoreProvider] useEffect montado - a aguardar mudanças de autenticação...');
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      console.log('🔐 [StoreProvider] Auth state changed:', user?.uid, user?.email);
       loadUserAndStores();
     });
 
