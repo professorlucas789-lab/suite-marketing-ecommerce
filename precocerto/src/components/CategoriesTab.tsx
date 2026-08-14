@@ -180,21 +180,56 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
       }
 
       console.log(`🔄 Atualizando documento do utilizador ${user.uid} com lojas:`, allStoreIds);
-      await updateDoc(doc(db, 'users', user.uid), {
-        lojas: allStoreIds
-      });
 
-      console.log('✅ Lojas atribuídas com sucesso no Firestore!');
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        console.log('📍 Referência do documento:', userDocRef.path);
+
+        await updateDoc(userDocRef, {
+          lojas: allStoreIds
+        });
+
+        console.log('✅ Lojas atribuídas com sucesso no Firestore!');
+      } catch (updateError) {
+        console.error('❌ Erro ao atualizar Firestore:', updateError);
+
+        // Se for erro de permissão, fornecer mais detalhes
+        if (updateError instanceof Error) {
+          if (updateError.message.includes('permission')) {
+            console.error('🔐 ERRO DE PERMISSÃO - Verifique as regras de segurança do Firestore');
+          } else if (updateError.message.includes('not-found')) {
+            console.error('📄 ERRO - Documento do utilizador não encontrado');
+          }
+        }
+
+        // Re-lançar o erro para ser capturado pelo catch externo
+        throw updateError;
+      }
 
       // Aguardar um pouco para garantir que o Firestore foi atualizado
-      console.log('⏳ Aguardando 500ms para sincronização do Firestore...');
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('⏳ Aguardando 1000ms para sincronização do Firestore...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Recarregar dados de loja
+      // Recarregar dados de loja com timeout
       console.log('🔄 Recarregando dados de loja via refreshStoreData()...');
-      await refreshStoreData();
 
-      console.log('✅ Dados de loja recarregados com sucesso!');
+      const refreshPromise = refreshStoreData();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout ao recarregar dados')), 5000)
+      );
+
+      try {
+        await Promise.race([refreshPromise, timeoutPromise]);
+        console.log('✅ Dados de loja recarregados com sucesso!');
+      } catch (refreshError) {
+        console.error('⚠️ Erro ao recarregar dados:', refreshError);
+        console.log('🔄 Tentando reload manual da página em 2 segundos...');
+        // Se refreshStoreData falhar, fazer reload da página
+        setTimeout(() => {
+          console.log('🔄 Recarregando página...');
+          window.location.reload();
+        }, 2000);
+      }
 
       // Mensagem de sucesso
       setMensagemErro(null);
