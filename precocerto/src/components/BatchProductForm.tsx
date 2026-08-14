@@ -102,8 +102,16 @@ export default function BatchProductForm({
 
       const productsToSave: Omit<Product, "id" | "userId" | "createdAt" | "updatedAt">[] = custosAdicionais.map(
         (item, idx) => {
+          // Distribuir custos adicionais em 3 partes iguais
+          const custoTransporteUnit = item.custoAdicionalRateado / 3;
+          const custoEmbalagemUnit = item.custoAdicionalRateado / 3;
+          const outrosCustosUnit = item.custoAdicionalRateado / 3;
+
           const calculated = calculateProductFields({
             custoCompra: item.custoCompra,
+            custoTransporte: custoTransporteUnit,
+            custoEmbalagem: custoEmbalagemUnit,
+            outrosCustos: outrosCustosUnit,
             margemDesejada: item.margemDesejada,
           });
 
@@ -112,9 +120,9 @@ export default function BatchProductForm({
             categoria: item.categoria,
             quantidade: item.quantidade,
             custoCompra: item.custoCompra,
-            custoTransporte: item.custoAdicionalRateado / 3,
-            custoEmbalagem: item.custoAdicionalRateado / 3,
-            outrosCustos: item.custoAdicionalRateado / 3,
+            custoTransporte: custoTransporteUnit,
+            custoEmbalagem: custoEmbalagemUnit,
+            outrosCustos: outrosCustosUnit,
             margemDesejada: item.margemDesejada,
             precoVendaRecomendado: calculated.precoVendaRecomendado,
             tipoProduto: settings?.businessType || "outro",

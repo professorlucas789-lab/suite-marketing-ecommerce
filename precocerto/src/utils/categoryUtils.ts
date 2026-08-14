@@ -245,7 +245,7 @@ export function calculateProductPricesWithCategoryMargin(
     effectiveMargin = category.marginRules.baseMargin;
   } else {
     // Fallback se não houver categoria
-    effectiveMargin = calculationInput.margemDesejada || 0;
+    effectiveMargin = (calculationInput as any).margemDesejada || 0;
   }
 
   // Validar conformidade se houver categoria
