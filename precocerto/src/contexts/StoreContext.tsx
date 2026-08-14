@@ -6,7 +6,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Store, StoreContext as IStoreContext, User, UserSession } from '../types/store';
 import { auth, db } from '../firebase';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 
 interface StoreContextType {
   currentStore: IStoreContext | null;
@@ -52,9 +52,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       const userData = userDoc.data() as User;
 
+      // FIX: Se admin não tem lojas atribuídas, atribuir automaticamente todas as lojas existentes
+      let userLojas = userData.lojas || [];
+      if (userData.papel === 'admin' && userLojas.length === 0) {
+        console.log('🔧 Admin sem lojas atribuídas. Buscando lojas existentes...');
+
+        try {
+          const allStoresSnap = await getDocs(collection(db, 'stores'));
+          const allStoreIds = allStoresSnap.docs
+            .filter(doc => doc.data().ativo !== false)
+            .map(doc => doc.id);
+
+          if (allStoreIds.length > 0) {
+            console.log(`✅ Atribuindo ${allStoreIds.length} loja(s) ao admin...`);
+            // Atribuir lojas ao admin
+            await updateDoc(doc(db, 'users', user.uid), {
+              lojas: allStoreIds
+            });
+            userLojas = allStoreIds;
+            console.log('✅ Lojas atribuídas com sucesso!');
+          }
+        } catch (err) {
+          console.error('⚠️ Erro ao atribuir lojas automaticamente:', err);
+          // Continuar mesmo se falhar
+        }
+      }
+
       // Obter lojas do utilizador
       const storesData: Store[] = [];
-      for (const storeId of userData.lojas) {
+      for (const storeId of userLojas) {
         const storeDoc = await getDoc(doc(db, 'stores', storeId));
         if (storeDoc.exists()) {
           storesData.push({ id: storeDoc.id, ...storeDoc.data() } as Store);
