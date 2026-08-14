@@ -159,6 +159,48 @@ export interface StoreStats {
 }
 
 /**
+ * Preferências de notificação do utilizador
+ * Fase 13: Notificações
+ */
+export interface NotificationPreferences {
+  userId: string;
+
+  // Canais de notificação
+  canais: {
+    email: boolean;          // Receber notificações por email
+    push: boolean;           // Notificações push no browser
+    inApp: boolean;          // Notificações dentro da aplicação (sempre ativo)
+  };
+
+  // Categorias de eventos
+  eventos: {
+    produtoAdicionado: boolean;
+    produtoEditado: boolean;
+    produtoDeletado: boolean;
+    utilizadorCriado: boolean;
+    utilizadorAlterado: boolean;
+    precoAlterado: boolean;
+    relatoriosGerados: boolean;
+    alertasSeguranca: boolean;
+    manutencaoSistema: boolean;
+  };
+
+  // Frequência de resumo
+  frequenciaResumo: 'nunca' | 'diaria' | 'semanal' | 'mensal';
+
+  // Horas do dia para não receber notificações
+  horarioNaoPerturbar: {
+    ativo: boolean;
+    horaInicio: string;      // "22:00"
+    horaFim: string;         // "08:00"
+  };
+
+  // Timestamps
+  dataCriacao: string;       // ISO 8601
+  dataAtualizacao: string;   // ISO 8601
+}
+
+/**
  * Dashboard admin - visão consolidada
  */
 export interface AdminDashboard {

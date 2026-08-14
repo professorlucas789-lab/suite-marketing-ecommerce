@@ -14,6 +14,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { motion } from 'motion/react';
 import ActivityHistoryCard from './ActivityHistoryCard'; // NOVO (Fase 11)
 import { logPasswordChange, logAvatarUpdate, logProfileUpdate } from '../utils/activityLogger'; // NOVO (Fase 11)
+import { NotificationPreferencesCard } from './NotificationPreferencesCard'; // NOVO (Fase 13)
 
 interface UserData {
   id: string;
@@ -865,6 +866,9 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
           )}
         </div>
       </div>
+
+      {/* NOVO (Fase 13): Notification Preferences Card */}
+      <NotificationPreferencesCard />
 
       {/* NOVO (Fase 11): Activity History Card */}
       <ActivityHistoryCard />
