@@ -51,7 +51,10 @@ export interface Product {
   custoTransporte: number;
   custoEmbalagem: number;
   outrosCustos: number;
-  
+
+  // NOVO: Custo total real calculado (compra + transporte + embalagem + outros)
+  custoTotalReal?: number; // Calculado dinamicamente
+
   // Novas variáveis Fase 2 (opcionais para compatibilidade)
   comissaoVenda?: number;
   taxaBancaria?: number;
@@ -76,6 +79,9 @@ export interface Product {
   // NOVO (Fase 1): Override de margem (exceção quando justificada)
   margemOverride?: number; // Se null, usar da categoria
   margemOverrideReason?: string; // Por que é diferente da categoria
+
+  // NOVO: Margem aplicada (para relatórios)
+  margemAplicada?: number; // Margem efetivamente aplicada no produto
 
   // NOVO (Fase 1): Performance Metrics (será preenchido ao longo do tempo)
   performanceMetrics?: {
@@ -169,6 +175,9 @@ export interface BusinessSettings {
   dateFormat: string;
   numberFormat: string;
   customCategories?: string[]; // user custom categories (Fase 12)
+
+  // NOVO: Margem padrão da empresa
+  defaultMargin?: number; // Margem padrão para novos produtos (%)
 
   // NOVO (Fase 1): Framework regulatório (referência global)
   regulatoryFramework?: {
