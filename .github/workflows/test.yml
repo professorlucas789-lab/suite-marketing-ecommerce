@@ -24,9 +24,12 @@ jobs:
         cache: 'npm'
         cache-dependency-path: precocerto/package-lock.json
 
+    - name: Clean npm cache
+      run: npm cache clean --force
+
     - name: Install dependencies
       working-directory: ./precocerto
-      run: npm ci
+      run: rm -rf node_modules package-lock.json && npm install
 
     - name: Run linter
       working-directory: ./precocerto
