@@ -3,8 +3,6 @@ name: Deploy to Firebase Hosting
 on:
   push:
     branches: [ master ]
-    paths:
-      - 'precocerto/**'
 
 jobs:
   build-and-deploy:
