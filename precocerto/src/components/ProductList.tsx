@@ -15,6 +15,7 @@ import {
   Activity,
   Award,
   Copy,
+  Package,
   X // NOVO (Fase 5A Item 3 - Search enhancement)
 } from "lucide-react";
 import ProductDetailsModal from "./ProductDetailsModal";
@@ -152,15 +153,21 @@ export default function ProductList({ products, onAddProduct, onEditProduct, onD
   };
 
   // Filter and Search
+  const hasActiveFilters = search.trim() !== "" || selectedCategory !== "all";
+
   const filteredAndSortedProducts = useMemo(() => {
+    const term = search.toLowerCase();
+
     return products
       .filter((p) => {
-        const matchesSearch = 
-          p.nome.toLowerCase().includes(search.toLowerCase()) ||
-          p.fornecedor.toLowerCase().includes(search.toLowerCase());
-        
+        // Produtos gravados em lote, importados por CSV ou de versões antigas
+        // podem não ter todos os campos de texto preenchidos.
+        const matchesSearch =
+          (p.nome || "").toLowerCase().includes(term) ||
+          (p.fornecedor || "").toLowerCase().includes(term);
+
         const matchesCategory = selectedCategory === "all" || p.categoria === selectedCategory;
-        
+
         return matchesSearch && matchesCategory;
       })
       .sort((a, b) => {
@@ -667,15 +674,33 @@ export default function ProductList({ products, onAddProduct, onEditProduct, onD
             })}
           </div>
         </>
-      ) : (
+      ) : hasActiveFilters ? (
         <div id="no-search-results-state" className="text-center py-12 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 transition-colors">
           <p className="text-slate-500 dark:text-slate-400 text-sm">Nenhum produto corresponde aos critérios de pesquisa.</p>
-          <button 
+          <button
             id="clear-filters-button"
             onClick={() => { setSearch(""); setSelectedCategory("all"); }}
             className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-semibold underline mt-2 cursor-pointer"
           >
             Limpar Filtros e Pesquisa
+          </button>
+        </div>
+      ) : (
+        <div id="empty-products-state" className="text-center py-12 px-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 transition-colors">
+          <div className="inline-flex p-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
+            <Package size={24} />
+          </div>
+          <h2 className="mt-4 text-base font-bold text-slate-800 dark:text-slate-100">Ainda não tem produtos cadastrados</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+            Cadastre o seu primeiro produto para calcular custos, margens e preços de venda recomendados.
+          </p>
+          <button
+            id="empty-state-add-product-button"
+            onClick={onAddProduct}
+            className="mt-5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm inline-flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
+          >
+            <Plus size={18} />
+            <span>Cadastrar Primeiro Produto</span>
           </button>
         </div>
       )}

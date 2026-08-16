@@ -23,6 +23,7 @@ export function useCategories({ storeId }: UseCategoriesProps) {
   const [categories, setCategories] = useState<CategoryMarginConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   // Subscribe to real-time updates
   useEffect(() => {
@@ -36,10 +37,21 @@ export function useCategories({ storeId }: UseCategoriesProps) {
 
     try {
       console.log(`📦 Subscrevendo a categorias da loja: ${storeId}`);
-      const unsubscribe = subscribeToStoreCategories(storeId, (updatedCategories) => {
-        setCategories(updatedCategories);
-        setLoading(false);
-      });
+      const unsubscribe = subscribeToStoreCategories(
+        storeId,
+        (updatedCategories) => {
+          setCategories(updatedCategories);
+          setError(null);
+          setLoading(false);
+        },
+        (err) => {
+          // O carregamento tem de terminar mesmo quando o Firestore recusa a
+          // leitura, caso contrário a vista fica presa a carregar.
+          setError(err.message);
+          setCategories([]);
+          setLoading(false);
+        }
+      );
 
       return unsubscribe;
     } catch (err) {
@@ -47,7 +59,7 @@ export function useCategories({ storeId }: UseCategoriesProps) {
       setError(errorMsg);
       setLoading(false);
     }
-  }, [storeId]);
+  }, [storeId, reloadToken]);
 
   // Operations
   const handleCreateCategory = async (
@@ -82,6 +94,7 @@ export function useCategories({ storeId }: UseCategoriesProps) {
     categories,
     loading,
     error,
+    retry: () => setReloadToken((token) => token + 1),
     createCategory: handleCreateCategory,
     updateCategory: handleUpdateCategory,
     deleteCategory: handleDeleteCategory,

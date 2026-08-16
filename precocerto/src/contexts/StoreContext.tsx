@@ -52,7 +52,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       console.log('📄 [StoreProvider] Buscando documento do utilizador:', user.uid);
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (!userDoc.exists()) {
-        throw new Error('Utilizador não encontrado no Firestore');
+        // Antes lançava-se aqui uma exceção, o que abortava todo o carregamento
+        // de lojas e deixava a aplicação sem contexto de loja. O documento é
+        // criado pelo useUserAuth logo a seguir ao primeiro login, por isso
+        // basta registar a situação e continuar sem lojas.
+        console.warn('⚠️ [StoreProvider] Documento do utilizador ainda não existe.');
+        setUserStores([]);
+        setCurrentStore(null);
+        setError('O perfil do utilizador ainda está a ser criado. Recarregue a página dentro de instantes.');
+        return;
       }
 
       const userData = userDoc.data() as User;
@@ -93,12 +101,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
           if (allStoreIds.length > 0) {
             console.log(`🔄 [StoreProvider] Atribuindo ${allStoreIds.length} loja(s) ao admin...`);
-            // Atribuir lojas ao admin
-            await updateDoc(doc(db, 'users', user.uid), {
-              lojas: allStoreIds
-            });
+            // Usar as lojas encontradas nesta sessão mesmo que a gravação
+            // falhe: sem isto, um admin cuja escrita fosse recusada ficava
+            // sem nenhuma loja e as vistas dependentes de loja não abriam.
             userLojas = allStoreIds;
-            console.log('✅ [StoreProvider] Lojas atribuídas com sucesso!');
+            try {
+              await updateDoc(doc(db, 'users', user.uid), {
+                lojas: allStoreIds
+              });
+              console.log('✅ [StoreProvider] Lojas atribuídas com sucesso!');
+            } catch (writeErr) {
+              console.warn('⚠️ [StoreProvider] Não foi possível gravar as lojas no perfil:', writeErr);
+            }
           } else {
             console.log('⚠️ [StoreProvider] Nenhuma loja ativa encontrada para atribuir');
           }

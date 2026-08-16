@@ -55,7 +55,7 @@ export function UserStoresDashboard() {
         for (const store of userStores) {
           try {
             // Tentar carregar estatísticas da loja
-            const statsRef = doc(db, 'lojas', store.id, 'stats', 'current');
+            const statsRef = doc(db, 'stores', store.id, 'stats', 'current');
             const statsSnap = await getDoc(statsRef);
 
             const stats = statsSnap.exists()

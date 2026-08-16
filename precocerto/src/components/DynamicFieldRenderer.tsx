@@ -7,26 +7,33 @@ interface DynamicFieldRendererProps {
   onChange: (key: string, value: any) => void;
 }
 
+/**
+ * Avalia a lógica condicional `visibleWhen` de um campo dinâmico.
+ * Exportado para que a validação do formulário use exatamente o mesmo critério
+ * de visibilidade que a renderização.
+ */
+export function isDynamicFieldVisible(field: DynamicField, values: Record<string, any>) {
+  if (!field.visibleWhen) return true;
+  const { field: targetField, operator, value: targetValue } = field.visibleWhen;
+  const currentValue = values[targetField];
+
+  switch (operator) {
+    case "equals":
+      return currentValue === targetValue;
+    case "notEquals":
+      return currentValue !== targetValue;
+    case "includes":
+      return Array.isArray(currentValue) && currentValue.includes(targetValue);
+    case "exists":
+      return currentValue !== undefined && currentValue !== null && currentValue !== "";
+    default:
+      return true;
+  }
+}
+
 export default function DynamicFieldRenderer({ fields, values, onChange }: DynamicFieldRendererProps) {
   // Evaluates visibleWhen conditional logic
-  const isFieldVisible = (field: DynamicField) => {
-    if (!field.visibleWhen) return true;
-    const { field: targetField, operator, value: targetValue } = field.visibleWhen;
-    const currentValue = values[targetField];
-
-    switch (operator) {
-      case "equals":
-        return currentValue === targetValue;
-      case "notEquals":
-        return currentValue !== targetValue;
-      case "includes":
-        return Array.isArray(currentValue) && currentValue.includes(targetValue);
-      case "exists":
-        return currentValue !== undefined && currentValue !== null && currentValue !== "";
-      default:
-        return true;
-    }
-  };
+  const isFieldVisible = (field: DynamicField) => isDynamicFieldVisible(field, values);
 
   return (
     <>
