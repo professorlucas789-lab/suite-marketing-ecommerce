@@ -1,13 +1,16 @@
 /**
  * Gestão de utilizadores por loja
  * Fase 6: Sistema Multi-Loja - Fase 2
+ * Fase 14: Privacy & Security - User Profile Access Control
  */
 
 import React, { useState, useEffect } from 'react';
 import { User, UserPermissions } from '../types/store';
 import { useUserManagement } from '../hooks/useUserManagement';
 import { useAuth } from '../hooks/useAuth';
-import { Loader2, AlertCircle, Trash2, Plus, Check, Mail } from 'lucide-react';
+import { useUserAuth } from '../hooks/useUserAuth';
+import { Loader2, AlertCircle, Trash2, Plus, Check, Mail, Eye } from 'lucide-react';
+import { UserProfileModal } from './UserProfileModal';
 
 interface StoreUserManagementProps {
   storeId: string;
@@ -30,6 +33,7 @@ const defaultPermissions: UserPermissions = {
 
 export function StoreUserManagement({ storeId, storeName }: StoreUserManagementProps) {
   const { user: currentUser } = useAuth();
+  const { papel: currentUserRole } = useUserAuth(); // NOVO (Fase 14): Para verificar acesso ao perfil
   const {
     users,
     loading,
@@ -50,6 +54,10 @@ export function StoreUserManagement({ storeId, storeName }: StoreUserManagementP
   const [newUserName, setNewUserName] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // NOVO (Fase 14): States para o modal de perfil com controlo de acesso
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     loadStoreUsers(storeId);
@@ -157,6 +165,13 @@ export function StoreUserManagement({ storeId, storeName }: StoreUserManagementP
     setNewUserName('');
     setNewUserPassword('');
     clearError();
+  };
+
+  // NOVO (Fase 14): Handler para abrir perfil com controlo de acesso
+  const handleViewProfile = (userId: string) => {
+    console.log(`[StoreUserManagement] Tentando abrir perfil de ${userId}`);
+    setSelectedUserId(userId);
+    setIsProfileModalOpen(true);
   };
 
   if (loading) {
@@ -367,14 +382,25 @@ export function StoreUserManagement({ storeId, storeName }: StoreUserManagementP
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleRemoveUser(user.id)}
-                    disabled={isSubmitting}
-                    className="p-2 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 rounded transition-colors disabled:opacity-50"
-                    title="Remover utilizador"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex gap-2">
+                    {/* NOVO (Fase 14): Botão Ver Perfil com controlo de acesso */}
+                    <button
+                      onClick={() => handleViewProfile(user.id)}
+                      disabled={isSubmitting}
+                      className="p-2 hover:bg-blue-50 dark:hover:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded transition-colors disabled:opacity-50"
+                      title="Ver perfil do utilizador"
+                    >
+                      <Eye size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleRemoveUser(user.id)}
+                      disabled={isSubmitting}
+                      className="p-2 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 rounded transition-colors disabled:opacity-50"
+                      title="Remover utilizador"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Permissions Display */}
@@ -401,6 +427,19 @@ export function StoreUserManagement({ storeId, storeName }: StoreUserManagementP
             ))
         )}
       </div>
+
+      {/* NOVO (Fase 14): Modal de Perfil com Controlo de Acesso */}
+      {selectedUserId && (
+        <UserProfileModal
+          userId={selectedUserId}
+          isOpen={isProfileModalOpen}
+          onClose={() => {
+            setIsProfileModalOpen(false);
+            setSelectedUserId(null);
+          }}
+          currentUserRole={currentUserRole}
+        />
+      )}
     </div>
   );
 }
