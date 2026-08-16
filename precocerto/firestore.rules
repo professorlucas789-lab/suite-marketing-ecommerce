@@ -1,11 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default-deny catch-all rule as a global safety net
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     // ============================================
     // USER PROFILE PRIVACY & SECURITY (Fase 14)
     // ============================================
@@ -59,6 +54,11 @@ service cloud.firestore {
     match /backupLogs/{logId} {
       allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Default-deny catch-all rule as a global safety net (DEVE ESTAR NO FINAL)
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
