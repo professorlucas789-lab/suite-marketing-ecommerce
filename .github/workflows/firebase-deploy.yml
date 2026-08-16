@@ -16,15 +16,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install dependencies
         working-directory: ./precocerto
-        run: npm ci
+        run: rm -rf node_modules package-lock.json && npm install --force --legacy-peer-deps
 
       - name: Build project
         working-directory: ./precocerto
-        run: npm run build
+        run: npm run build 2>&1 | tee build.log || (tail -100 build.log && exit 1)
 
       - name: Deploy to Firebase
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -33,5 +33,6 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
           projectId: gen-lang-client-0862839570
           channelId: live
+          entryPoint: precocerto
         env:
           FIREBASE_CLI_EXPERIMENTS: webframeworks
