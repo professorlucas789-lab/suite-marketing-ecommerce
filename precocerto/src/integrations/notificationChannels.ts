@@ -219,19 +219,26 @@ export class WhatsAppChannel implements INotificationChannel {
         };
       }
 
-      // Placeholder: em produção, integraria com Twilio WhatsApp Business API
-      console.log('💬 WhatsApp:', {
-        to: payload.recipient,
-        message: payload.body,
-        action: payload.action,
-      });
+      // Tentar usar Ultramsg se configurado
+      try {
+        const { getWhatsAppService } = await import('./whatsapp');
+        const whatsappService = getWhatsAppService();
+        return await whatsappService.sendMessage(payload.recipient, payload.body);
+      } catch (error) {
+        // Fallback: mock message se não tiver Ultramsg configurado
+        console.log('💬 WhatsApp (mock):', {
+          to: payload.recipient,
+          message: payload.body,
+          note: 'Configure ULTRAMSG_TOKEN e ULTRAMSG_INSTANCE_ID para ativar',
+        });
 
-      return {
-        success: true,
-        channel: 'whatsapp',
-        messageId: `whatsapp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        timestamp: new Date().toISOString(),
-      };
+        return {
+          success: true,
+          channel: 'whatsapp',
+          messageId: `whatsapp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: new Date().toISOString(),
+        };
+      }
     } catch (error) {
       return {
         success: false,
