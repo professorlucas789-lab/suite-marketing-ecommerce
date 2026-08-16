@@ -7,6 +7,20 @@ command = "npm install --force --legacy-peer-deps && npm run build"
 # Output directory where the built files are located
 publish = "dist"
 
+[build.environment]
+# Secrets scanning: safelist the PUBLIC Firebase Web API key.
+#
+# Firebase Web client config (including the API key) is public by design — the
+# browser SDK transmits it on every request, so it is an identifier, not a
+# credential. Access control lives in firestore.rules + Firebase Auth. Netlify's
+# smart detection matches its "AIza..." shape and fails the build, so the exact
+# value is safelisted here.
+#
+# Only this single value is exempted: smart detection stays enabled for every
+# other pattern, and standard scanning of environment variables marked as secrets
+# (e.g. GEMINI_API_KEY) is untouched. Never add a real server-side secret here.
+SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyC0VIZYQvNPbwWb4QrX33OV0yL180HA-08"
+
 [dev]
 # Development command for local testing
 command = "npm run dev"
