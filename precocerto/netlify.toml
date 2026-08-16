@@ -21,6 +21,13 @@ publish = "dist"
 # (e.g. GEMINI_API_KEY) is untouched. Never add a real server-side secret here.
 SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyC0VIZYQvNPbwWb4QrX33OV0yL180HA-08"
 
+# `firebase-applet-config.json` was a leftover AI Studio scaffold pointing at an
+# unrelated Firebase project (gen-lang-client-*). Nothing imported it, but its
+# own "AIza..." key tripped smart detection and failed every production build.
+# The file was deleted; this path stays excluded so that tooling regenerating it
+# can never block a deploy again.
+SECRETS_SCAN_OMIT_PATHS = "firebase-applet-config.json"
+
 [dev]
 # Development command for local testing
 command = "npm run dev"
