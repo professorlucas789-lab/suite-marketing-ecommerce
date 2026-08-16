@@ -28,6 +28,15 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
   const defaultStoreId = currentStore?.storeId || userStores[0]?.id || '';
   const [selectedStoreId, setSelectedStoreId] = useState<string>(defaultStoreId);
 
+  // NOVO (Fix #1): Auto-sincronizar quando userStores muda
+  React.useEffect(() => {
+    console.log('🔄 [CategoriesTab] useEffect - userStores mudou:', userStores.length, 'lojas');
+    if (userStores.length > 0 && !selectedStoreId) {
+      console.log('✅ [CategoriesTab] Auto-selecionando primeira loja:', userStores[0].id);
+      setSelectedStoreId(userStores[0].id);
+    }
+  }, [userStores]);
+
   const { categories, loading, createCategory, updateCategory, deleteCategory } =
     useCategories({ storeId: selectedStoreId });
 

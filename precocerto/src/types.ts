@@ -7,7 +7,11 @@ export interface Product {
   id?: string;
   nome: string;
   categoria: string;
-  fornecedor: string;
+  fornecedor: string; // Obrigatório
+
+  // FIX #3: Campos obrigatórios para cadastro de produtos
+  numeroFatura: string; // Nº da Fatura (obrigatório)
+  dataEmissaoFatura: string; // Data de emissão da fatura (obrigatório)
 
   // NOVO (Fase 1): Referência à categoria
   categoryId?: string; // FK para CategoryMarginConfig (opcional por compatibilidade)

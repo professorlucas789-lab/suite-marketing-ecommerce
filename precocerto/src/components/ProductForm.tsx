@@ -4,6 +4,7 @@ import { CATEGORY_PRESETS, formatKz } from "../utils";
 import { calculateProductFields, getPriceHealth } from "../utils/pricing";
 import { calculateProductPricesWithCategoryMargin } from "../utils/categoryUtils";
 import { useCategories } from "../hooks/useCategories"; // NOVO (Fase 2)
+import { useStore } from "../contexts/StoreContext"; // FIX #2: Adicionar contexto de loja
 import { getProductMargin, validateMarginCompliance } from "../utils/categoryUtils"; // NOVO (Fase 2)
 import { motion } from "motion/react";
 import { 
@@ -57,8 +58,12 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
   const activeModule = businessModuleRegistry.getModuleById(settings?.businessType || "outro");
   const [extraFieldValues, setExtraFieldValues] = useState<Record<string, any>>({});
 
+  // FIX #2: Obter storeId do contexto para carregar categorias
+  const { currentStore } = useStore();
+
   // NOVO (Fase 2): Categories and margin management
-  const { categories, loading: categoriesLoading } = useCategories();
+  // FIX #2: Passar storeId para o hook useCategories para evitar página branca
+  const { categories, loading: categoriesLoading } = useCategories({ storeId: currentStore?.storeId || '' });
   const [categoryId, setCategoryId] = useState<string>("");
   const [margemOverride, setMargemOverride] = useState<string>("");
   const [margemOverrideReason, setMargemOverrideReason] = useState<string>("");
@@ -71,8 +76,13 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
   const [nome, setNome] = useState<string>("");
   const [categoria, setCategoria] = useState<string>(activeModule.categories[0] || CATEGORY_PRESETS[0]);
   const [fornecedor, setFornecedor] = useState<string>("");
+
+  // FIX #3: Campos obrigatórios para cadastro de produtos
+  const [numeroFatura, setNumeroFatura] = useState<string>("");
+  const [dataEmissaoFatura, setDataEmissaoFatura] = useState<string>("");
+
   const [quantidade, setQuantidade] = useState<string>("1");
-  
+
   // New Phase 3 Fields
   const [unidadeMedida, setUnidadeMedida] = useState<string>("unidade");
   const [modoCalculo, setModoCalculo] = useState<"manual" | "lote">("manual");
@@ -193,6 +203,11 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       setNome(productToEdit.nome || "");
       setCategoria(productToEdit.categoria || CATEGORY_PRESETS[0]);
       setFornecedor(productToEdit.fornecedor || "");
+
+      // FIX #3: Carregar campos obrigatórios quando editando
+      setNumeroFatura(productToEdit.numeroFatura || "");
+      setDataEmissaoFatura(productToEdit.dataEmissaoFatura || "");
+
       setQuantidade(productToEdit.quantidade?.toString() || "1");
       
       setUnidadeMedida(productToEdit.unidadeMedida || "unidade");
@@ -481,6 +496,22 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       return;
     }
 
+    // FIX #3: Validação de campos obrigatórios
+    if (!fornecedor.trim()) {
+      setValidationError("O nome do fornecedor é obrigatório.");
+      return;
+    }
+
+    if (!numeroFatura.trim()) {
+      setValidationError("O nº da fatura é obrigatório.");
+      return;
+    }
+
+    if (!dataEmissaoFatura.trim()) {
+      setValidationError("A data de emissão da fatura é obrigatória.");
+      return;
+    }
+
     const parsedCustoCompra = parseFloat(custoCompra);
     if (isNaN(parsedCustoCompra)) {
       setValidationError("O custo de compra é obrigatório e deve ser um número válido.");
@@ -612,6 +643,11 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
         nome: nome.trim(),
         categoria,
         fornecedor: fornecedor.trim(),
+
+        // FIX #3: Campos obrigatórios para cadastro de produtos
+        numeroFatura: numeroFatura.trim(),
+        dataEmissaoFatura: dataEmissaoFatura.trim(),
+
         quantidade: parsedQuantidade,
 
         // NOVO (Fase 2): Category-based margins
@@ -846,7 +882,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
-                  Fornecedor / Origem
+                  Fornecedor / Origem <span className="text-rose-500">*</span>
                 </label>
                 <input
                   id="form-fornecedor"
@@ -855,6 +891,37 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
                   value={fornecedor}
                   onChange={(e) => setFornecedor(e.target.value)}
                   className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
+                  required
+                />
+              </div>
+
+              {/* FIX #3: Campos obrigatórios para cadastro de produtos */}
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
+                  Nº da Fatura <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  id="form-numeroFatura"
+                  type="text"
+                  placeholder="Ex: FAT-2025-001, 12345"
+                  value={numeroFatura}
+                  onChange={(e) => setNumeroFatura(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
+                  Data de Emissão da Fatura <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  id="form-dataEmissaoFatura"
+                  type="date"
+                  value={dataEmissaoFatura}
+                  onChange={(e) => setDataEmissaoFatura(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-800 text-slate-800 dark:text-slate-100 transition-colors"
+                  required
                 />
               </div>
             </div>
