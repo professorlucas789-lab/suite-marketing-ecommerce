@@ -132,9 +132,14 @@ export const navigationConfig: NavigationConfig[] = [
 
   {
     id: 'diagnostics',
-    label: 'Diagnóstico', // NOVO: Debug para admin
+    label: 'Diagnóstico',
     icon: 'Settings',
-    roles: ['admin'],
+    // Disponível a todos os papéis de propósito: é a página que explica ao
+    // utilizador qual é o seu papel e por que motivo alguns menus estão
+    // bloqueados. Reservá-la a administradores tornava impossível diagnosticar
+    // a falta de permissões justamente a quem não as tem. Mostra apenas dados
+    // da própria conta, pelo que não expõe nada de outros utilizadores.
+    roles: ['admin', 'loja-manager', 'funcionario'],
     section: 'admin',
   },
 ];

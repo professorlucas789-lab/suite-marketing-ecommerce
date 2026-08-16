@@ -219,6 +219,36 @@ describe('Navegação do menu lateral', () => {
     expect(document.querySelector('#categories-retry-button')).toBeTruthy();
   }, 30000);
 
+  it('mostra os menus restritos como bloqueados e explica-os em vez de os esconder', async () => {
+    // Contas novas são criadas com o papel "funcionario": antes, 7 dos 13
+    // menus desapareciam sem qualquer explicação.
+    fakeDb.userDoc = { ...adminDoc, papel: 'funcionario' };
+
+    await renderApp();
+    await waitFor(() => expect(document.querySelector('#nav-dashboard-sidebar-btn')).toBeTruthy(), { timeout: 5000 });
+
+    // Diagnóstico deixou de ser exclusivo de admin: é a página que explica a
+    // falta de permissões, logo tem de estar acessível a quem não as tem.
+    expect(document.querySelector('#nav-diagnostics-sidebar-btn')).toBeTruthy();
+    await abrirMenu('diagnostics');
+    expect((document.querySelector('main')?.textContent || '').length).toBeGreaterThan(40);
+    expect(document.querySelector('#view-error-boundary')).toBeNull();
+
+    // Os menus de administração continuam visíveis, mas bloqueados.
+    const bloqueados = ['stores', 'users', 'categories', 'settings', 'backup'];
+    for (const menu of bloqueados) {
+      expect(document.querySelector(`#nav-${menu}-locked-btn`), `menu bloqueado ausente: ${menu}`).toBeTruthy();
+      expect(document.querySelector(`#nav-${menu}-sidebar-btn`), `menu ${menu} não devia estar acessível`).toBeNull();
+    }
+
+    // Clicar num menu bloqueado explica a situação e nunca mostra o conteúdo.
+    fireEvent.click(document.querySelector('#nav-users-locked-btn')!);
+    await tick();
+    expect(document.querySelector('#restricted-access-notice')).toBeTruthy();
+    expect(document.querySelector('#restricted-open-diagnostics-btn')).toBeTruthy();
+    expect(document.querySelector('main')?.textContent).toContain('Administrador');
+  }, 30000);
+
   it('mantém um menu utilizável e explica a situação quando o papel não é conhecido', async () => {
     fakeDb.userDoc = null;
     fakeDb.deniedPaths = ['users'];
@@ -229,7 +259,7 @@ describe('Navegação do menu lateral', () => {
     // O menu não pode ficar vazio: as vistas comuns continuam acessíveis.
     expect(document.querySelector('#nav-dashboard-sidebar-btn')).toBeTruthy();
     expect(document.querySelector('#nav-user-profile-sidebar-btn')).toBeTruthy();
-    // Vistas exclusivas de administração continuam ocultas.
+    // Vistas exclusivas de administração continuam protegidas.
     expect(document.querySelector('#nav-users-sidebar-btn')).toBeNull();
 
     await abrirMenu('dashboard');

@@ -38,9 +38,10 @@ import { StoreList } from "./components/StoreList"; // NOVO (Fase 6 - Multi-Stor
 import { UserStoresDashboard } from "./components/UserStoresDashboard"; // NOVO (Fase 14)
 import { UserProfileView } from "./components/UserProfileView"; // NOVO (Fase 11 - User Profile)
 import { AdminDiagnostics } from "./components/AdminDiagnostics"; // NOVO: Debug para admin
-import { ErrorBoundary } from "./components/ErrorBoundary"; // NOVO: evita ecrã em branco quando uma vista falha
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { RestrictedAccessNotice } from "./components/RestrictedAccessNotice"; // NOVO: evita ecrã em branco quando uma vista falha
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
-import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
+import { getNavItemsForRole, navigationConfig } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
   exportReportToExcel,
   exportReportToPDF,
@@ -58,6 +59,7 @@ import {
   Package,
   User as UserIcon,
   Loader2,
+  Lock,
   CheckCircle2,
   X,
   Calculator,
@@ -222,7 +224,31 @@ export default function App() {
       setSettingsLoading(false);
     }, (error) => {
       setSettingsLoading(false);
-      handleFirestoreError(error, OperationType.GET, "businessSettings");
+      // handleFirestoreError relança sempre. Sem este try/catch a exceção
+      // escapava do callback do onSnapshot como erro não tratado e o ecrã
+      // ficava sem qualquer explicação. Usamos as definições por omissão para
+      // que a aplicação continue utilizável.
+      try {
+        handleFirestoreError(error, OperationType.GET, "businessSettings");
+      } catch {
+        setBusinessSettings({
+          userId: user.uid,
+          companyName: "PreçoCerto Lda",
+          businessType: "farmacia",
+          currency: "Kz",
+          country: "Angola",
+          language: "Português",
+          logoUrl: "",
+          primaryColor: "emerald-600",
+          dateFormat: "DD/MM/YYYY",
+          numberFormat: "1.234,56",
+          customCategories: []
+        });
+        triggerNotification(
+          "Não foi possível carregar as configurações do negócio. A usar valores por omissão.",
+          "error"
+        );
+      }
     });
 
     return () => unsubscribe();
@@ -840,6 +866,21 @@ export default function App() {
   const roleUnavailable = !roleLoading && !papel;
   const visibleNavigationItems = roleUnavailable ? fallbackNavigationItems : navigationItems;
 
+  // Menus que existem mas que este papel não pode abrir. Continuam visíveis
+  // (bloqueados) em vez de desaparecerem: um menu ausente é indistinguível de
+  // um menu avariado, e o utilizador ficava sem saber que precisava de outro
+  // papel. Clicá-los mostra a explicação, nunca o conteúdo real.
+  const lockedNavigationItems = roleLoading
+    ? []
+    : allNavigationItems.filter(
+        (item) => !visibleNavigationItems.some((visible) => visible.id === item.id)
+      );
+
+  const requiredRolesFor = (tabId: string) =>
+    navigationConfig.find((cfgItem) => cfgItem.id === tabId)?.roles ?? ["admin"];
+
+  const restrictedTab = lockedNavigationItems.find((item) => item.id === activeTab);
+
   const isTabActive = (tabId: string) => {
     if (tabId === "products" && (activeTab === "add-product" || activeTab === "edit-product")) {
       return true;
@@ -964,14 +1005,41 @@ export default function App() {
             </button>
           );
         })}
-        {!roleLoading && papel && !isAdmin && (
-          <p
-            id="nav-role-hint"
-            className="px-3 pt-3 text-[9.5px] leading-relaxed text-slate-400 dark:text-slate-500 font-medium"
-          >
-            Alguns menus (Lojas, Categorias, Utilizadores, Configurações e Backup) estão
-            reservados a administradores.
-          </p>
+        {lockedNavigationItems.length > 0 && (
+          <div id="nav-locked-section" className="pt-3 mt-2 border-t border-slate-100 dark:border-slate-800/60 space-y-1">
+            <p
+              id="nav-role-hint"
+              className="px-3 pb-1 text-[9.5px] leading-relaxed text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider"
+            >
+              Requer mais permissões
+            </p>
+            {lockedNavigationItems.map((item) => {
+              const IconComponent = item.icon;
+              const isSelected = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  id={`nav-${item.id}-locked-btn`}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    if (isDrawer) setIsMobileMenuOpen(false);
+                  }}
+                  title={`"${item.label}" requer outro papel. Clique para saber porquê.`}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold tracking-tight transition-all cursor-pointer group ${
+                    isSelected
+                      ? "bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400"
+                      : "text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/45"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <IconComponent size={16} className="shrink-0 opacity-60" />
+                    <span className="truncate">{item.label}</span>
+                  </div>
+                  <Lock size={11} className="shrink-0 opacity-70" />
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
 
@@ -1125,6 +1193,16 @@ export default function App() {
                 <Loader2 size={36} className="animate-spin text-emerald-600 dark:text-emerald-400" />
                 <p className="text-slate-400 dark:text-slate-500 text-xs mt-3">Carregando informações do negócio...</p>
               </div>
+            ) : restrictedTab ? (
+              /* O papel atual não permite este menu: explicar em vez de
+                 renderizar o conteúdo (que continua protegido). */
+              <RestrictedAccessNotice
+                label={restrictedTab.label}
+                requiredRoles={requiredRolesFor(restrictedTab.id)}
+                currentRole={papel}
+                uid={user?.uid}
+                onOpenDiagnostics={() => setActiveTab("diagnostics")}
+              />
             ) : (
               <ErrorBoundary resetKey={activeTab}>
               <AnimatePresence mode="wait">
@@ -1328,7 +1406,7 @@ export default function App() {
                 )}
 
                 {/* NOVO: Admin Diagnostics Tab */}
-                {activeTab === "diagnostics" && isAdmin && (
+                {activeTab === "diagnostics" && (
                   <motion.div
                     key="diagnostics-view"
                     initial={{ opacity: 0, x: -10 }}
