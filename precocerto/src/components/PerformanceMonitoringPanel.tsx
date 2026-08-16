@@ -7,7 +7,6 @@ import React, { useState } from 'react';
 import {
   Activity,
   Zap,
-  Cache,
   Database,
   TrendingUp,
   AlertCircle,
@@ -149,7 +148,7 @@ export function PerformanceMonitoringPanel({
                   {dashboard.kpis.cacheHitRate.toFixed(0)}%
                 </p>
               </div>
-              <Cache className="text-green-600 dark:text-green-400" size={32} />
+              <HardDrive className="text-green-600 dark:text-green-400" size={32} />
             </div>
           </div>
 

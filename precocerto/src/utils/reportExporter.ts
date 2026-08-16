@@ -3,7 +3,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Product } from '../types';
 import { ReportConfig } from '../components/ReportBuilder';
-import { formatKz, formatDate } from './index';
+import { formatKz, formatDate } from '../utils';
 
 /**
  * Utilitários para exportar relatórios gerados
@@ -121,7 +121,7 @@ export function exportReportToPDF(options: ReportExportOptions): void {
         fontSize: 9,
         cellPadding: 2,
       },
-      headerStyles: {
+      headStyles: {
         fillColor: [5, 150, 105],
         textColor: 255,
         fontStyle: 'bold',

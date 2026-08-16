@@ -1,0 +1,33 @@
+# Netlify Configuration for PreçoCerto
+# This file configures the build and deployment for Netlify
+
+[build]
+# Build command - installs dependencies and builds the Vite project
+command = "npm install --force --legacy-peer-deps && npm run build"
+# Output directory where the built files are located
+publish = "dist"
+
+[dev]
+# Development command for local testing
+command = "npm run dev"
+port = 3000
+
+# Rewrite rules for Single Page Application (SPA)
+# All routes fall back to index.html for client-side routing
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
+
+# Cache control for assets
+# Static assets with hashes in filenames are cached long-term
+[[headers]]
+for = "/assets/*"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+# Cache control for HTML and dynamic content
+[[headers]]
+for = "/*.html"
+[headers.values]
+Cache-Control = "public, max-age=3600, must-revalidate"

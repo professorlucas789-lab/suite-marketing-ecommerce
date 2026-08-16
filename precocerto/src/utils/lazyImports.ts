@@ -25,9 +25,7 @@ export const LazyReportBuilder = lazy(() =>
 );
 
 export const LazyBatchProductForm = lazy(() =>
-  import('../components/BatchProductForm').then(module => ({
-    default: module.BatchProductForm
-  }))
+  import('../components/BatchProductForm')
 );
 
 export const LazyImportCSVModal = lazy(() =>
@@ -37,9 +35,7 @@ export const LazyImportCSVModal = lazy(() =>
 );
 
 export const LazyBusinessSettingsView = lazy(() =>
-  import('../components/BusinessSettingsView').then(module => ({
-    default: module.BusinessSettingsView
-  }))
+  import('../components/BusinessSettingsView')
 );
 
 export const LazyProductComparison = lazy(() =>
