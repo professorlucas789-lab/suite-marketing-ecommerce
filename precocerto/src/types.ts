@@ -129,9 +129,14 @@ export interface Product {
   farmaciaFormaFarmaceutica?: string;
   farmaciaLaboratorio?: string;
   farmaciaLote?: string;
-  farmaciaDataValidade?: string; // YYYY-MM-DD
+  farmaciaDataValidade?: string; // YYYY-MM-DD (específico de farmácia)
   farmaciaRegistroRegulatorio?: string;
   farmaciaNecessitaReceita?: "sim" | "não" | "não informado";
+
+  // NOVO (Fase 1): Data de validade genérica (aplicável a todos módulos)
+  expiryDate?: string; // YYYY-MM-DD - Data de expiração/vencimento
+  lote?: string; // Número de lote (genérico, não apenas farmácia)
+  condicaoArmazenamento?: string; // Condições de armazenamento (genérico)
 
   // Outros Módulos
   marca?: string;
