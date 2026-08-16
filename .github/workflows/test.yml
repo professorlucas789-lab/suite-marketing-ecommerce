@@ -43,4 +43,14 @@ jobs:
 
     - name: Build application
       working-directory: ./precocerto
-      run: npm run build
+      run: |
+        echo "Starting build..."
+        echo "Node version: $(node --version)"
+        echo "npm version: $(npm --version)"
+        echo "Disk space:"
+        df -h
+        echo "Memory:"
+        free -h
+        npm run build 2>&1 | tee build.log
+        echo "Build completed. Exit code: $?"
+        tail -50 build.log
