@@ -138,7 +138,8 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
   const [aguaTipo, setAguaTipo] = useState<"unidade" | "lote">("unidade");
   const [contabilidadeTipo, setContabilidadeTipo] = useState<"unidade" | "lote">("unidade");
   const [segurancaTipo, setSegurancaTipo] = useState<"unidade" | "lote">("unidade");
-  const [outrosCustosFixosTipo, setOutrosCustosFixosTipo] = useState<"unidade" | "lote">("unidade");  const [margemDesejada, setMargemDesejada] = useState<string>("");
+  const [outrosCustosFixosTipo, setOutrosCustosFixosTipo] = useState<"unidade" | "lote">("unidade");
+  const [margemDesejada, setMargemDesejada] = useState<string>("");
   const [observacoes, setObservacoes] = useState<string>("");
 
   // Novas propriedades da Fase 4: Conversão de Embalagem / Retalho
