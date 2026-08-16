@@ -279,9 +279,12 @@ export default function App() {
         productsData.push({
           ...data,
           id: docSnap.id,
-          nome: data.nome,
-          categoria: data.categoria,
-          fornecedor: data.fornecedor,
+          // Produtos criados em lote, importados por CSV ou gravados por versões
+          // antigas podem não ter estes campos. Sem o valor por omissão, a
+          // pesquisa da Lista de Produtos rebentava com TypeError.
+          nome: data.nome || "",
+          categoria: data.categoria || "",
+          fornecedor: data.fornecedor || "",
           custoCompra: data.custoCompra || 0,
           custoTransporte: data.custoTransporte || 0,
           custoEmbalagem: data.custoEmbalagem || 0,
@@ -326,7 +329,16 @@ export default function App() {
       setProductsLoading(false);
     }, (error) => {
       setProductsLoading(false);
-      handleFirestoreError(error, OperationType.GET, "products");
+      // handleFirestoreError relança o erro; dentro de um callback do onSnapshot
+      // isso deixava a lista vazia sem qualquer explicação no ecrã.
+      try {
+        handleFirestoreError(error, OperationType.GET, "products");
+      } catch {
+        triggerNotification(
+          "Não foi possível carregar a lista de produtos. Verifique a ligação e tente novamente.",
+          "error"
+        );
+      }
     });
 
     return () => unsubscribe();

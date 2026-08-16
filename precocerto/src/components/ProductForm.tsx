@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Product, BusinessSettings } from "../types";
 import { CATEGORY_PRESETS, formatKz } from "../utils";
 import { calculateProductFields, getPriceHealth } from "../utils/pricing";
@@ -28,7 +28,7 @@ import {
   Calendar
 } from "lucide-react";
 import { businessModuleRegistry } from "../modules/business-types";
-import DynamicFieldRenderer from "./DynamicFieldRenderer";
+import DynamicFieldRenderer, { isDynamicFieldVisible } from "./DynamicFieldRenderer";
 import PackageConversionSection from "./PackageConversionSection"; // NOVO (Fase 3 - v2)
 
 interface ProductFormProps {
@@ -161,6 +161,22 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
   
   const [validationError, setValidationError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Sempre que uma validação falha, o aviso é trazido para o ecrã. O botão
+  // "Guardar Produto" fica no fim de um formulário longo, pelo que sem isto o
+  // utilizador clicava e parecia não acontecer nada.
+  const errorRef = useRef<HTMLDivElement | null>(null);
+  const [errorSignal, setErrorSignal] = useState<number>(0);
+
+  const reportValidationError = (message: string) => {
+    setValidationError(message);
+    setErrorSignal((n) => n + 1);
+  };
+
+  useEffect(() => {
+    if (!validationError || !errorRef.current) return;
+    errorRef.current.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }, [validationError, errorSignal]);
   const [showAdvancedCosts, setShowAdvancedCosts] = useState<boolean>(false);
 
   // NOVO (Fase 2): Auto-update margin when category changes
@@ -492,57 +508,57 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
     setValidationError("");
 
     if (!nome.trim()) {
-      setValidationError("O nome do produto é obrigatório.");
+      reportValidationError("O nome do produto é obrigatório.");
       return;
     }
 
     // FIX #3: Validação de campos obrigatórios
     if (!fornecedor.trim()) {
-      setValidationError("O nome do fornecedor é obrigatório.");
+      reportValidationError("O nome do fornecedor é obrigatório.");
       return;
     }
 
     if (!numeroFatura.trim()) {
-      setValidationError("O nº da fatura é obrigatório.");
+      reportValidationError("O nº da fatura é obrigatório.");
       return;
     }
 
     if (!dataEmissaoFatura.trim()) {
-      setValidationError("A data de emissão da fatura é obrigatória.");
+      reportValidationError("A data de emissão da fatura é obrigatória.");
       return;
     }
 
     const parsedCustoCompra = parseFloat(custoCompra);
     if (isNaN(parsedCustoCompra)) {
-      setValidationError("O custo de compra é obrigatório e deve ser um número válido.");
+      reportValidationError("O custo de compra é obrigatório e deve ser um número válido.");
       return;
     }
 
     const parsedQuantidade = parseFloat(quantidade || "1");
     if (isNaN(parsedQuantidade) || parsedQuantidade <= 0) {
-      setValidationError("A quantidade comprada do lote deve ser maior do que zero.");
+      reportValidationError("A quantidade comprada do lote deve ser maior do que zero.");
       return;
     }
 
     const parsedQuantidadeVendida = parseFloat(quantidadeVendida || "0");
     if (isNaN(parsedQuantidadeVendida) || parsedQuantidadeVendida < 0) {
-      setValidationError("A quantidade vendida não pode ser menor que zero.");
+      reportValidationError("A quantidade vendida não pode ser menor que zero.");
       return;
     }
 
     if (parsedQuantidadeVendida > parsedQuantidade) {
-      setValidationError("A quantidade vendida não pode ser maior que a quantidade comprada.");
+      reportValidationError("A quantidade vendida não pode ser maior que a quantidade comprada.");
       return;
     }
 
     const parsedMargemDesejada = parseFloat(margemDesejada);
     if (isNaN(parsedMargemDesejada)) {
-      setValidationError("A margem desejada é obrigatória e deve ser um número válido.");
+      reportValidationError("A margem desejada é obrigatória e deve ser um número válido.");
       return;
     }
 
     if (modoCalculo === "lote" && parsedCustoCompra <= 0) {
-      setValidationError("O custo total do lote deve ser maior que zero quando o modo lote estiver ativo.");
+      reportValidationError("O custo total do lote deve ser maior que zero quando o modo lote estiver ativo.");
       return;
     }
 
@@ -580,19 +596,35 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
 
     for (const f of numFields) {
       if (f.val < 0) {
-        setValidationError(`${f.name} não pode ser menor do que zero.`);
+        reportValidationError(`${f.name} não pode ser menor do que zero.`);
         return;
       }
     }
 
     if (parsedMargemDesejada >= 100) {
-      setValidationError("A margem desejada deve ser estritamente menor do que 100%.");
+      reportValidationError("A margem desejada deve ser estritamente menor do que 100%.");
       return;
     }
 
     const parsedUnidadesInternas = parseFloat(unidadesInternas || "1");
     if (isNaN(parsedUnidadesInternas) || parsedUnidadesInternas <= 0) {
-      setValidationError("As unidades internas por embalagem devem ser maiores do que zero.");
+      reportValidationError("As unidades internas por embalagem devem ser maiores do que zero.");
+      return;
+    }
+
+    // Campos extra do módulo de negócio marcados como obrigatórios. Antes disto
+    // o formulário dependia apenas do atributo `required` nativo, que em campos
+    // fora do ecrã falhava em silêncio e dava a impressão de que o botão
+    // "Guardar Produto" não fazia nada.
+    const missingModuleField = activeModule.productExtraFields.find((field) => {
+      if (!field.required) return false;
+      if (!isDynamicFieldVisible(field, extraFieldValues)) return false;
+      const value = extraFieldValues[field.key];
+      if (field.type === "checkbox") return value !== true;
+      return value === undefined || value === null || String(value).trim() === "";
+    });
+    if (missingModuleField) {
+      reportValidationError(`O campo "${missingModuleField.label}" é obrigatório.`);
       return;
     }
 
@@ -612,7 +644,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
         unidadesInternas: parsedUnidadesInternas
       });
       if (moduleError) {
-        setValidationError(moduleError);
+        reportValidationError(moduleError);
         return;
       }
     }
@@ -621,13 +653,13 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
     if (selectedCategory && margemOverride) {
       const marginValue = parseFloat(margemOverride);
       if (isNaN(marginValue)) {
-        setValidationError("Margem override deve ser um número válido");
+        reportValidationError("Margem override deve ser um número válido");
         return;
       }
 
       const complianceInfo = validateMarginCompliance(selectedCategory, marginValue);
       if (!complianceInfo.isCompliant) {
-        setValidationError(`Margem não está em conformidade: ${complianceInfo.reason}`);
+        reportValidationError(`Margem não está em conformidade: ${complianceInfo.reason}`);
         return;
       }
     }
@@ -746,7 +778,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       if (err instanceof Error) {
         errorMsg = `Erro ao salvar o produto: ${err.message}`;
       }
-      setValidationError(errorMsg);
+      reportValidationError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -775,8 +807,9 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       </div>
 
       {validationError && (
-        <motion.div 
+        <motion.div
           id="form-error-alert"
+          ref={errorRef}
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex items-start gap-2 bg-rose-50 border border-rose-100 text-rose-800 p-3 rounded-lg text-xs"
@@ -789,7 +822,10 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       {/* Main Grid: Form + Simulator */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Form panel */}
-        <form onSubmit={handleFormSubmit} className="lg:col-span-2 space-y-6 bg-white p-6 rounded-xl border border-slate-100 shadow-xs">
+        {/* `noValidate`: a validação nativa do browser aborta o submit sem mostrar
+            nada quando o campo em falta está fora do ecrã. A validação em
+            JavaScript abaixo mostra sempre a mensagem e leva o utilizador ao erro. */}
+        <form onSubmit={handleFormSubmit} noValidate className="lg:col-span-2 space-y-6 bg-white p-6 rounded-xl border border-slate-100 shadow-xs">
           
           {/* SECÇÃO: INFORMAÇÕES DO PRODUTO */}
           <div className="space-y-4 bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-100 dark:border-slate-800 shadow-xs">
@@ -1871,6 +1907,15 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
                 <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400 font-bold text-xs">
                   <AlertCircle size={14} className="shrink-0 animate-bounce" />
                   <span>Atenção: Margem Real Negativa!</span>
+                </div>
+              )}
+              {validationError && (
+                <div
+                  id="form-error-near-save"
+                  className="flex items-start gap-1.5 text-rose-600 dark:text-rose-400 font-bold text-xs mt-1"
+                >
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <span>{validationError}</span>
                 </div>
               )}
             </div>
