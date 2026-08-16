@@ -37,7 +37,7 @@ export async function createCategory(
   categoryData: Omit<CategoryMarginConfig, 'id' | 'storeId' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
   try {
-    const categoryId = doc(collection(db, 'lojas', storeId, 'categories')).id;
+    const categoryId = doc(collection(db, 'stores', storeId, 'categories')).id;
     const now = new Date().toISOString();
 
     const newCategory: CategoryMarginConfig = {
@@ -48,7 +48,7 @@ export async function createCategory(
       updatedAt: now,
     };
 
-    await setDoc(doc(db, 'lojas', storeId, 'categories', categoryId), newCategory);
+    await setDoc(doc(db, 'stores', storeId, 'categories', categoryId), newCategory);
     console.log(`✅ Categoria criada: ${categoryData.name} (${categoryId}) para loja: ${storeId}`);
     return categoryId;
   } catch (error) {
@@ -72,7 +72,7 @@ export async function getCategoryById(
 ): Promise<CategoryMarginConfig | null> {
   try {
     const docSnap = await getDoc(
-      doc(db, 'lojas', storeId, 'categories', categoryId)
+      doc(db, 'stores', storeId, 'categories', categoryId)
     );
 
     if (!docSnap.exists()) {
@@ -92,7 +92,7 @@ export async function getCategoryById(
 export async function getStoreCategories(storeId: string): Promise<CategoryMarginConfig[]> {
   try {
     const q = query(
-      collection(db, 'lojas', storeId, 'categories'),
+      collection(db, 'stores', storeId, 'categories'),
       where('storeId', '==', storeId)
     );
 
@@ -109,17 +109,27 @@ export async function getStoreCategories(storeId: string): Promise<CategoryMargi
  */
 export function subscribeToStoreCategories(
   storeId: string,
-  onUpdate: (categories: CategoryMarginConfig[]) => void
+  onUpdate: (categories: CategoryMarginConfig[]) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe {
   const q = query(
-    collection(db, 'lojas', storeId, 'categories'),
+    collection(db, 'stores', storeId, 'categories'),
     where('storeId', '==', storeId)
   );
 
-  return onSnapshot(q, (snapshot) => {
-    const categories = snapshot.docs.map((doc) => doc.data() as CategoryMarginConfig);
-    onUpdate(categories);
-  });
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const categories = snapshot.docs.map((doc) => doc.data() as CategoryMarginConfig);
+      onUpdate(categories);
+    },
+    // Sem este callback, um erro do Firestore (por exemplo, falta de permissão)
+    // deixaria a vista de categorias presa em "A carregar" para sempre.
+    (error) => {
+      console.error('❌ Erro ao subscrever categorias:', error);
+      onError?.(error instanceof Error ? error : new Error(String(error)));
+    }
+  );
 }
 
 /**
@@ -140,7 +150,7 @@ export async function updateCategory(
     const now = new Date().toISOString();
 
     await updateDoc(
-      doc(db, 'lojas', storeId, 'categories', categoryId),
+      doc(db, 'stores', storeId, 'categories', categoryId),
       {
         ...updates,
         updatedAt: now,
@@ -165,7 +175,7 @@ export async function updateCategoryMarginRules(
     const now = new Date().toISOString();
 
     await updateDoc(
-      doc(db, 'lojas', storeId, 'categories', categoryId),
+      doc(db, 'stores', storeId, 'categories', categoryId),
       {
         marginRules,
         updatedAt: now,
@@ -193,7 +203,7 @@ export async function deleteCategory(
   categoryId: string
 ): Promise<void> {
   try {
-    await deleteDoc(doc(db, 'lojas', storeId, 'categories', categoryId));
+    await deleteDoc(doc(db, 'stores', storeId, 'categories', categoryId));
     console.log(`✅ Categoria deletada: ${categoryId} da loja: ${storeId}`);
   } catch (error) {
     console.error('❌ Erro ao deletar categoria:', error);

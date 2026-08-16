@@ -37,7 +37,7 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
     }
   }, [userStores]);
 
-  const { categories, loading, createCategory, updateCategory, deleteCategory } =
+  const { categories, loading, error, retry, createCategory, updateCategory, deleteCategory } =
     useCategories({ storeId: selectedStoreId });
 
   const [showForm, setShowForm] = useState(false);
@@ -409,6 +409,30 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
           <span className="font-semibold">Loja Atual:</span> {displayStoreName}
         </p>
       </div>
+
+      {/* Erro de leitura das categorias (ex.: permissões do Firestore) */}
+      {error && (
+        <div
+          id="categories-error-state"
+          className="bg-red-50 border border-red-200 p-4 rounded-lg flex items-start gap-3"
+        >
+          <AlertCircle size={18} className="text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-red-800 text-sm">
+              Não foi possível carregar as categorias desta loja
+            </p>
+            <p className="text-xs text-red-700 mt-1 break-words">{error}</p>
+            <button
+              id="categories-retry-button"
+              onClick={retry}
+              className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors"
+            >
+              <RefreshCw size={14} />
+              Tentar novamente
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Formulário ou Lista de Categorias */}
       {showForm ? (

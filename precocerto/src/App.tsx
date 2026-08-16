@@ -38,6 +38,7 @@ import { StoreList } from "./components/StoreList"; // NOVO (Fase 6 - Multi-Stor
 import { UserStoresDashboard } from "./components/UserStoresDashboard"; // NOVO (Fase 14)
 import { UserProfileView } from "./components/UserProfileView"; // NOVO (Fase 11 - User Profile)
 import { AdminDiagnostics } from "./components/AdminDiagnostics"; // NOVO: Debug para admin
+import { ErrorBoundary } from "./components/ErrorBoundary"; // NOVO: evita ecrã em branco quando uma vista falha
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -85,7 +86,14 @@ export default function App() {
   const [settingsLoading, setSettingsLoading] = useState<boolean>(true);
 
   // NOVO (Fase 10 - RBAC): Obter dados do utilizador com papel
-  const { papel, isAdmin, isLojaManager, isFuncionario } = useUserAuth();
+  const {
+    papel,
+    isAdmin,
+    isLojaManager,
+    isFuncionario,
+    loading: roleLoading,
+    error: roleError,
+  } = useUserAuth();
 
   // DEBUG LOGS
   useEffect(() => {
@@ -778,7 +786,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 11): user-profile
+    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile" | "diagnostics"; // NOVO (Fase 11): user-profile
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -812,7 +820,8 @@ export default function App() {
     { id: "users", label: "Utilizadores", icon: UserIcon }, // NOVO (Fase 10)
     { id: "user-profile", label: "Meu Perfil", icon: UserIcon }, // NOVO (Fase 11 - User Profile)
     { id: "settings", label: "Configurações", icon: Settings },
-    { id: "backup", label: "Backup e Dados", icon: Database }
+    { id: "backup", label: "Backup e Dados", icon: Database },
+    { id: "diagnostics", label: "Diagnóstico", icon: Settings } // NOVO: Debug para admin
   ];
 
   // Filtrar itens baseado no papel do utilizador (NOVO Fase 10 - RBAC)
@@ -820,6 +829,16 @@ export default function App() {
   const navigationItems = allNavigationItems.filter((item) =>
     configItems.some((cfgItem) => cfgItem.id === item.id)
   );
+
+  // Itens disponíveis a qualquer utilizador autenticado. Servem de recurso
+  // quando o papel não pôde ser determinado: sem eles o menu ficava
+  // completamente vazio e a aplicação parecia bloqueada.
+  const fallbackNavigationItems = allNavigationItems.filter((item) =>
+    ["dashboard", "products", "reverse-calculator", "user-profile"].includes(item.id)
+  );
+
+  const roleUnavailable = !roleLoading && !papel;
+  const visibleNavigationItems = roleUnavailable ? fallbackNavigationItems : navigationItems;
 
   const isTabActive = (tabId: string) => {
     if (tabId === "products" && (activeTab === "add-product" || activeTab === "edit-product")) {
@@ -874,7 +893,38 @@ export default function App() {
 
       {/* Navigation Items (Scrollable list) */}
       <div className="px-3.5 py-4 space-y-1 flex-1 overflow-y-auto">
-        {navigationItems.map((item) => {
+        {roleLoading && (
+          <div id="nav-loading-state" className="px-3 py-2 space-y-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-8 rounded-xl bg-slate-100 dark:bg-slate-800/60 animate-pulse" />
+            ))}
+            <p className="text-[10px] text-slate-400 font-semibold pt-1">A carregar permissões...</p>
+          </div>
+        )}
+
+        {roleUnavailable && (
+          <div
+            id="nav-role-unavailable"
+            className="mb-3 px-3 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40"
+          >
+            <p className="text-[11px] font-bold text-amber-800 dark:text-amber-300">
+              Permissões não carregadas
+            </p>
+            <p className="text-[10px] text-amber-700 dark:text-amber-400/90 mt-1 leading-relaxed">
+              Não foi possível determinar o seu papel, por isso alguns menus estão ocultos.
+              {roleError ? ` Detalhe: ${roleError}` : ""}
+            </p>
+            <button
+              id="nav-role-retry-btn"
+              onClick={() => window.location.reload()}
+              className="mt-2 w-full px-2 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold transition-colors cursor-pointer"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
+
+        {visibleNavigationItems.map((item) => {
           const isSelected = isTabActive(item.id);
           const IconComponent = item.icon;
           return (
@@ -914,6 +964,15 @@ export default function App() {
             </button>
           );
         })}
+        {!roleLoading && papel && !isAdmin && (
+          <p
+            id="nav-role-hint"
+            className="px-3 pt-3 text-[9.5px] leading-relaxed text-slate-400 dark:text-slate-500 font-medium"
+          >
+            Alguns menus (Lojas, Categorias, Utilizadores, Configurações e Backup) estão
+            reservados a administradores.
+          </p>
+        )}
       </div>
 
       {/* Sidebar Footer (Theme, profile & logout) */}
@@ -927,8 +986,16 @@ export default function App() {
             <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate" title={user?.email || ""}>
               {user?.email}
             </span>
-            <span className="text-[9px] text-slate-400 font-medium">
-              Utilizador Ativo
+            <span className="text-[9px] text-slate-400 font-medium" id="sidebar-user-role">
+              {roleLoading
+                ? "A carregar permissões..."
+                : isAdmin
+                  ? "Administrador"
+                  : isLojaManager
+                    ? "Gerente de Loja"
+                    : isFuncionario
+                      ? "Funcionário"
+                      : "Papel por definir"}
             </span>
           </div>
         </div>
@@ -1059,6 +1126,7 @@ export default function App() {
                 <p className="text-slate-400 dark:text-slate-500 text-xs mt-3">Carregando informações do negócio...</p>
               </div>
             ) : (
+              <ErrorBoundary resetKey={activeTab}>
               <AnimatePresence mode="wait">
                 {activeTab === "dashboard" && (
                   <motion.div
@@ -1308,6 +1376,7 @@ export default function App() {
                   </motion.div>
                 )}
               </AnimatePresence>
+              </ErrorBoundary>
             )}
           </div>
 

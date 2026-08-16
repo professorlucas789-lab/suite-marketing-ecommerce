@@ -1,6 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin';
+    }
+
     // ============================================
     // USER PROFILE PRIVACY & SECURITY (Fase 14)
     // ============================================
@@ -23,14 +28,40 @@ service cloud.firestore {
     // ============================================
     match /stores/{storeId} {
       allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin';
+      allow create, update, delete: if isAdmin();
     }
 
-    match /stores/{storeId}/categories/{categoryId} {
+    // Subcoleções de uma loja (categorias, estatísticas, etc.).
+    // Sem esta regra, a leitura das categorias era recusada e a vista
+    // "Categorias" ficava presa a carregar indefinidamente.
+    match /stores/{storeId}/{document=**} {
       allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin';
+      allow write: if isAdmin();
+    }
+
+    // ============================================
+    // AUDITORIA E FEED DE ATIVIDADE
+    // ============================================
+    match /audit_logs/{logId} {
+      // Registos de auditoria são criados pela própria aplicação em nome do
+      // utilizador autenticado e nunca são alterados nem apagados.
+      allow create: if request.auth != null && (
+        !('userId' in request.resource.data) ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow update, delete: if false;
+    }
+
+    match /activity_stream/{activityId} {
+      allow create: if request.auth != null && (
+        !('userId' in request.resource.data) ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow read: if request.auth != null;
+      allow update, delete: if isAdmin();
     }
 
     // ============================================
