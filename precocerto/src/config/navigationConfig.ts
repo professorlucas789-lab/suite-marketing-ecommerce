@@ -16,6 +16,8 @@ export type NavigationItemId =
   | 'estoque' // NOVO (Fase 5 - Gestão de Estoque)
   | 'vendas' // NOVO (Fase 6 - Módulo de Vendas)
   | 'multi-loja' // NOVO (Fase 9 - Dashboard Multi-Loja)
+  | 'notificacoes' // NOVO (Fase 10 - Configurações de Notificações)
+  | 'automacao' // NOVO (Fase 10 - Monitoramento de Automação)
   | 'stores'
   | 'history'
   | 'reports'
@@ -131,6 +133,22 @@ export const navigationConfig: NavigationConfig[] = [
     icon: 'User',
     roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 11): Todos podem acessar seu próprio perfil
     section: 'management',
+  },
+
+  {
+    id: 'notificacoes',
+    label: '🔔 Notificações',
+    icon: 'Bell',
+    roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 10): Todos podem configurar
+    section: 'management',
+  },
+
+  {
+    id: 'automacao',
+    label: '⚙️ Automação de Alertas',
+    icon: 'Settings',
+    roles: ['admin', 'loja-manager'], // NOVO (Fase 10): Apenas admin e managers
+    section: 'admin',
   },
 
   // SECÇÃO ADMINISTRATIVA - Apenas Admins

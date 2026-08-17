@@ -200,7 +200,7 @@ export interface BusinessSettings {
   updatedAt?: string;
 }
 
-export type ActiveTab = "dashboard" | "products" | "add-product" | "batch-products" | "categories" | "edit-product" | "reverse-calculator" | "alertas" | "estoque" | "vendas" | "multi-loja" | "settings" | "history" | "reports" | "backup" | "users" | "stores" | "user-profile" | "diagnostics"; // NOVO (Fase 4 - Alertas) | NOVO (Fase 5 - Estoque) | NOVO (Fase 6 - Vendas) | NOVO (Fase 9 - Multi-Loja) | NOVO (Fase 11 - User Profile) | NOVO: diagnostics
+export type ActiveTab = "dashboard" | "products" | "add-product" | "batch-products" | "categories" | "edit-product" | "reverse-calculator" | "alertas" | "estoque" | "vendas" | "multi-loja" | "notificacoes" | "automacao" | "settings" | "history" | "reports" | "backup" | "users" | "stores" | "user-profile" | "diagnostics"; // NOVO (Fase 4 - Alertas) | NOVO (Fase 5 - Estoque) | NOVO (Fase 6 - Vendas) | NOVO (Fase 9 - Multi-Loja) | NOVO (Fase 10 - Notificações/Automação) | NOVO (Fase 11 - User Profile) | NOVO: diagnostics
 
 export interface PriceHistory {
   id?: string;

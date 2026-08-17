@@ -42,6 +42,8 @@ import { StockTab } from "./components/StockTab"; // NOVO (Fase 5 - Gestão de E
 import { SalesTab } from "./components/SalesTab"; // NOVO (Fase 6 - Módulo de Vendas)
 import { ExecutiveDashboard } from "./components/ExecutiveDashboard"; // NOVO (Fase 7 - Dashboard Executivo)
 import { MultiStoreComparisonDashboard } from "./components/MultiStoreComparisonDashboard"; // NOVO (Fase 9 - Dashboard Multi-Loja)
+import { NotificationSettingsPanel } from "./components/NotificationSettingsPanel"; // NOVO (Fase 10 - Automação de Alertas)
+import { AlertMonitorPanel } from "./components/AlertMonitorPanel"; // NOVO (Fase 10 - Monitoramento)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -1277,6 +1279,30 @@ export default function App() {
                     <UserProfileView
                       onNavigate={(tab) => setActiveTab(tab)}
                     />
+                  </motion.div>
+                )}
+
+                {activeTab === "notificacoes" && user && (
+                  <motion.div
+                    key="notificacoes-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <NotificationSettingsPanel />
+                  </motion.div>
+                )}
+
+                {activeTab === "automacao" && (isAdmin || isLojaManager) && (
+                  <motion.div
+                    key="automacao-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <AlertMonitorPanel />
                   </motion.div>
                 )}
 
