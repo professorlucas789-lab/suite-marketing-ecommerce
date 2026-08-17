@@ -6,19 +6,22 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { TrendingUp, Package, DollarSign, Percent } from 'lucide-react';
+import { TrendingUp, Package, DollarSign, Percent, Download } from 'lucide-react';
 import { SalesReport } from '../types/sales';
 import { useSalesAnalytics } from '../hooks/useSalesAnalytics';
 import { useStore } from '../contexts/StoreContext';
+import ReportExportDialog from './ReportExportDialog';
 
 interface SalesAnalyticsDashboardProps {
   initialFromDate?: string;
   initialToDate?: string;
+  products?: any[];
 }
 
 export const SalesAnalyticsDashboard: React.FC<SalesAnalyticsDashboardProps> = ({
   initialFromDate,
   initialToDate,
+  products = [],
 }) => {
   const { currentStore } = useStore();
   const { report, kpis, loading, generateReport } = useSalesAnalytics();
@@ -29,6 +32,7 @@ export const SalesAnalyticsDashboard: React.FC<SalesAnalyticsDashboardProps> = (
   });
 
   const [activeTab, setActiveTab] = useState<'kpis' | 'products' | 'categories' | 'daily'>('kpis');
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   useEffect(() => {
     if (currentStore) {
@@ -385,7 +389,29 @@ export const SalesAnalyticsDashboard: React.FC<SalesAnalyticsDashboardProps> = (
             </motion.div>
           )}
         </div>
+
+        {/* Export Button */}
+        <div className="flex justify-end gap-2 pt-4">
+          <button
+            onClick={() => setExportDialogOpen(true)}
+            disabled={!report}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white font-medium rounded-lg transition"
+          >
+            <Download className="w-4 h-4" />
+            Exportar Relatório
+          </button>
+        </div>
       </div>
+
+      {/* Export Dialog */}
+      <ReportExportDialog
+        isOpen={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        salesReport={report}
+        products={products}
+        storeName={currentStore?.storeName || 'Loja'}
+        alerts={[]}
+      />
     </motion.div>
   );
 };
