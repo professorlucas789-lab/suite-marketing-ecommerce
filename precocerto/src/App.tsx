@@ -40,6 +40,7 @@ import { UserProfileView } from "./components/UserProfileView"; // NOVO (Fase 11
 import { AdminDiagnostics } from "./components/AdminDiagnostics"; // NOVO: Debug para admin
 import { StockTab } from "./components/StockTab"; // NOVO (Fase 5 - Gestão de Estoque)
 import { SalesTab } from "./components/SalesTab"; // NOVO (Fase 6 - Módulo de Vendas)
+import { ExecutiveDashboard } from "./components/ExecutiveDashboard"; // NOVO (Fase 7 - Dashboard Executivo)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {

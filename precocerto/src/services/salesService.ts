@@ -26,6 +26,7 @@ import {
   PaymentMethod,
 } from '../types/sales';
 import { Product } from '../types';
+import { reduceStockOnSale, validateStockAvailability } from './salesStockSyncService';
 
 /**
  * Registar nova venda
@@ -41,6 +42,17 @@ export async function recordSale(
 
     if (!sale.storeId || !sale.productId) {
       throw new Error('StoreId e ProductId são obrigatórios');
+    }
+
+    // NOVO (Fase 7): Validar estoque disponível
+    const stockValidation = await validateStockAvailability(
+      sale.storeId,
+      sale.productId,
+      sale.quantity
+    );
+
+    if (!stockValidation.available) {
+      throw new Error(stockValidation.message);
     }
 
     // Calcular totais
@@ -62,7 +74,8 @@ export async function recordSale(
 
     console.log('✅ [salesService] Venda registada:', docRef.id);
 
-    return {
+    // NOVO (Fase 7): Sincronizar estoque automaticamente
+    const recordedSale: Sale = {
       ...sale,
       id: docRef.id,
       totalPrice,
@@ -72,6 +85,15 @@ export async function recordSale(
       timestamp: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
+
+    try {
+      await reduceStockOnSale(recordedSale);
+    } catch (stockError) {
+      console.error('❌ [salesService] Aviso: Erro ao sincronizar estoque:', stockError);
+      // Não falhar a venda se o estoque não sincronizar (pode ser rollback necessário)
+    }
+
+    return recordedSale;
   } catch (error) {
     console.error('❌ [salesService] Erro ao registar venda:', error);
     throw error;
