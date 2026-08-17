@@ -60,7 +60,6 @@ export function useUserAuth(): AuthUserData {
               console.warn('Utilizador não encontrado no Firestore. Criando documento padrão...');
 
               try {
-                const { setDoc } = await import('firebase/firestore');
                 const defaultUser: User = {
                   id: fbUser.uid,
                   nome: fbUser.displayName || fbUser.email?.split('@')[0] || 'Utilizador',
