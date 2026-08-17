@@ -4,8 +4,11 @@ import { CATEGORY_PRESETS, formatKz } from "../utils";
 import { calculateProductFields, getPriceHealth } from "../utils/pricing";
 import { calculateProductPricesWithCategoryMargin } from "../utils/categoryUtils";
 import { useCategories } from "../hooks/useCategories"; // NOVO (Fase 2)
+import { useMarkupTable } from "../hooks/useMarkupTable"; // NOVO (Fase 13)
 import { useStore } from "../contexts/StoreContext"; // FIX #2: Adicionar contexto de loja
 import { getProductMargin, validateMarginCompliance } from "../utils/categoryUtils"; // NOVO (Fase 2)
+import { MarkupLevelSelector } from "./MarkupLevelSelector"; // NOVO (Fase 13)
+import { obterMarkupPorNivel, sugerirFaixaPrecos } from "../utils/markupCalculation"; // NOVO (Fase 13)
 import { motion } from "motion/react";
 import { 
   ArrowLeft, 
@@ -64,6 +67,12 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
   // NOVO (Fase 2): Categories and margin management
   // FIX #2: Passar storeId para o hook useCategories para evitar página branca
   const { categories, loading: categoriesLoading } = useCategories({ storeId: currentStore?.storeId || '' });
+
+  // NOVO (Fase 13): Markup management
+  const { markups, loading: markupsLoading } = useMarkupTable({ storeId: currentStore?.storeId || '' });
+  const [markupLevelSelected, setMarkupLevelSelected] = useState<'minimo' | 'medio' | 'alto'>('medio');
+  const [selectedMarkupCategory, setSelectedMarkupCategory] = useState<any>(null);
+
   const [categoryId, setCategoryId] = useState<string>("");
   const [margemOverride, setMargemOverride] = useState<string>("");
   const [margemOverrideReason, setMargemOverrideReason] = useState<string>("");
@@ -196,6 +205,26 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       setSelectedCategory(categories[0]);
     }
   }, [productToEdit?.categoryId, categories, categoryId]);
+
+  // NOVO (Fase 13): Load markup data when category changes or markups load
+  useEffect(() => {
+    if (selectedCategory && markups.length > 0) {
+      // Procurar markup com o mesmo nome da categoria
+      const matchingMarkup = markups.find(
+        m => m.name.toLowerCase() === selectedCategory.name.toLowerCase() && m.ativo
+      );
+
+      if (matchingMarkup) {
+        setSelectedMarkupCategory(matchingMarkup);
+        // Usar o nivel padrão do markup
+        setMarkupLevelSelected(matchingMarkup.markupPadrao);
+      } else {
+        setSelectedMarkupCategory(null);
+      }
+    } else {
+      setSelectedMarkupCategory(null);
+    }
+  }, [selectedCategory, markups]);
 
   // Load product data when editing
   useEffect(() => {
@@ -1674,6 +1703,23 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
                     </div>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {/* NOVO (Fase 13): Markup Level Selector */}
+            {selectedMarkupCategory && !markupsLoading && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/30 rounded-xl"
+              >
+                <MarkupLevelSelector
+                  markupCategory={selectedMarkupCategory}
+                  selectedLevel={markupLevelSelected}
+                  onLevelChange={setMarkupLevelSelected}
+                  custo={parseFloat(custoCompra) || 0}
+                  precoVenda={calculated?.precoRecomendadoUnidadeVenda}
+                />
               </motion.div>
             )}
 
