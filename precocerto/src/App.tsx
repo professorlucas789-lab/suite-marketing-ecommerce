@@ -43,7 +43,6 @@ import { UserStoresDashboard } from "./components/UserStoresDashboard"; // NOVO 
 import { UserProfileView } from "./components/UserProfileView"; // NOVO (Fase 11 - User Profile)
 import { AdminDiagnostics } from "./components/AdminDiagnostics"; // NOVO: Debug para admin
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
-import { useStore } from "./contexts/StoreContext"; // 🔴 CRITICAL: Para proteger StoreContext
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
   exportReportToExcel,
@@ -77,41 +76,11 @@ import {
   Upload, // NOVO (Fase 5A - CSV Import)
   Download, // NOVO (Fase 5A - Excel Export)
   BarChart3, // NOVO (Fase 5B Item 3 - Custom Reports)
-  Building2, // NOVO (Fase 6 - Multi-Store)
-  AlertCircle // NOVO: Para mostrar erro de StoreContext
+  Building2 // NOVO (Fase 6 - Multi-Store)
 } from "lucide-react";
 
 export default function App() {
   console.log("✅ APP COMPONENT MOUNTED");
-
-  // 🔴 CRITICAL: Proteger acesso a StoreContext
-  // Utilizar uma ref para capturar o contexto de forma segura
-  try {
-    const storeCtx = useStore();
-    // Se StoreContext não estiver pronto, não renderizar nada
-    if (!storeCtx?.currentStore?.storeId) {
-      console.log("⏳ App - StoreContext não está pronto, aguardando...");
-      return (
-        <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950">
-          <div className="text-center">
-            <Loader2 size={48} className="animate-spin text-emerald-600 mx-auto mb-4" />
-            <p className="text-slate-500 dark:text-slate-400">Iniciando aplicação...</p>
-          </div>
-        </div>
-      );
-    }
-  } catch (err) {
-    console.error("❌ Erro ao acessar StoreContext:", err);
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950">
-        <div className="text-center">
-          <AlertCircle size={48} className="text-red-600 mx-auto mb-4" />
-          <p className="text-red-600">Erro ao carregar contexto da aplicação</p>
-        </div>
-      </div>
-    );
-  }
-
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [products, setProducts] = useState<Product[]>([]);
