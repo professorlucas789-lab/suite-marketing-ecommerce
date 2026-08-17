@@ -55,11 +55,13 @@ const UNIDADES_PRESETS = [
 ];
 
 export default function ProductForm({ productToEdit, onSave, onCancel, settings }: ProductFormProps) {
+  console.log("🔵 ProductForm MOUNTED - productToEdit:", productToEdit?.nome || "novo");
   const activeModule = businessModuleRegistry.getModuleById(settings?.businessType || "outro");
   const [extraFieldValues, setExtraFieldValues] = useState<Record<string, any>>({});
 
   // FIX #2: Obter storeId do contexto para carregar categorias
   const { currentStore } = useStore();
+  console.log("📍 ProductForm - currentStore:", currentStore?.storeId, "businessType:", settings?.businessType);
 
   // NOVO (Fase 2): Categories and margin management
   // FIX #2: Passar storeId para o hook useCategories para evitar página branca
@@ -752,6 +754,19 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       setIsSubmitting(false);
     }
   };
+
+  // DEBUG: Verificar se categoriesLoading está true
+  if (categoriesLoading && !currentStore?.storeId) {
+    console.log("⏳ ProductForm - Aguardando StoreContext e categorias...");
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="text-center">
+          <Loader2 size={36} className="animate-spin text-emerald-600 mx-auto mb-4" />
+          <p className="text-slate-500">Carregando formulário...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div id="product-form-container" className="space-y-6">
