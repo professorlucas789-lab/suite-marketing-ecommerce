@@ -7,6 +7,7 @@
 import React, { useState, useCallback } from 'react';
 import { CategoryList } from './categories/CategoryList';
 import { CategoryForm } from './categories/CategoryForm';
+import { MarkupTab } from './MarkupTab';
 import { useCategories } from '../hooks/useCategories';
 import { useStore } from '../contexts/StoreContext';
 import { useUserAuth } from '../hooks/useUserAuth';
@@ -48,6 +49,9 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
   // Estado para atribuição de lojas
   const [atribuindo, setAtribuindo] = useState(false);
   const [mensagemErro, setMensagemErro] = useState<string | null>(null);
+
+  // NOVO (Fase 13): Sistema de abas - Categorias vs Markups
+  const [activeTab, setActiveTab] = useState<'categorias' | 'markups'>('categorias');
 
   const isAdmin = papel === 'admin';
   const displayStoreId = selectedStoreId || currentStore?.storeId;
@@ -410,29 +414,67 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({ businessType }) =>
         </p>
       </div>
 
-      {/* Formulário ou Lista de Categorias */}
-      {showForm ? (
-        <CategoryForm
-          category={editingCategory}
-          onSubmit={editingCategory ? handleUpdate : handleCreate}
-          onCancel={() => {
-            setShowForm(false);
-            setEditingCategory(undefined);
-          }}
-          businessType={businessType}
-          loading={loading}
-        />
+      {/* NOVO (Fase 13): Abas para Categorias e Markups */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="border-b border-gray-200 dark:border-gray-700"
+      >
+        <div className="flex gap-4">
+          <button
+            onClick={() => setActiveTab('categorias')}
+            className={`px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
+              activeTab === 'categorias'
+                ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            📦 Categorias
+          </button>
+          <button
+            onClick={() => setActiveTab('markups')}
+            className={`px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
+              activeTab === 'markups'
+                ? 'border-purple-600 text-purple-600 dark:text-purple-400'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            📊 Margens de Lucro (Markup)
+          </button>
+        </div>
+      </motion.div>
+
+      {/* Conteúdo das Abas */}
+      {activeTab === 'categorias' ? (
+        // TAB: Categorias
+        <>
+          {showForm ? (
+            <CategoryForm
+              category={editingCategory}
+              onSubmit={editingCategory ? handleUpdate : handleCreate}
+              onCancel={() => {
+                setShowForm(false);
+                setEditingCategory(undefined);
+              }}
+              businessType={businessType}
+              loading={loading}
+            />
+          ) : (
+            <CategoryList
+              categories={categories}
+              onEdit={(cat) => {
+                setEditingCategory(cat);
+                setShowForm(true);
+              }}
+              onDelete={handleDelete}
+              onAdd={() => setShowForm(true)}
+              loading={loading}
+            />
+          )}
+        </>
       ) : (
-        <CategoryList
-          categories={categories}
-          onEdit={(cat) => {
-            setEditingCategory(cat);
-            setShowForm(true);
-          }}
-          onDelete={handleDelete}
-          onAdd={() => setShowForm(true)}
-          loading={loading}
-        />
+        // TAB: Markups (Margens de Lucro)
+        <MarkupTab />
       )}
     </div>
   );
