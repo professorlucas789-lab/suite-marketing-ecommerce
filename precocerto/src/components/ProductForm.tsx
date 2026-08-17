@@ -8,7 +8,9 @@ import { useMarkupTable } from "../hooks/useMarkupTable"; // NOVO (Fase 13)
 import { useStore } from "../contexts/StoreContext"; // FIX #2: Adicionar contexto de loja
 import { getProductMargin, validateMarginCompliance } from "../utils/categoryUtils"; // NOVO (Fase 2)
 import { MarkupLevelSelector } from "./MarkupLevelSelector"; // NOVO (Fase 13)
+import { PriceValidationBadge } from "./PriceValidationBadge"; // NOVO (Fase 13 - Parte 3)
 import { obterMarkupPorNivel, sugerirFaixaPrecos } from "../utils/markupCalculation"; // NOVO (Fase 13)
+import { useRealtimePriceValidation } from "../hooks/usePriceValidation"; // NOVO (Fase 13 - Parte 3)
 import { motion } from "motion/react";
 import { 
   ArrowLeft, 
@@ -225,6 +227,22 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       setSelectedMarkupCategory(null);
     }
   }, [selectedCategory, markups]);
+
+  // NOVO (Fase 13 - Parte 3): Validação de preço em tempo real
+  const parseNum = (val: string) => {
+    const parsed = parseFloat(val);
+    return isNaN(parsed) || parsed < 0 ? 0 : parsed;
+  };
+
+  const custoCompraNum = parseNum(custoCompra);
+  const precoRecomendado = calculated?.precoRecomendadoUnidadeVenda || 0;
+
+  // Usar hook de validação em tempo real
+  const priceValidation = useRealtimePriceValidation(
+    custoCompraNum,
+    precoRecomendado,
+    selectedMarkupCategory
+  );
 
   // Load product data when editing
   useEffect(() => {
@@ -1719,6 +1737,20 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
                   onLevelChange={setMarkupLevelSelected}
                   custo={parseFloat(custoCompra) || 0}
                   precoVenda={calculated?.precoRecomendadoUnidadeVenda}
+                />
+              </motion.div>
+            )}
+
+            {/* NOVO (Fase 13 - Parte 3): Price Validation Badge */}
+            {priceValidation && selectedMarkupCategory && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <PriceValidationBadge
+                  validation={priceValidation}
+                  compact={false}
+                  showDetails={true}
                 />
               </motion.div>
             )}
