@@ -12,7 +12,8 @@ export type NavigationItemId =
   | 'batch-products'
   | 'categories'
   | 'reverse-calculator'
-  | 'alertas' // NOVO (Fase 13 - Alertas de Validade)
+  | 'alertas' // NOVO (Fase 4 - Alertas de Validade)
+  | 'estoque' // NOVO (Fase 5 - Gestão de Estoque)
   | 'stores'
   | 'history'
   | 'reports'
@@ -77,7 +78,15 @@ export const navigationConfig: NavigationConfig[] = [
     id: 'alertas',
     label: '🔔 Alertas de Validade',
     icon: 'Bell',
-    roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 13 - Alertas de Validade)
+    roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 4 - Alertas de Validade)
+    section: 'main',
+  },
+
+  {
+    id: 'estoque',
+    label: '📦 Gestão de Estoque',
+    icon: 'Package',
+    roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 5 - Gestão de Estoque)
     section: 'main',
   },
 

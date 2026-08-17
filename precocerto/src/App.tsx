@@ -38,7 +38,8 @@ import { StoreList } from "./components/StoreList"; // NOVO (Fase 6 - Multi-Stor
 import { UserStoresDashboard } from "./components/UserStoresDashboard"; // NOVO (Fase 14)
 import { UserProfileView } from "./components/UserProfileView"; // NOVO (Fase 11 - User Profile)
 import { AdminDiagnostics } from "./components/AdminDiagnostics"; // NOVO: Debug para admin
-import ExpiryMonitoringDashboard from "./components/ExpiryMonitoringDashboard"; // NOVO (Fase 13 - Alertas de Validade)
+import ExpiryMonitoringDashboard from "./components/ExpiryMonitoringDashboard"; // NOVO (Fase 4 - Alertas de Validade)
+import { StockTab } from "./components/StockTab"; // NOVO (Fase 5 - Gestão de Estoque)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -1173,6 +1174,21 @@ export default function App() {
                   >
                     <ExpiryMonitoringDashboard
                       storeId={businessSettings?.companyName || "default"}
+                    />
+                  </motion.div>
+                )}
+
+                {activeTab === "estoque" && user && (
+                  <motion.div
+                    key="estoque-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <StockTab
+                      products={products}
+                      onNotification={triggerNotification}
                     />
                   </motion.div>
                 )}
