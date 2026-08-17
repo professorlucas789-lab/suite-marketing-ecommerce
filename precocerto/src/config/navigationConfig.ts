@@ -12,6 +12,9 @@ export type NavigationItemId =
   | 'batch-products'
   | 'categories'
   | 'reverse-calculator'
+  | 'alertas' // NOVO (Fase 4 - Alertas de Validade)
+  | 'estoque' // NOVO (Fase 5 - Gestão de Estoque)
+  | 'vendas' // NOVO (Fase 6 - Módulo de Vendas)
   | 'stores'
   | 'history'
   | 'reports'
@@ -94,6 +97,14 @@ export const navigationConfig: NavigationConfig[] = [
     label: 'Relatórios',
     icon: 'FileText',
     roles: ['admin', 'loja-manager'],
+    section: 'management',
+  },
+
+  {
+    id: 'vendas',
+    label: '💰 Módulo de Vendas',
+    icon: 'DollarSign',
+    roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 6): Todos podem registar vendas
     section: 'management',
   },
 
