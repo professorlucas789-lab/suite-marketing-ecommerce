@@ -12,6 +12,7 @@ export type NavigationItemId =
   | 'batch-products'
   | 'categories'
   | 'reverse-calculator'
+  | 'alertas' // NOVO (Fase 13 - Alertas de Validade)
   | 'stores'
   | 'history'
   | 'reports'
@@ -69,6 +70,14 @@ export const navigationConfig: NavigationConfig[] = [
     label: 'Calculadora Reversa',
     icon: 'Calculator',
     roles: ['admin', 'loja-manager', 'funcionario'],
+    section: 'main',
+  },
+
+  {
+    id: 'alertas',
+    label: '🔔 Alertas de Validade',
+    icon: 'Bell',
+    roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 13 - Alertas de Validade)
     section: 'main',
   },
 

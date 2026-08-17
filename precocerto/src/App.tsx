@@ -38,6 +38,7 @@ import { StoreList } from "./components/StoreList"; // NOVO (Fase 6 - Multi-Stor
 import { UserStoresDashboard } from "./components/UserStoresDashboard"; // NOVO (Fase 14)
 import { UserProfileView } from "./components/UserProfileView"; // NOVO (Fase 11 - User Profile)
 import { AdminDiagnostics } from "./components/AdminDiagnostics"; // NOVO: Debug para admin
+import ExpiryMonitoringDashboard from "./components/ExpiryMonitoringDashboard"; // NOVO (Fase 13 - Alertas de Validade)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -72,7 +73,8 @@ import {
   Upload, // NOVO (Fase 5A - CSV Import)
   Download, // NOVO (Fase 5A - Excel Export)
   BarChart3, // NOVO (Fase 5B Item 3 - Custom Reports)
-  Building2 // NOVO (Fase 6 - Multi-Store)
+  Building2, // NOVO (Fase 6 - Multi-Store)
+  Bell // NOVO (Fase 13 - Alertas de Validade)
 } from "lucide-react";
 
 export default function App() {
@@ -1154,9 +1156,23 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <ReverseCalculator 
-                      products={products} 
+                    <ReverseCalculator
+                      products={products}
                       settings={businessSettings}
+                    />
+                  </motion.div>
+                )}
+
+                {activeTab === "alertas" && user && (
+                  <motion.div
+                    key="alertas-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <ExpiryMonitoringDashboard
+                      storeId={businessSettings?.companyName || "default"}
                     />
                   </motion.div>
                 )}
