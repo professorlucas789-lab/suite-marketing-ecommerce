@@ -1,3 +1,7 @@
+/**
+ * PreçoCerto v2.1.0 - Production Build Sync
+ * Build ID: 2026-08-17-rebuild-cache-fix
+ */
 import React, { useState, useEffect } from "react";
 import { 
   onAuthStateChanged, 
