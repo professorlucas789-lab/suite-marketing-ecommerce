@@ -7,11 +7,12 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ErrorBoundary>
-      <StoreProvider>
-        <App />
-      </StoreProvider>
-    </ErrorBoundary>
-  </StrictMode>,
+  // 🔴 CRÍTICO: Remover StrictMode que causa double-renders
+  // Isto estava fazendo o ProductForm tentar aceder a currentStore
+  // antes de StoreContext carregar
+  <ErrorBoundary>
+    <StoreProvider>
+      <App />
+    </StoreProvider>
+  </ErrorBoundary>,
 );
