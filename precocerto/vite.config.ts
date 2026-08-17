@@ -14,6 +14,8 @@ import {defineConfig} from 'vite';
  * - Asset optimization
  */
 export default defineConfig(() => {
+  const buildDate = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
@@ -32,6 +34,10 @@ export default defineConfig(() => {
             // Core vendor libraries
             'vendor': ['react', 'react-dom'],
           },
+          // Add version to entry point to force cache invalidation
+          entryFileNames: `assets/[name]-${buildDate}.js`,
+          chunkFileNames: `assets/[name]-${buildDate}.js`,
+          assetFileNames: `assets/[name]-${buildDate}.[ext]`,
         },
       },
       // Increase chunk size warning limit since we're optimizing
