@@ -15,6 +15,7 @@ export type NavigationItemId =
   | 'alertas' // NOVO (Fase 4 - Alertas de Validade)
   | 'estoque' // NOVO (Fase 5 - Gestão de Estoque)
   | 'vendas' // NOVO (Fase 6 - Módulo de Vendas)
+  | 'multi-loja' // NOVO (Fase 9 - Dashboard Multi-Loja)
   | 'stores'
   | 'history'
   | 'reports'
@@ -81,6 +82,14 @@ export const navigationConfig: NavigationConfig[] = [
     label: 'Lojas',
     icon: 'Building2',
     roles: ['admin'], // EXCLUSIVO: Apenas admin pode criar/editar lojas
+    section: 'management',
+  },
+
+  {
+    id: 'multi-loja',
+    label: '🏪 Análise Multi-Loja',
+    icon: 'BarChart3',
+    roles: ['admin'], // NOVO (Fase 9): Apenas admin vê comparação consolidada
     section: 'management',
   },
 

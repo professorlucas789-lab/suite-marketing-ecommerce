@@ -41,6 +41,7 @@ import { AdminDiagnostics } from "./components/AdminDiagnostics"; // NOVO: Debug
 import { StockTab } from "./components/StockTab"; // NOVO (Fase 5 - Gestão de Estoque)
 import { SalesTab } from "./components/SalesTab"; // NOVO (Fase 6 - Módulo de Vendas)
 import { ExecutiveDashboard } from "./components/ExecutiveDashboard"; // NOVO (Fase 7 - Dashboard Executivo)
+import { MultiStoreComparisonDashboard } from "./components/MultiStoreComparisonDashboard"; // NOVO (Fase 9 - Dashboard Multi-Loja)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -1210,6 +1211,18 @@ export default function App() {
                       products={products}
                       onNotification={triggerNotification}
                     />
+                  </motion.div>
+                )}
+
+                {activeTab === "multi-loja" && isAdmin && (
+                  <motion.div
+                    key="multi-loja-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <MultiStoreComparisonDashboard />
                   </motion.div>
                 )}
 
