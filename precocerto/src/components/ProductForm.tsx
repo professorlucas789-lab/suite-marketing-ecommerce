@@ -236,6 +236,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
   };
 
   const custoCompraNum = parseNum(custoCompra);
+  const calculated = getLiveCalculations();
   const precoRecomendado = calculated?.precoRecomendadoUnidadeVenda || 0;
 
   // Usar hook de validação em tempo real
@@ -361,9 +362,6 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       setCategoria(activeModule.categories[0]);
     }
   }, [activeModule, productToEdit]);
-
-  // Derived calculations in real-time
-  const calculated = getLiveCalculations();
 
   const checkHasChanges = () => {
     if (!productToEdit) return false;
