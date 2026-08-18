@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "build": "npm --prefix precocerto install --force --legacy-peer-deps && npm --prefix precocerto run build"
+  },
   "devDependencies": {
     "playwright": "^1.62.1"
   }
