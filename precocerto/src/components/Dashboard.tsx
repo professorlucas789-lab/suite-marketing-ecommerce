@@ -30,6 +30,10 @@ import {
 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import * as XLSX from "xlsx";
+import HealthCheckPanel from "./HealthCheckPanel"; // NOVO (Fase 13 - Health Check)
+import { useCriticalExpiryAlerts } from "../hooks/useExpiryAlerts"; // NOVO (Fase 13)
+import { useLowStockAlerts } from "../hooks/useLowStockAlerts"; // NOVO (Fase 13)
+import QuickSaleRecorder from "./QuickSaleRecorder"; // NOVO (Fase 13 - Quick Sales)
 
 interface DashboardProps {
   products: Product[];
@@ -87,6 +91,14 @@ export default function Dashboard({ products, settings, onNavigate }: DashboardP
 
   const periodDropdownRef = useRef<HTMLDivElement>(null);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // NOVO (Fase 13): Expiry & Stock Alerts
+  const { criticalAlerts, warningAlerts, loading: expiryLoading } = useCriticalExpiryAlerts("default");
+  const expiryAlerts = [...criticalAlerts, ...warningAlerts];
+  const { lowStockProducts } = useLowStockAlerts({ products, defaultMinQuantity: 5 });
+
+  // NOVO (Fase 13): Quick Sales Recorder
+  const [isQuickSaleOpen, setIsQuickSaleOpen] = useState(false);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -437,8 +449,34 @@ export default function Dashboard({ products, settings, onNavigate }: DashboardP
             <PlusCircle size={14} />
             <span>Cadastrar Produto</span>
           </button>
+
+          {/* NOVO (Fase 13): Quick Sales Recorder Button */}
+          <button
+            id="dashboard-quick-sale-btn"
+            onClick={() => setIsQuickSaleOpen(true)}
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto"
+            title="Registar venda rápida"
+          >
+            <LucideIcons.ShoppingCart size={14} />
+            <span>Registar Venda</span>
+          </button>
         </div>
       </div>
+
+      {/* NOVO (Fase 13): Quick Sales Recorder Modal */}
+      <QuickSaleRecorder
+        products={products}
+        isOpen={isQuickSaleOpen}
+        onClose={() => setIsQuickSaleOpen(false)}
+        onSaleRecorded={async (sale) => {
+          try {
+            console.log("Recording sale:", sale);
+            // Sales will be recorded via the hook in useQuickSale
+          } catch (error) {
+            console.error("Error recording sale:", error);
+          }
+        }}
+      />
 
       {/* Grid of Main Stats (Matching SilverLogix style exactly) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -539,6 +577,21 @@ export default function Dashboard({ products, settings, onNavigate }: DashboardP
           </div>
         </motion.div>
       </div>
+
+      {/* NOVO (Fase 13): Health Check Panel - Expiry & Stock Alerts */}
+      <motion.div
+        variants={itemVariants}
+      >
+        <HealthCheckPanel
+          expiryAlerts={expiryAlerts}
+          products={products}
+          onResolveAlert={resolveAlert}
+          onNavigateToProduct={(productId) => {
+            // Navigate to product details
+            console.log("Navigate to product:", productId);
+          }}
+        />
+      </motion.div>
 
       {/* Main Row: Recent Products Table (Left) + Sub-Analytics Bento (Right) */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">

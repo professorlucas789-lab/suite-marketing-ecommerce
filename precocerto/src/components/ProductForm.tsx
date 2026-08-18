@@ -4,8 +4,13 @@ import { CATEGORY_PRESETS, formatKz } from "../utils";
 import { calculateProductFields, getPriceHealth } from "../utils/pricing";
 import { calculateProductPricesWithCategoryMargin } from "../utils/categoryUtils";
 import { useCategories } from "../hooks/useCategories"; // NOVO (Fase 2)
+import { useMarkupTable } from "../hooks/useMarkupTable"; // NOVO (Fase 13)
 import { useStore } from "../contexts/StoreContext"; // FIX #2: Adicionar contexto de loja
 import { getProductMargin, validateMarginCompliance } from "../utils/categoryUtils"; // NOVO (Fase 2)
+import { MarkupLevelSelector } from "./MarkupLevelSelector"; // NOVO (Fase 13)
+import { PriceValidationBadge } from "./PriceValidationBadge"; // NOVO (Fase 13 - Parte 3)
+import { obterMarkupPorNivel, sugerirFaixaPrecos } from "../utils/markupCalculation"; // NOVO (Fase 13)
+import { useRealtimePriceValidation } from "../hooks/usePriceValidation"; // NOVO (Fase 13 - Parte 3)
 import { motion } from "motion/react";
 import { 
   ArrowLeft, 
@@ -55,31 +60,21 @@ const UNIDADES_PRESETS = [
 ];
 
 export default function ProductForm({ productToEdit, onSave, onCancel, settings }: ProductFormProps) {
-  console.log("🔵 ProductForm MOUNTED - productToEdit:", productToEdit?.nome || "novo");
   const activeModule = businessModuleRegistry.getModuleById(settings?.businessType || "outro");
   const [extraFieldValues, setExtraFieldValues] = useState<Record<string, any>>({});
 
   // FIX #2: Obter storeId do contexto para carregar categorias
-  const storeContext = useStore();
-  const { currentStore } = storeContext || {};
-  console.log("📍 ProductForm - currentStore:", currentStore?.storeId, "businessType:", settings?.businessType);
-
-  // 🔴 CRITICAL: Se currentStore não está disponível, não renderizar nada
-  if (!currentStore?.storeId) {
-    console.log("⏳ ProductForm - StoreContext ainda não carregado, aguardando...", { currentStore });
-    return (
-      <div className="flex items-center justify-center py-24">
-        <div className="text-center">
-          <Loader2 size={36} className="animate-spin text-emerald-600 mx-auto mb-4" />
-          <p className="text-slate-500">Inicializando contexto da loja...</p>
-        </div>
-      </div>
-    );
-  }
+  const { currentStore } = useStore();
 
   // NOVO (Fase 2): Categories and margin management
   // FIX #2: Passar storeId para o hook useCategories para evitar página branca
-  const { categories, loading: categoriesLoading } = useCategories({ storeId: currentStore.storeId });
+  const { categories, loading: categoriesLoading } = useCategories({ storeId: currentStore?.storeId || '' });
+
+  // NOVO (Fase 13): Markup management
+  const { markups, loading: markupsLoading } = useMarkupTable({ storeId: currentStore?.storeId || '' });
+  const [markupLevelSelected, setMarkupLevelSelected] = useState<'minimo' | 'medio' | 'alto'>('medio');
+  const [selectedMarkupCategory, setSelectedMarkupCategory] = useState<any>(null);
+
   const [categoryId, setCategoryId] = useState<string>("");
   const [margemOverride, setMargemOverride] = useState<string>("");
   const [margemOverrideReason, setMargemOverrideReason] = useState<string>("");
@@ -154,8 +149,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
   const [aguaTipo, setAguaTipo] = useState<"unidade" | "lote">("unidade");
   const [contabilidadeTipo, setContabilidadeTipo] = useState<"unidade" | "lote">("unidade");
   const [segurancaTipo, setSegurancaTipo] = useState<"unidade" | "lote">("unidade");
-  const [outrosCustosFixosTipo, setOutrosCustosFixosTipo] = useState<"unidade" | "lote">("unidade");
-  const [margemDesejada, setMargemDesejada] = useState<string>("");
+  const [outrosCustosFixosTipo, setOutrosCustosFixosTipo] = useState<"unidade" | "lote">("unidade");  const [margemDesejada, setMargemDesejada] = useState<string>("");
   const [observacoes, setObservacoes] = useState<string>("");
 
   // Novas propriedades da Fase 4: Conversão de Embalagem / Retalho
@@ -213,6 +207,42 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       setSelectedCategory(categories[0]);
     }
   }, [productToEdit?.categoryId, categories, categoryId]);
+
+  // NOVO (Fase 13): Load markup data when category changes or markups load
+  useEffect(() => {
+    if (selectedCategory && markups.length > 0) {
+      // Procurar markup com o mesmo nome da categoria
+      const matchingMarkup = markups.find(
+        m => m.name.toLowerCase() === selectedCategory.name.toLowerCase() && m.ativo
+      );
+
+      if (matchingMarkup) {
+        setSelectedMarkupCategory(matchingMarkup);
+        // Usar o nivel padrão do markup
+        setMarkupLevelSelected(matchingMarkup.markupPadrao);
+      } else {
+        setSelectedMarkupCategory(null);
+      }
+    } else {
+      setSelectedMarkupCategory(null);
+    }
+  }, [selectedCategory, markups]);
+
+  // NOVO (Fase 13 - Parte 3): Validação de preço em tempo real
+  const parseNum = (val: string) => {
+    const parsed = parseFloat(val);
+    return isNaN(parsed) || parsed < 0 ? 0 : parsed;
+  };
+
+  const custoCompraNum = parseNum(custoCompra);
+  const precoRecomendado = calculated?.precoRecomendadoUnidadeVenda || 0;
+
+  // Usar hook de validação em tempo real
+  const priceValidation = useRealtimePriceValidation(
+    custoCompraNum,
+    precoRecomendado,
+    selectedMarkupCategory
+  );
 
   // Load product data when editing
   useEffect(() => {
@@ -768,7 +798,6 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       setIsSubmitting(false);
     }
   };
-
 
   return (
     <div id="product-form-container" className="space-y-6">
@@ -1692,6 +1721,37 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
                     </div>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {/* NOVO (Fase 13): Markup Level Selector */}
+            {selectedMarkupCategory && !markupsLoading && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/30 rounded-xl"
+              >
+                <MarkupLevelSelector
+                  markupCategory={selectedMarkupCategory}
+                  selectedLevel={markupLevelSelected}
+                  onLevelChange={setMarkupLevelSelected}
+                  custo={parseFloat(custoCompra) || 0}
+                  precoVenda={calculated?.precoRecomendadoUnidadeVenda}
+                />
+              </motion.div>
+            )}
+
+            {/* NOVO (Fase 13 - Parte 3): Price Validation Badge */}
+            {priceValidation && selectedMarkupCategory && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <PriceValidationBadge
+                  validation={priceValidation}
+                  compact={false}
+                  showDetails={true}
+                />
               </motion.div>
             )}
 

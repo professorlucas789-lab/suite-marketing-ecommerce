@@ -1,22 +1,18 @@
-/**
- * PreçoCerto v2.1.0 - Production Build Sync
- * Build ID: 2026-08-17-rebuild-cache-fix
- */
-import React, { useState, useEffect } from "react";
-import { 
-  onAuthStateChanged, 
-  signOut, 
-  User 
+import React, { useState, useEffect, Suspense } from "react";
+import {
+  onAuthStateChanged,
+  signOut,
+  User
 } from "firebase/auth";
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc 
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc
 } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType } from "./firebase";
 import { Product, ActiveTab, BusinessSettings } from "./types";
@@ -27,21 +23,29 @@ import AuthScreen from "./components/AuthScreen";
 import Dashboard from "./components/Dashboard";
 import ProductList from "./components/ProductList";
 import ProductForm from "./components/ProductForm";
-import BatchProductForm from "./components/BatchProductForm";
 import ReverseCalculator from "./components/ReverseCalculator";
 import BusinessSettingsView from "./components/BusinessSettingsView";
 import GeneralHistoryView from "./components/GeneralHistoryView";
-import ReportsView from "./components/ReportsView";
 import BackupView from "./components/BackupView";
 import { CategoriesTab } from "./components/CategoriesTab"; // NOVO (Fase 1)
 import { ImportCSVModal } from "./components/ImportCSVModal"; // NOVO (Fase 5A)
 import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fase 5A)
 import { ReportBuilder, ReportConfig } from "./components/ReportBuilder"; // NOVO (Fase 5B Item 3)
-import { UsersManagementView } from "./components/UsersManagementView"; // NOVO (Fase 10 - User Management)
-import { StoreList } from "./components/StoreList"; // NOVO (Fase 6 - Multi-Store)
-import { UserStoresDashboard } from "./components/UserStoresDashboard"; // NOVO (Fase 14)
-import { UserProfileView } from "./components/UserProfileView"; // NOVO (Fase 11 - User Profile)
-import { AdminDiagnostics } from "./components/AdminDiagnostics"; // NOVO: Debug para admin
+import { NotificationSettingsPanel } from "./components/NotificationSettingsPanel"; // NOVO (Fase 10 - Automação de Alertas)
+
+// Lazy-loaded components (Performance Optimization - Fase 12)
+const BatchProductForm = React.lazy(() => import("./components/BatchProductForm"));
+const ReportsView = React.lazy(() => import("./components/ReportsView"));
+const UsersManagementView = React.lazy(() => import("./components/UsersManagementView").then(m => ({ default: m.UsersManagementView })));
+const StoreList = React.lazy(() => import("./components/StoreList").then(m => ({ default: m.StoreList })));
+const UserStoresDashboard = React.lazy(() => import("./components/UserStoresDashboard").then(m => ({ default: m.UserStoresDashboard })));
+const UserProfileView = React.lazy(() => import("./components/UserProfileView").then(m => ({ default: m.UserProfileView })));
+const AdminDiagnostics = React.lazy(() => import("./components/AdminDiagnostics").then(m => ({ default: m.AdminDiagnostics })));
+const SalesTab = React.lazy(() => import("./components/SalesTab").then(m => ({ default: m.SalesTab })));
+const MultiStoreComparisonDashboard = React.lazy(() => import("./components/MultiStoreComparisonDashboard").then(m => ({ default: m.MultiStoreComparisonDashboard })));
+const AlertMonitorPanel = React.lazy(() => import("./components/AlertMonitorPanel").then(m => ({ default: m.AlertMonitorPanel })));
+const TwilioConfigPanel = React.lazy(() => import("./components/TwilioConfigPanel").then(m => ({ default: m.TwilioConfigPanel })));
+const AlertsView = React.lazy(() => import("./components/AlertsView")); // NOVO (Fase 13 - Expiry & Stock Alerts)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -51,6 +55,16 @@ import {
   prepareProductsForExport
 } from "./utils/reportExporter"; // NOVO (Fase 5B Item 3 - Export)
 import { getTailwindColorHex, injectPrimaryColorCSS } from "./utils/colorUtils"; // NOVO: Sistema de cores dinâmicas
+
+// Loading component for lazy-loaded sections (Fase 12 - Performance Optimization)
+const LazyComponentLoader = () => (
+  <div className="flex items-center justify-center p-8">
+    <div className="flex flex-col items-center gap-4">
+      <Loader2 className="animate-spin text-emerald-600" size={32} />
+      <p className="text-sm text-slate-600 dark:text-slate-400">Carregando...</p>
+    </div>
+  </div>
+);
 
 
 // Icons
@@ -76,7 +90,9 @@ import {
   Upload, // NOVO (Fase 5A - CSV Import)
   Download, // NOVO (Fase 5A - Excel Export)
   BarChart3, // NOVO (Fase 5B Item 3 - Custom Reports)
-  Building2 // NOVO (Fase 6 - Multi-Store)
+  Building2, // NOVO (Fase 6 - Multi-Store)
+  Bell, // NOVO (Fase 4 - Alertas de Validade)
+  DollarSign // NOVO (Fase 6 - Módulo de Vendas)
 } from "lucide-react";
 
 export default function App() {
@@ -770,7 +786,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 11): user-profile
+    id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -794,6 +810,7 @@ export default function App() {
   // NOVO (Fase 10 - RBAC): Gerar navigationItems dinamicamente baseado no papel
   const allNavigationItems: SidebarNavItem[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "alertas", label: "Alertas", icon: Bell }, // NOVO (Fase 13 - Expiry & Stock Alerts)
     { id: "products", label: "Lista de Produtos", icon: Package, badge: products.length },
     { id: "batch-products", label: "Cadastro em Lote", icon: Boxes }, // NOVO (Fase 3)
     { id: "categories", label: "Categorias", icon: Folder }, // NOVO (Fase 1)
@@ -1060,11 +1077,26 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <Dashboard 
-                      products={products} 
+                    <Dashboard
+                      products={products}
                       settings={businessSettings}
-                      onNavigate={(tab) => setActiveTab(tab)} 
+                      onNavigate={(tab) => setActiveTab(tab)}
                     />
+                  </motion.div>
+                )}
+
+                {/* NOVO (Fase 13): Expiry & Stock Alerts Dashboard - Lazy loaded (Fase 12) */}
+                {activeTab === "alertas" && (
+                  <motion.div
+                    key="alertas-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <AlertsView />
+                    </Suspense>
                   </motion.div>
                 )}
 
@@ -1116,7 +1148,7 @@ export default function App() {
                   </motion.div>
                 )}
 
-                {/* NOVO (Fase 3): Batch Products Tab */}
+                {/* NOVO (Fase 3): Batch Products Tab - Lazy loaded (Fase 12) */}
                 {activeTab === "batch-products" && (
                   <motion.div
                     key="batch-products-view"
@@ -1125,13 +1157,15 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <BatchProductForm
-                      onSave={handleSaveBatchProducts}
-                      onCancel={() => {
-                        setActiveTab("products");
-                      }}
-                      settings={businessSettings}
-                    />
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <BatchProductForm
+                        onSave={handleSaveBatchProducts}
+                        onCancel={() => {
+                          setActiveTab("products");
+                        }}
+                        settings={businessSettings}
+                      />
+                    </Suspense>
                   </motion.div>
                 )}
 
@@ -1189,11 +1223,44 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <ReportsView 
-                      products={products} 
-                      settings={businessSettings}
-                      userId={user.uid}
-                    />
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <ReportsView
+                        products={products}
+                        settings={businessSettings}
+                        userId={user.uid}
+                      />
+                    </Suspense>
+                  </motion.div>
+                )}
+
+                {activeTab === "vendas" && user && (
+                  <motion.div
+                    key="vendas-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <SalesTab
+                        products={products}
+                        onNotification={triggerNotification}
+                      />
+                    </Suspense>
+                  </motion.div>
+                )}
+
+                {activeTab === "multi-loja" && isAdmin && (
+                  <motion.div
+                    key="multi-loja-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <MultiStoreComparisonDashboard />
+                    </Suspense>
                   </motion.div>
                 )}
 
@@ -1205,8 +1272,10 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    {/* NOVO (Fase 14): UserStoresDashboard para não-admin, StoreList para admin */}
-                    {isAdmin ? <StoreList /> : <UserStoresDashboard />}
+                    {/* NOVO (Fase 14): UserStoresDashboard para não-admin, StoreList para admin - Lazy loaded (Fase 12) */}
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      {isAdmin ? <StoreList /> : <UserStoresDashboard />}
+                    </Suspense>
                   </motion.div>
                 )}
 
@@ -1233,7 +1302,9 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <UsersManagementView />
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <UsersManagementView />
+                    </Suspense>
                   </motion.div>
                 )}
 
@@ -1245,13 +1316,55 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <UserProfileView
-                      onNavigate={(tab) => setActiveTab(tab)}
-                    />
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <UserProfileView
+                        onNavigate={(tab) => setActiveTab(tab)}
+                      />
+                    </Suspense>
                   </motion.div>
                 )}
 
-                {/* NOVO: Admin Diagnostics Tab */}
+                {activeTab === "notificacoes" && user && (
+                  <motion.div
+                    key="notificacoes-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <NotificationSettingsPanel />
+                  </motion.div>
+                )}
+
+                {activeTab === "automacao" && (isAdmin || isLojaManager) && (
+                  <motion.div
+                    key="automacao-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <AlertMonitorPanel />
+                    </Suspense>
+                  </motion.div>
+                )}
+
+                {activeTab === "twilio-config" && isAdmin && (
+                  <motion.div
+                    key="twilio-config-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <TwilioConfigPanel />
+                    </Suspense>
+                  </motion.div>
+                )}
+
+                {/* NOVO: Admin Diagnostics Tab - Lazy loaded (Fase 12) */}
                 {activeTab === "diagnostics" && isAdmin && (
                   <motion.div
                     key="diagnostics-view"
@@ -1260,7 +1373,9 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <AdminDiagnostics />
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <AdminDiagnostics />
+                    </Suspense>
                   </motion.div>
                 )}
 

@@ -12,6 +12,13 @@ export type NavigationItemId =
   | 'batch-products'
   | 'categories'
   | 'reverse-calculator'
+  | 'alertas' // NOVO (Fase 4 - Alertas de Validade)
+  | 'estoque' // NOVO (Fase 5 - Gestão de Estoque)
+  | 'vendas' // NOVO (Fase 6 - Módulo de Vendas)
+  | 'multi-loja' // NOVO (Fase 9 - Dashboard Multi-Loja)
+  | 'notificacoes' // NOVO (Fase 10 - Configurações de Notificações)
+  | 'automacao' // NOVO (Fase 10 - Monitoramento de Automação)
+  | 'twilio-config' // NOVO (Fase 11 - Integração Twilio)
   | 'stores'
   | 'history'
   | 'reports'
@@ -72,12 +79,28 @@ export const navigationConfig: NavigationConfig[] = [
     section: 'main',
   },
 
+  {
+    id: 'alertas',
+    label: '🔔 Alertas',
+    icon: 'Bell',
+    roles: ['admin', 'loja-manager', 'funcionario'],
+    section: 'main',
+  },
+
   // SECÇÃO DE GESTÃO - Apenas Admins
   {
     id: 'stores',
     label: 'Lojas',
     icon: 'Building2',
     roles: ['admin'], // EXCLUSIVO: Apenas admin pode criar/editar lojas
+    section: 'management',
+  },
+
+  {
+    id: 'multi-loja',
+    label: '🏪 Análise Multi-Loja',
+    icon: 'BarChart3',
+    roles: ['admin'], // NOVO (Fase 9): Apenas admin vê comparação consolidada
     section: 'management',
   },
 
@@ -98,6 +121,14 @@ export const navigationConfig: NavigationConfig[] = [
   },
 
   {
+    id: 'vendas',
+    label: '💰 Módulo de Vendas',
+    icon: 'DollarSign',
+    roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 6): Todos podem registar vendas
+    section: 'management',
+  },
+
+  {
     id: 'users',
     label: 'Utilizadores',
     icon: 'User',
@@ -111,6 +142,30 @@ export const navigationConfig: NavigationConfig[] = [
     icon: 'User',
     roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 11): Todos podem acessar seu próprio perfil
     section: 'management',
+  },
+
+  {
+    id: 'notificacoes',
+    label: '🔔 Notificações',
+    icon: 'Bell',
+    roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 10): Todos podem configurar
+    section: 'management',
+  },
+
+  {
+    id: 'automacao',
+    label: '⚙️ Automação de Alertas',
+    icon: 'Settings',
+    roles: ['admin', 'loja-manager'], // NOVO (Fase 10): Apenas admin e managers
+    section: 'admin',
+  },
+
+  {
+    id: 'twilio-config',
+    label: '🔐 Twilio (WhatsApp/SMS)',
+    icon: 'Key',
+    roles: ['admin'], // NOVO (Fase 11): Apenas admin configura Twilio
+    section: 'admin',
   },
 
   // SECÇÃO ADMINISTRATIVA - Apenas Admins
