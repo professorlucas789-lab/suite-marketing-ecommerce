@@ -79,6 +79,14 @@ export const navigationConfig: NavigationConfig[] = [
     section: 'main',
   },
 
+  {
+    id: 'alertas',
+    label: '🔔 Alertas',
+    icon: 'Bell',
+    roles: ['admin', 'loja-manager', 'funcionario'],
+    section: 'main',
+  },
+
   // SECÇÃO DE GESTÃO - Apenas Admins
   {
     id: 'stores',
