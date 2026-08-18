@@ -11,6 +11,7 @@ import { MarkupLevelSelector } from "./MarkupLevelSelector"; // NOVO (Fase 13)
 import { PriceValidationBadge } from "./PriceValidationBadge"; // NOVO (Fase 13 - Parte 3)
 import { obterMarkupPorNivel, sugerirFaixaPrecos } from "../utils/markupCalculation"; // NOVO (Fase 13)
 import { useRealtimePriceValidation } from "../hooks/usePriceValidation"; // NOVO (Fase 13 - Parte 3)
+import MarginSelector from "./MarginSelector"; // NOVO (Fase 13 - Margin Management)
 import { motion } from "motion/react";
 import { 
   ArrowLeft, 
@@ -865,21 +866,18 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
                 />
               </div>
 
-              {/* NOVO (Fase 2): Category selection with margin management */}
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
-                  Categoria <span className="text-emerald-500">(Margem Gerida)</span>
-                </label>
+              {/* NOVO (Fase 13): Advanced Margin Selector */}
+              <div className="sm:col-span-2">
                 {categoriesLoading ? (
-                  <div className="w-full px-3.5 py-2 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-500">
+                  <div className="p-4 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-500">
                     Carregando categorias...
                   </div>
-                ) : categories.length > 0 ? (
-                  <select
-                    id="form-categoryId"
-                    value={categoryId}
-                    onChange={(e) => {
-                      const selected = categories.find(c => c.id === e.target.value);
+                ) : (
+                  <MarginSelector
+                    categories={categories}
+                    selectedCategoryId={categoryId}
+                    onCategoryChange={(catId) => {
+                      const selected = categories.find(c => c.id === catId);
                       if (selected) {
                         setCategoryId(selected.id);
                         setSelectedCategory(selected);
@@ -887,24 +885,24 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
                         setMargemOverride("");
                       }
                     }}
-                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-800 text-slate-800 dark:text-slate-100 cursor-pointer transition-colors"
-                  >
-                    <option value="">Selecione uma categoria</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name} ({cat.marginRules.baseMargin}%)
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="w-full px-3.5 py-2 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900 rounded-lg text-sm text-yellow-700 dark:text-yellow-400">
-                    Nenhuma categoria criada. Aceda a "Categorias" para criar uma.
-                  </div>
-                )}
-                {selectedCategory && (
-                  <div className="mt-2 p-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg text-xs text-emerald-700 dark:text-emerald-400">
-                    Margem: {selectedCategory.marginRules.baseMargin}% | Limite: {selectedCategory.marginRules.minMargin}%-{selectedCategory.marginRules.maxMargin}%
-                  </div>
+                    margemOverride={margemOverride ? parseFloat(margemOverride) : null}
+                    onMargemOverrideChange={(margem) => {
+                      if (margem !== null) {
+                        setMargemOverride(margem.toString());
+                        setMargemDesejada(margem.toString());
+                      } else {
+                        setMargemOverride("");
+                        if (selectedCategory) {
+                          setMargemDesejada(selectedCategory.marginRules.baseMargin.toString());
+                        }
+                      }
+                    }}
+                    custoCompra={parseNum(custoCompra)}
+                    onPricingUpdate={(pricing) => {
+                      // Optional: Update calculated values if needed
+                      console.log("Pricing update:", pricing);
+                    }}
+                  />
                 )}
               </div>
 
