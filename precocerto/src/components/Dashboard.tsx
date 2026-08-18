@@ -30,6 +30,9 @@ import {
 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import * as XLSX from "xlsx";
+import HealthCheckPanel from "./HealthCheckPanel"; // NOVO (Fase 13 - Health Check)
+import { useExpiryAlerts } from "../hooks/useExpiryAlerts"; // NOVO (Fase 13)
+import { useLowStockAlerts } from "../hooks/useLowStockAlerts"; // NOVO (Fase 13)
 
 interface DashboardProps {
   products: Product[];
@@ -87,6 +90,10 @@ export default function Dashboard({ products, settings, onNavigate }: DashboardP
 
   const periodDropdownRef = useRef<HTMLDivElement>(null);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // NOVO (Fase 13): Expiry & Stock Alerts
+  const { alerts: expiryAlerts, loading: expiryLoading, resolveAlert } = useExpiryAlerts({ storeId: "default" });
+  const { lowStockProducts } = useLowStockAlerts({ products, defaultMinQuantity: 5 });
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -539,6 +546,21 @@ export default function Dashboard({ products, settings, onNavigate }: DashboardP
           </div>
         </motion.div>
       </div>
+
+      {/* NOVO (Fase 13): Health Check Panel - Expiry & Stock Alerts */}
+      <motion.div
+        variants={itemVariants}
+      >
+        <HealthCheckPanel
+          expiryAlerts={expiryAlerts}
+          products={products}
+          onResolveAlert={resolveAlert}
+          onNavigateToProduct={(productId) => {
+            // Navigate to product details
+            console.log("Navigate to product:", productId);
+          }}
+        />
+      </motion.div>
 
       {/* Main Row: Recent Products Table (Left) + Sub-Analytics Bento (Right) */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">

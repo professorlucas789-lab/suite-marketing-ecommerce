@@ -45,6 +45,7 @@ const SalesTab = React.lazy(() => import("./components/SalesTab").then(m => ({ d
 const MultiStoreComparisonDashboard = React.lazy(() => import("./components/MultiStoreComparisonDashboard").then(m => ({ default: m.MultiStoreComparisonDashboard })));
 const AlertMonitorPanel = React.lazy(() => import("./components/AlertMonitorPanel").then(m => ({ default: m.AlertMonitorPanel })));
 const TwilioConfigPanel = React.lazy(() => import("./components/TwilioConfigPanel").then(m => ({ default: m.TwilioConfigPanel })));
+const AlertsView = React.lazy(() => import("./components/AlertsView")); // NOVO (Fase 13 - Expiry & Stock Alerts)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -785,7 +786,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 11): user-profile
+    id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -809,6 +810,7 @@ export default function App() {
   // NOVO (Fase 10 - RBAC): Gerar navigationItems dinamicamente baseado no papel
   const allNavigationItems: SidebarNavItem[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "alertas", label: "Alertas", icon: Bell }, // NOVO (Fase 13 - Expiry & Stock Alerts)
     { id: "products", label: "Lista de Produtos", icon: Package, badge: products.length },
     { id: "batch-products", label: "Cadastro em Lote", icon: Boxes }, // NOVO (Fase 3)
     { id: "categories", label: "Categorias", icon: Folder }, // NOVO (Fase 1)
@@ -1075,11 +1077,26 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <Dashboard 
-                      products={products} 
+                    <Dashboard
+                      products={products}
                       settings={businessSettings}
-                      onNavigate={(tab) => setActiveTab(tab)} 
+                      onNavigate={(tab) => setActiveTab(tab)}
                     />
+                  </motion.div>
+                )}
+
+                {/* NOVO (Fase 13): Expiry & Stock Alerts Dashboard - Lazy loaded (Fase 12) */}
+                {activeTab === "alertas" && (
+                  <motion.div
+                    key="alertas-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <AlertsView />
+                    </Suspense>
                   </motion.div>
                 )}
 
