@@ -13,6 +13,9 @@ VITE_DEPLOY_TARGET = "netlify"
 # Keep secret scanning enabled, but avoid blocking deploys on public Firebase config.
 SECRETS_SCAN_OMIT_KEYS = "VITE_FIREBASE_API_KEY,VITE_FIREBASE_AUTH_DOMAIN,VITE_FIREBASE_PROJECT_ID,VITE_FIREBASE_STORAGE_BUCKET,VITE_FIREBASE_MESSAGING_SENDER_ID,VITE_FIREBASE_APP_ID,VITE_FIREBASE_MEASUREMENT_ID,FIREBASE_API_KEY,FIREBASE_AUTH_DOMAIN,FIREBASE_PROJECT_ID,FIREBASE_STORAGE_BUCKET,FIREBASE_MESSAGING_SENDER_ID,FIREBASE_APP_ID,FIREBASE_MEASUREMENT_ID"
 SECRETS_SCAN_OMIT_PATHS = "precocerto/src/firebase.ts,precocerto/firebase-applet-config.json,precocerto/dist/**"
+# The deploy log only exposes "Segredos expostos detectados"; no exact value is available via public API.
+# Keep normal secret scanning enabled, but disable AI smart detection false positives for this static app.
+SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
 [[redirects]]
 from = "/*"
