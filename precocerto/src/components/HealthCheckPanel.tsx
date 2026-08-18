@@ -1,63 +1,58 @@
 /**
  * HealthCheckPanel Component
  * Painel rápido de saúde da loja (alertas + stock)
- * NOVO (Fase 13): Monitorização rápida
+ * NOVO (Fase 13): Monitorização rápida - VERSÃO FUNCIONAL
  */
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { motion } from "motion/react";
 import {
   AlertTriangle,
   ChevronDown,
   Activity,
   ShoppingCart,
-  Calendar,
 } from "lucide-react";
-import LowStockPanel from "./LowStockPanel";
-import ExpiryAlertPanel from "./ExpiryAlertPanel";
-import { ExpiryAlert } from "../types/alerts";
 import { Product } from "../types";
 
 interface HealthCheckPanelProps {
-  expiryAlerts: ExpiryAlert[];
+  expiryAlerts: any[];
   products: Product[];
   onResolveAlert?: (alertId: string, motivo: string) => Promise<void>;
   onNavigateToProduct?: (productId: string) => void;
 }
 
 export default function HealthCheckPanel({
-  expiryAlerts,
-  products,
+  expiryAlerts = [],
+  products = [],
   onResolveAlert,
   onNavigateToProduct,
 }: HealthCheckPanelProps) {
-  const [expandedSection, setExpandedSection] = useState<
-    "expiry" | "stock" | null
-  >(expiryAlerts.length > 0 ? "expiry" : "stock");
+  const [expandedSection, setExpandedSection] = useState<"expiry" | "stock" | null>(
+    expiryAlerts.length > 0 ? "expiry" : "stock"
+  );
 
-  const lowStockItems = products
-    .map((product) => {
-      const quantidadeDisponivel = product.quantidadeDisponivel || 0;
-      const minQuantidade = 5; // Default minimum
-
-      return {
+  // Calcular produtos com stock baixo
+  const lowStockItems = useMemo(() => {
+    return products
+      .filter((p) => p.quantidadeDisponível !== undefined && p.quantidadeDisponível <= 5)
+      .map((product) => ({
         product,
-        quantidadeDisponivel,
-        minQuantidade,
-        isLow: quantidadeDisponivel <= minQuantidade,
-        isCritical: quantidadeDisponivel <= 2,
+        quantidadeDisponivel: product.quantidadeDisponível || 0,
+        minQuantidade: 5,
+        isLow: true,
+        isCritical: (product.quantidadeDisponível || 0) <= 2,
         percentageRemaining: Math.min(
-          (quantidadeDisponivel / (minQuantidade * 2)) * 100,
+          ((product.quantidadeDisponível || 0) / 10) * 100,
           100
         ),
-        daysUntilEmpty: quantidadeDisponivel > 0
-          ? Math.ceil(30 / (quantidadeDisponivel + 1))
-          : 0,
-      };
-    })
-    .filter((item) => item.isLow);
+      }))
+      .sort((a, b) => {
+        if (a.isCritical !== b.isCritical) return a.isCritical ? -1 : 1;
+        return a.quantidadeDisponivel - b.quantidadeDisponivel;
+      });
+  }, [products]);
 
-  const totalIssues = expiryAlerts.length + lowStockItems.length;
+  const totalIssues = (expiryAlerts?.length || 0) + lowStockItems.length;
 
   if (totalIssues === 0) {
     return (
@@ -89,13 +84,13 @@ export default function HealthCheckPanel({
             {totalIssues} questão{totalIssues !== 1 ? "s" : ""} ativa{totalIssues !== 1 ? "s" : ""}
           </p>
           <p className="text-xs text-amber-700 dark:text-amber-300">
-            {expiryAlerts.length} expirando · {lowStockItems.length} stock baixo
+            {expiryAlerts?.length || 0} expirando · {lowStockItems.length} stock baixo
           </p>
         </div>
       </div>
 
       {/* Expiry Section */}
-      {expiryAlerts.length > 0 && (
+      {(expiryAlerts?.length || 0) > 0 && (
         <motion.div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
           <button
             onClick={() =>
@@ -104,9 +99,9 @@ export default function HealthCheckPanel({
             className="w-full p-3 bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30 transition-colors flex items-center justify-between"
           >
             <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-red-600 dark:text-red-400" />
+              <AlertTriangle size={16} className="text-red-600 dark:text-red-400" />
               <span className="text-sm font-semibold text-red-900 dark:text-red-100">
-                Validade ({expiryAlerts.length})
+                Validade ({expiryAlerts?.length || 0})
               </span>
             </div>
             <ChevronDown
@@ -118,12 +113,33 @@ export default function HealthCheckPanel({
           </button>
 
           {expandedSection === "expiry" && (
-            <div className="p-3 border-t border-slate-200 dark:border-slate-700">
-              <ExpiryAlertPanel
-                alerts={expiryAlerts}
-                onResolve={onResolveAlert}
-                loading={false}
-              />
+            <div className="p-3 border-t border-slate-200 dark:border-slate-700 max-h-48 overflow-y-auto">
+              <div className="space-y-2">
+                {expiryAlerts?.map((alert: any) => (
+                  <div
+                    key={alert.id}
+                    className="p-2 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded text-xs"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-bold text-red-900 dark:text-red-100">
+                          {alert.productName}
+                        </p>
+                        <p className="text-red-700 dark:text-red-300 mt-0.5">
+                          Vence em {alert.daysUntilExpiry || 0} dias
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded text-[10px] font-bold ${
+                        alert.severity === 'CRITICAL'
+                          ? 'bg-red-600 text-white'
+                          : 'bg-orange-600 text-white'
+                      }`}>
+                        {alert.severity}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </motion.div>
@@ -153,11 +169,58 @@ export default function HealthCheckPanel({
           </button>
 
           {expandedSection === "stock" && (
-            <div className="p-3 border-t border-slate-200 dark:border-slate-700">
-              <LowStockPanel
-                lowStockItems={lowStockItems}
-                onNavigateToProduct={onNavigateToProduct}
-              />
+            <div className="p-3 border-t border-slate-200 dark:border-slate-700 max-h-48 overflow-y-auto">
+              <div className="space-y-2">
+                {lowStockItems.map((item) => (
+                  <div
+                    key={item.product.id}
+                    onClick={() => onNavigateToProduct?.(item.product.id)}
+                    className={`p-2 rounded cursor-pointer transition-colors ${
+                      item.isCritical
+                        ? "bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 hover:bg-red-100 dark:hover:bg-red-950/30"
+                        : "bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 hover:bg-orange-100 dark:hover:bg-orange-950/30"
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <div>
+                        <p className={`font-bold text-xs ${
+                          item.isCritical
+                            ? "text-red-900 dark:text-red-100"
+                            : "text-orange-900 dark:text-orange-100"
+                        }`}>
+                          {item.product.nome}
+                        </p>
+                        <p className={`text-[10px] mt-0.5 ${
+                          item.isCritical
+                            ? "text-red-700 dark:text-red-300"
+                            : "text-orange-700 dark:text-orange-300"
+                        }`}>
+                          {item.quantidadeDisponivel} / {item.minQuantidade}
+                        </p>
+                      </div>
+                      <span className={`font-bold text-xs ${
+                        item.isCritical
+                          ? "text-red-600 dark:text-red-400"
+                          : "text-orange-600 dark:text-orange-400"
+                      }`}>
+                        {item.quantidadeDisponivel}
+                      </span>
+                    </div>
+                    <div className={`w-full h-1 rounded-full ${
+                      item.isCritical
+                        ? "bg-red-200 dark:bg-red-950"
+                        : "bg-orange-200 dark:bg-orange-950"
+                    }`}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${item.percentageRemaining}%` }}
+                        transition={{ delay: 0.1 }}
+                        className={item.isCritical ? "h-full bg-red-600" : "h-full bg-orange-500"}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </motion.div>

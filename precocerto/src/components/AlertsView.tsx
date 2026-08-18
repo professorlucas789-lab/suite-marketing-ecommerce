@@ -1,35 +1,28 @@
 /**
  * AlertsView Component
  * Painel completo de monitorização de alertas
- * NOVO (Fase 13): Sistema de alertas inteligente
+ * NOVO (Fase 13): Sistema de alertas inteligente - VERSÃO FUNCIONAL
  */
 
-import React, { useState } from "react";
+import React from "react";
 import { motion } from "motion/react";
 import {
   Bell,
   AlertTriangle,
   CheckCircle2,
-  ArrowRight,
+  Package,
 } from "lucide-react";
-import ExpiryMonitoringDashboard from "./ExpiryMonitoringDashboard";
 import HealthCheckPanel from "./HealthCheckPanel";
-import { useExpiryAlerts } from "../hooks/useExpiryAlerts";
-import { useLowStockAlerts } from "../hooks/useLowStockAlerts";
 import { useStore } from "../contexts/StoreContext";
+import { useCriticalExpiryAlerts } from "../hooks/useExpiryAlerts";
+import { useLowStockAlerts } from "../hooks/useLowStockAlerts";
 
-interface AlertsViewProps {
-  onNavigate?: (tab: string) => void;
-}
-
-export default function AlertsView({ onNavigate }: AlertsViewProps) {
+export default function AlertsView() {
   const { products } = useStore();
-  const { alerts: expiryAlerts, loading: expiryLoading, resolveAlert } = useExpiryAlerts({ storeId: "default" });
+  const { criticalAlerts, warningAlerts } = useCriticalExpiryAlerts("default");
   const { lowStockProducts } = useLowStockAlerts({ products, defaultMinQuantity: 5 });
 
-  const criticalAlerts = expiryAlerts.filter((a) => a.severity === "CRITICAL");
-  const warningAlerts = expiryAlerts.filter((a) => a.severity === "WARNING");
-
+  const expiryAlerts = [...criticalAlerts, ...warningAlerts];
   const totalIssues = expiryAlerts.length + lowStockProducts.length;
 
   return (
@@ -108,26 +101,26 @@ export default function AlertsView({ onNavigate }: AlertsViewProps) {
           </p>
         </motion.div>
 
-        {/* Resolved Card */}
+        {/* Stock Alert Card */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-white dark:bg-slate-900 rounded-lg border border-emerald-200 dark:border-emerald-900/30 p-4 shadow-xs"
+          className="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-orange-900/30 p-4 shadow-xs"
         >
           <div className="flex items-start justify-between mb-2">
-            <div className="p-2 bg-emerald-100 dark:bg-emerald-950/30 rounded-lg">
-              <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400" />
+            <div className="p-2 bg-orange-100 dark:bg-orange-950/30 rounded-lg">
+              <Package size={18} className="text-orange-600 dark:text-orange-400" />
             </div>
-            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-              {expiryAlerts.filter((a) => a.resolvido).length}
+            <span className="text-2xl font-black text-orange-600 dark:text-orange-400">
+              {lowStockProducts.length}
             </span>
           </div>
           <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-            Resolvidos
+            Stock Baixo
           </p>
           <p className="text-[11px] text-slate-500 dark:text-slate-500 mt-1">
-            Questões fechadas
+            Requere reabastecimento
           </p>
         </motion.div>
       </div>
@@ -148,13 +141,6 @@ export default function AlertsView({ onNavigate }: AlertsViewProps) {
           <p className="text-sm text-emerald-700 dark:text-emerald-300 mb-4">
             Nenhum produto expirando ou com stock baixo. Continua assim!
           </p>
-          <button
-            onClick={() => onNavigate?.("dashboard")}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 mx-auto transition-colors"
-          >
-            Voltar ao Dashboard
-            <ArrowRight size={14} />
-          </button>
         </motion.div>
       ) : (
         <>
@@ -162,28 +148,14 @@ export default function AlertsView({ onNavigate }: AlertsViewProps) {
           <div>
             <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
               <AlertTriangle size={16} />
-              Resumo Rápido
+              Resumo Consolidado
             </h2>
             <HealthCheckPanel
               expiryAlerts={expiryAlerts}
               products={products}
-              onResolveAlert={resolveAlert}
               onNavigateToProduct={(productId) => {
                 console.log("Navigate to product:", productId);
               }}
-            />
-          </div>
-
-          {/* Expiry Monitoring Dashboard */}
-          <div>
-            <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
-              <AlertTriangle size={16} />
-              Monitorização de Validade
-            </h2>
-            <ExpiryMonitoringDashboard
-              alerts={expiryAlerts}
-              loading={expiryLoading}
-              onResolve={resolveAlert}
             />
           </div>
         </>
@@ -202,7 +174,7 @@ export default function AlertsView({ onNavigate }: AlertsViewProps) {
         <ul className="text-xs text-blue-800 dark:text-blue-300 space-y-1 list-disc list-inside">
           <li>Alertas críticos (vermelhos) requerem ação imediata</li>
           <li>Avisos (amarelos) devem ser abordados em breve</li>
-          <li>Marque alertas como resolvidos quando tomar ação</li>
+          <li>Stock baixo (laranja) indica necessidade de reabastecimento</li>
           <li>Verifique regularmente para evitar perdas de produtos</li>
         </ul>
       </motion.div>

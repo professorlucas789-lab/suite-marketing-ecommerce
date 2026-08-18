@@ -31,10 +31,9 @@ import {
 import * as LucideIcons from "lucide-react";
 import * as XLSX from "xlsx";
 import HealthCheckPanel from "./HealthCheckPanel"; // NOVO (Fase 13 - Health Check)
-import { useExpiryAlerts } from "../hooks/useExpiryAlerts"; // NOVO (Fase 13)
+import { useCriticalExpiryAlerts } from "../hooks/useExpiryAlerts"; // NOVO (Fase 13)
 import { useLowStockAlerts } from "../hooks/useLowStockAlerts"; // NOVO (Fase 13)
 import QuickSaleRecorder from "./QuickSaleRecorder"; // NOVO (Fase 13 - Quick Sales)
-import { recordSale } from "../services/salesService"; // NOVO (Fase 13)
 
 interface DashboardProps {
   products: Product[];
@@ -94,7 +93,8 @@ export default function Dashboard({ products, settings, onNavigate }: DashboardP
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
 
   // NOVO (Fase 13): Expiry & Stock Alerts
-  const { alerts: expiryAlerts, loading: expiryLoading, resolveAlert } = useExpiryAlerts({ storeId: "default" });
+  const { criticalAlerts, warningAlerts, loading: expiryLoading } = useCriticalExpiryAlerts("default");
+  const expiryAlerts = [...criticalAlerts, ...warningAlerts];
   const { lowStockProducts } = useLowStockAlerts({ products, defaultMinQuantity: 5 });
 
   // NOVO (Fase 13): Quick Sales Recorder
