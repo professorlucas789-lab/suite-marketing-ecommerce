@@ -18,6 +18,7 @@ export type NavigationItemId =
   | 'multi-loja' // NOVO (Fase 9 - Dashboard Multi-Loja)
   | 'notificacoes' // NOVO (Fase 10 - Configurações de Notificações)
   | 'automacao' // NOVO (Fase 10 - Monitoramento de Automação)
+  | 'twilio-config' // NOVO (Fase 11 - Integração Twilio)
   | 'stores'
   | 'history'
   | 'reports'
@@ -148,6 +149,14 @@ export const navigationConfig: NavigationConfig[] = [
     label: '⚙️ Automação de Alertas',
     icon: 'Settings',
     roles: ['admin', 'loja-manager'], // NOVO (Fase 10): Apenas admin e managers
+    section: 'admin',
+  },
+
+  {
+    id: 'twilio-config',
+    label: '🔐 Twilio (WhatsApp/SMS)',
+    icon: 'Key',
+    roles: ['admin'], // NOVO (Fase 11): Apenas admin configura Twilio
     section: 'admin',
   },
 

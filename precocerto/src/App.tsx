@@ -44,6 +44,7 @@ import { ExecutiveDashboard } from "./components/ExecutiveDashboard"; // NOVO (F
 import { MultiStoreComparisonDashboard } from "./components/MultiStoreComparisonDashboard"; // NOVO (Fase 9 - Dashboard Multi-Loja)
 import { NotificationSettingsPanel } from "./components/NotificationSettingsPanel"; // NOVO (Fase 10 - Automação de Alertas)
 import { AlertMonitorPanel } from "./components/AlertMonitorPanel"; // NOVO (Fase 10 - Monitoramento)
+import { TwilioConfigPanel } from "./components/TwilioConfigPanel"; // NOVO (Fase 11 - Integração Twilio)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -1303,6 +1304,18 @@ export default function App() {
                     transition={{ duration: 0.15 }}
                   >
                     <AlertMonitorPanel />
+                  </motion.div>
+                )}
+
+                {activeTab === "twilio-config" && isAdmin && (
+                  <motion.div
+                    key="twilio-config-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <TwilioConfigPanel />
                   </motion.div>
                 )}
 
