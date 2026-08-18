@@ -7,6 +7,9 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      VITE_DEPLOY_TARGET: firebase
+      VITE_PRODUCTION_URL: https://gen-lang-client-0862839570.web.app/
 
     steps:
       - uses: actions/checkout@v3

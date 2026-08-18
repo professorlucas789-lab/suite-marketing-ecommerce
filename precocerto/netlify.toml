@@ -7,6 +7,9 @@ command = "npm install --force --legacy-peer-deps && npm run build"
 # Output directory where the built files are located
 publish = "dist"
 
+[build.environment]
+VITE_DEPLOY_TARGET = "netlify"
+
 [dev]
 # Development command for local testing
 command = "npm run dev"

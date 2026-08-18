@@ -27,6 +27,7 @@ import ReverseCalculator from "./components/ReverseCalculator";
 import BusinessSettingsView from "./components/BusinessSettingsView";
 import GeneralHistoryView from "./components/GeneralHistoryView";
 import BackupView from "./components/BackupView";
+import { buildInfo } from "./buildInfo";
 import { CategoriesTab } from "./components/CategoriesTab"; // NOVO (Fase 1)
 import { ImportCSVModal } from "./components/ImportCSVModal"; // NOVO (Fase 5A)
 import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fase 5A)
@@ -96,7 +97,6 @@ import {
 } from "lucide-react";
 
 export default function App() {
-  console.log("✅ APP COMPONENT MOUNTED");
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [products, setProducts] = useState<Product[]>([]);
@@ -107,17 +107,6 @@ export default function App() {
   // NOVO (Fase 10 - RBAC): Obter dados do utilizador com papel
   const { papel, isAdmin, isLojaManager, isFuncionario } = useUserAuth();
 
-  // DEBUG LOGS
-  useEffect(() => {
-    console.log("🔍 APP DEBUG:", {
-      authLoading,
-      productsLoading,
-      settingsLoading,
-      userEmail: user?.email,
-      productsCount: products.length
-    });
-  }, [authLoading, productsLoading, settingsLoading, user, products]);
-  
   // Theme state
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window !== "undefined") {
@@ -1475,6 +1464,9 @@ export default function App() {
         {/* Humble footer */}
         <footer className="bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 py-4 text-center mt-auto text-xs text-slate-400 dark:text-slate-500 transition-colors">
           <p>© 2026 PreçoCerto Pessoal • Todos os dados salvos em nuvem de forma privada.</p>
+          <p className="mt-1 font-mono text-[10px] text-slate-400 dark:text-slate-600">
+            v{buildInfo.appVersion} • {buildInfo.deployTarget} • {buildInfo.gitCommit}
+          </p>
         </footer>
       </div>
 
