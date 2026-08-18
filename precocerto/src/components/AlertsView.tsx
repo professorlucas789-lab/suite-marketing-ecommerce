@@ -19,8 +19,12 @@ import { useLowStockAlerts } from "../hooks/useLowStockAlerts";
 
 export default function AlertsView() {
   const { products } = useStore();
+  const safeProducts = Array.isArray(products) ? products : [];
   const { criticalAlerts, warningAlerts } = useCriticalExpiryAlerts("default");
-  const { lowStockProducts } = useLowStockAlerts({ products, defaultMinQuantity: 5 });
+  const { lowStockProducts } = useLowStockAlerts({
+    products: safeProducts,
+    defaultMinQuantity: 5,
+  });
 
   const expiryAlerts = [...criticalAlerts, ...warningAlerts];
   const totalIssues = expiryAlerts.length + lowStockProducts.length;
@@ -152,7 +156,7 @@ export default function AlertsView() {
             </h2>
             <HealthCheckPanel
               expiryAlerts={expiryAlerts}
-              products={products}
+              products={safeProducts}
               onNavigateToProduct={(productId) => {
                 console.log("Navigate to product:", productId);
               }}

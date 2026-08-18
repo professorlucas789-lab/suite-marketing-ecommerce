@@ -14,9 +14,13 @@ import {
 } from "lucide-react";
 import { Product } from "../types";
 
+type ProductWithLegacyQuantity = Product & {
+  quantidadeDisponível?: number;
+};
+
 interface HealthCheckPanelProps {
-  expiryAlerts: any[];
-  products: Product[];
+  expiryAlerts?: any[];
+  products?: Product[];
   onResolveAlert?: (alertId: string, motivo: string) => Promise<void>;
   onNavigateToProduct?: (productId: string) => void;
 }
@@ -33,19 +37,31 @@ export default function HealthCheckPanel({
 
   // Calcular produtos com stock baixo
   const lowStockItems = useMemo(() => {
-    return products
-      .filter((p) => p.quantidadeDisponível !== undefined && p.quantidadeDisponível <= 5)
-      .map((product) => ({
-        product,
-        quantidadeDisponivel: product.quantidadeDisponível || 0,
-        minQuantidade: 5,
-        isLow: true,
-        isCritical: (product.quantidadeDisponível || 0) <= 2,
-        percentageRemaining: Math.min(
-          ((product.quantidadeDisponível || 0) / 10) * 100,
-          100
-        ),
-      }))
+    const safeProducts = Array.isArray(products) ? products : [];
+
+    return safeProducts
+      .filter((p) => {
+        const legacyProduct = p as ProductWithLegacyQuantity;
+        const quantidadeDisponivel =
+          p.quantidadeDisponivel ?? legacyProduct.quantidadeDisponível;
+        return quantidadeDisponivel !== undefined && quantidadeDisponivel <= 5;
+      })
+      .map((product) => {
+        const legacyProduct = product as ProductWithLegacyQuantity;
+        const quantidadeDisponivel =
+          product.quantidadeDisponivel ??
+          legacyProduct.quantidadeDisponível ??
+          0;
+
+        return {
+          product,
+          quantidadeDisponivel,
+          minQuantidade: 5,
+          isLow: true,
+          isCritical: quantidadeDisponivel <= 2,
+          percentageRemaining: Math.min((quantidadeDisponivel / 10) * 100, 100),
+        };
+      })
       .sort((a, b) => {
         if (a.isCritical !== b.isCritical) return a.isCritical ? -1 : 1;
         return a.quantidadeDisponivel - b.quantidadeDisponivel;

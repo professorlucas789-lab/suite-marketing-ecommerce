@@ -7,6 +7,10 @@
 import { useMemo } from "react";
 import { Product } from "../types";
 
+type ProductWithLegacyQuantity = Product & {
+  quantidadeDisponível?: number;
+};
+
 interface LowStockItem {
   product: Product;
   quantidadeDisponivel: number;
@@ -26,16 +30,22 @@ interface UseLowStockAlertsReturn {
 }
 
 export function useLowStockAlerts({
-  products,
+  products = [],
   defaultMinQuantity = 5,
 }: {
-  products: Product[];
+  products?: Product[];
   defaultMinQuantity?: number;
 }): UseLowStockAlertsReturn {
   return useMemo(() => {
-    const lowStockItems: LowStockItem[] = products
+    const safeProducts = Array.isArray(products) ? products : [];
+
+    const lowStockItems: LowStockItem[] = safeProducts
       .map((product) => {
-        const quantidadeDisponivel = product.quantidadeDisponivel || 0;
+        const legacyProduct = product as ProductWithLegacyQuantity;
+        const quantidadeDisponivel =
+          product.quantidadeDisponivel ??
+          legacyProduct.quantidadeDisponível ??
+          0;
         const minQuantidade = defaultMinQuantity;
 
         return {
