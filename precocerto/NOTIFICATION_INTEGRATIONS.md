@@ -48,7 +48,7 @@ Sistema de notificações multicanal para alertas de validade de produtos. Supor
 
 **Exemplo de token:**
 ```
-123456789:ABCdefGHIjklmnoPQRstuvwxyz12345678
+<telegram-bot-token>
 ```
 
 #### 2. Criar Grupo de Notificações (Opcional)
@@ -66,7 +66,7 @@ Sistema de notificações multicanal para alertas de validade de produtos. Supor
 1. Ir para **Site settings → Build & deploy → Environment**
 2. Adicionar variável:
    ```
-   VITE_TELEGRAM_BOT_TOKEN = 123456789:ABCdefGHIjklmnoPQRstuvwxyz12345678
+   TELEGRAM_BOT_TOKEN = <telegram-bot-token>
    ```
 
 3. Deploy novamente (push ou rebuild)
@@ -160,7 +160,7 @@ app.post('/telegram-webhook', (req, res) => {
 1. Site settings → Build & deploy → Environment
 2. Adicionar:
    ```
-   VITE_ULTRAMSG_TOKEN = seu_token_aqui
+   ULTRAMSG_TOKEN = <ultramsg-token>
    VITE_ULTRAMSG_INSTANCE_ID = seu_instance_id_aqui
    ```
 
@@ -209,14 +209,14 @@ if (result.success) {
 
 ```bash
 # Telegram (Recomendado)
-VITE_TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklmnoPQRstuvwxyz12345678
+TELEGRAM_BOT_TOKEN=<telegram-bot-token>
 
 # WhatsApp (Opcional)
-VITE_ULTRAMSG_TOKEN=seu_token_aqui
+ULTRAMSG_TOKEN=<ultramsg-token>
 VITE_ULTRAMSG_INSTANCE_ID=seu_instance_id_aqui
 
 # Email (Futura implementação)
-# VITE_SENDGRID_API_KEY=SG.xxxx
+# SENDGRID_API_KEY=<sendgrid-api-key>
 ```
 
 ### Netlify Dashboard
@@ -231,7 +231,7 @@ VITE_ULTRAMSG_INSTANCE_ID=seu_instance_id_aqui
 
 ```bash
 # No Netlify build log:
-# [11:23:45] env: VITE_TELEGRAM_BOT_TOKEN = 123456789:ABC...
+# [11:23:45] env: TELEGRAM_BOT_TOKEN = <redacted>
 ```
 
 ---
