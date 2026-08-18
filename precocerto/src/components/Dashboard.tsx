@@ -36,7 +36,7 @@ import { useLowStockAlerts } from "../hooks/useLowStockAlerts"; // NOVO (Fase 13
 import QuickSaleRecorder from "./QuickSaleRecorder"; // NOVO (Fase 13 - Quick Sales)
 
 interface DashboardProps {
-  products: Product[];
+  products?: Product[];
   settings: BusinessSettings | null;
   onNavigate: (tab: "add-product" | "products" | "reports") => void;
 }
@@ -76,7 +76,7 @@ function Sparkline({ color }: { color: "blue" | "green" | "orange" | "purple" })
   );
 }
 
-export default function Dashboard({ products, settings, onNavigate }: DashboardProps) {
+export default function Dashboard({ products = [], settings, onNavigate }: DashboardProps) {
   // Filters & State
   const [period, setPeriod] = useState<"all" | "month" | "year">("all");
   const [isPeriodDropdownOpen, setIsPeriodDropdownOpen] = useState(false);
@@ -585,7 +585,6 @@ export default function Dashboard({ products, settings, onNavigate }: DashboardP
         <HealthCheckPanel
           expiryAlerts={expiryAlerts}
           products={products}
-          onResolveAlert={resolveAlert}
           onNavigateToProduct={(productId) => {
             // Navigate to product details
             console.log("Navigate to product:", productId);
