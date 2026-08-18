@@ -3,6 +3,13 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+const appVersion = process.env.npm_package_version || '1.0.2';
+const commitRef =
+  process.env.GITHUB_SHA ||
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  process.env.COMMIT_REF ||
+  'local';
+
 /**
  * Vite configuration with performance optimizations
  * Fase 5C: Performance Optimization
@@ -14,8 +21,20 @@ import {defineConfig} from 'vite';
  * - Asset optimization
  */
 export default defineConfig(() => {
+  const buildTime = new Date().toISOString();
+  const deployTarget =
+    process.env.VITE_DEPLOY_TARGET ||
+    (process.env.NETLIFY ? 'netlify' : process.env.VERCEL ? 'vercel' : 'local');
+
   return {
     plugins: [react(), tailwindcss()],
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion),
+      __BUILD_TIME__: JSON.stringify(buildTime),
+      __GIT_COMMIT__: JSON.stringify(commitRef.slice(0, 7)),
+      __DEPLOY_TARGET__: JSON.stringify(deployTarget),
+      __PRODUCTION_URL__: JSON.stringify(process.env.VITE_PRODUCTION_URL || ''),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
@@ -52,6 +71,10 @@ export default defineConfig(() => {
               return 'vendor';
             }
           },
+          // Content hashes prevent stale JS/CSS after multiple deploys on the same day.
+          entryFileNames: 'assets/[name]-[hash].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash].[ext]',
         },
       },
 

@@ -1,71 +1,81 @@
 /**
  * useLowStockAlerts Hook
- * Hook para monitorar produtos com stock baixo
- * NOVO (Fase 13): Gestão automática de stock
+ * Monitora produtos com stock baixo
+ * NOVO (Fase 13): Gestão de estoque automática
  */
 
 import { useMemo } from "react";
 import { Product } from "../types";
 
-interface UseLowStockAlertsProps {
-  products: Product[];
-  defaultMinQuantity?: number; // Stock mínimo padrão
+interface LowStockItem {
+  product: Product;
+  quantidadeDisponivel: number;
+  minQuantidade: number;
+  isLow: boolean;
+  isCritical: boolean;
+  percentageRemaining: number;
+  daysUntilEmpty: number;
+}
+
+interface UseLowStockAlertsReturn {
+  lowStockProducts: LowStockItem[];
+  criticalCount: number;
+  warningCount: number;
+  totalLowStock: number;
+  recommendedReorderCount: number;
 }
 
 export function useLowStockAlerts({
   products,
   defaultMinQuantity = 5,
-}: UseLowStockAlertsProps) {
-  const lowStockProducts = useMemo(() => {
-    return products
+}: {
+  products: Product[];
+  defaultMinQuantity?: number;
+}): UseLowStockAlertsReturn {
+  return useMemo(() => {
+    const lowStockItems: LowStockItem[] = products
       .map((product) => {
         const quantidadeDisponivel = product.quantidadeDisponivel || 0;
         const minQuantidade = defaultMinQuantity;
-        const percentageRemaining =
-          (quantidadeDisponivel / (minQuantidade * 2)) * 100;
 
         return {
           product,
           quantidadeDisponivel,
           minQuantidade,
-          percentageRemaining: Math.min(percentageRemaining, 100),
           isLow: quantidadeDisponivel <= minQuantidade,
           isCritical: quantidadeDisponivel <= 2,
-          daysUntilEmpty: quantidadeDisponivel > 0
-            ? Math.ceil(30 / (quantidadeDisponivel + 1)) // Estimativa baseada em ~1 unidade por dia
-            : 0,
+          percentageRemaining: Math.min(
+            (quantidadeDisponivel / (minQuantidade * 2)) * 100,
+            100
+          ),
+          daysUntilEmpty:
+            quantidadeDisponivel > 0
+              ? Math.ceil(30 / (quantidadeDisponivel + 1))
+              : 0,
         };
       })
       .filter((item) => item.isLow)
       .sort((a, b) => {
-        // Ordenar por crítico primeiro, depois por quantidade
+        // Sort by critical first, then by quantity
         if (a.isCritical !== b.isCritical) {
           return a.isCritical ? -1 : 1;
         }
         return a.quantidadeDisponivel - b.quantidadeDisponivel;
       });
-  }, [products, defaultMinQuantidade]);
 
-  const criticalCount = useMemo(
-    () => lowStockProducts.filter((item) => item.isCritical).length,
-    [lowStockProducts]
-  );
+    const criticalCount = lowStockItems.filter((item) => item.isCritical)
+      .length;
+    const warningCount = lowStockItems.length - criticalCount;
 
-  const warningCount = useMemo(
-    () =>
-      lowStockProducts.filter(
-        (item) => !item.isCritical && item.quantidadeDisponivel > 0
-      ).length,
-    [lowStockProducts]
-  );
-
-  const totalLowStock = lowStockProducts.length;
-
-  return {
-    lowStockProducts,
-    criticalCount,
-    warningCount,
-    totalLowStock,
-    recommendedReorderCount: criticalCount + Math.ceil(warningCount * 0.5), // 50% dos avisos
-  };
+    return {
+      lowStockProducts: lowStockItems,
+      criticalCount,
+      warningCount,
+      totalLowStock: lowStockItems.length,
+      recommendedReorderCount: lowStockItems.reduce(
+        (sum, item) => sum + (item.minQuantidade * 2 - item.quantidadeDisponivel),
+        0
+      ),
+    };
+  }, [products, defaultMinQuantity]);
 }
