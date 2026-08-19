@@ -523,15 +523,29 @@ export async function getDailySalesSnapshot(storeId: string): Promise<SalesKPIs>
   return generateSalesKPIs(storeId, today.toISOString(), tomorrow.toISOString());
 }
 
-export async function cancelSaleByReceipt(receiptNumber: string): Promise<void> {
+export async function cancelSaleByReceipt(
+  receiptNumber: string,
+  options?: {
+    cancelledBy?: string;
+    cancelledByName?: string;
+    reason?: string;
+  }
+): Promise<void> {
   const q = query(collection(db, 'sales'), where('receiptNumber', '==', receiptNumber));
   const snapshot = await getDocs(q);
+
+  if (snapshot.empty) {
+    throw new Error('Recibo não encontrado.');
+  }
+
   const batch = writeBatch(db);
   const timestamp = new Date().toISOString();
+  let activeLines = 0;
 
   for (const saleDoc of snapshot.docs) {
     const sale = normalizeSale({ ...saleDoc.data(), id: saleDoc.id });
     if (sale.status === 'cancelled') continue;
+    activeLines += 1;
 
     const productRef = doc(db, 'products', sale.productId);
     const productSnap = await getDoc(productRef);
@@ -547,8 +561,16 @@ export async function cancelSaleByReceipt(receiptNumber: string): Promise<void> 
 
     batch.update(saleDoc.ref, {
       status: 'cancelled',
+      cancelledAt: timestamp,
+      cancelledBy: options?.cancelledBy || '',
+      cancelledByName: options?.cancelledByName || '',
+      cancellationReason: options?.reason?.trim() || '',
       updatedAt: timestamp,
     });
+  }
+
+  if (activeLines === 0) {
+    throw new Error('Este recibo já foi anulado.');
   }
 
   await batch.commit();

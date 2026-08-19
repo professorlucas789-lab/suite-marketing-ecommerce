@@ -122,6 +122,10 @@ export interface Sale {
   customerNif?: string;
   paymentMethod?: PaymentMethod;
   notes?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelledByName?: string;
+  cancellationReason?: string;
 
   createdAt: string;
   updatedAt?: string;
