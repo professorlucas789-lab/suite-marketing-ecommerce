@@ -65,14 +65,15 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
   const [extraFieldValues, setExtraFieldValues] = useState<Record<string, any>>({});
 
   // FIX #2: Obter storeId do contexto para carregar categorias
-  const { currentStore } = useStore();
+  const { currentStore, userStores } = useStore();
+  const categoryStoreId = currentStore?.storeId || userStores[0]?.id || '';
 
   // NOVO (Fase 2): Categories and margin management
   // FIX #2: Passar storeId para o hook useCategories para evitar página branca
-  const { categories, loading: categoriesLoading } = useCategories({ storeId: currentStore?.storeId || '' });
+  const { categories, loading: categoriesLoading } = useCategories({ storeId: categoryStoreId });
 
   // NOVO (Fase 13): Markup management
-  const { markups, loading: markupsLoading } = useMarkupTable({ storeId: currentStore?.storeId || '' });
+  const { markups, loading: markupsLoading } = useMarkupTable({ storeId: categoryStoreId });
   const [markupLevelSelected, setMarkupLevelSelected] = useState<'minimo' | 'medio' | 'alto'>('medio');
   const [selectedMarkupCategory, setSelectedMarkupCategory] = useState<any>(null);
 
@@ -199,6 +200,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       if (cat) {
         setCategoryId(cat.id);
         setSelectedCategory(cat);
+        setCategoria(cat.name);
         setMargemOverride(productToEdit.margemOverride?.toString() || "");
         setMargemOverrideReason(productToEdit.margemOverrideReason || "");
       }
@@ -206,6 +208,8 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       // Auto-select first category if none selected
       setCategoryId(categories[0].id);
       setSelectedCategory(categories[0]);
+      setCategoria(categories[0].name);
+      setMargemDesejada(categories[0].marginRules.baseMargin.toString());
     }
   }, [productToEdit?.categoryId, categories, categoryId]);
 
@@ -642,16 +646,25 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       return;
     }
 
+    if (categories.length > 0 && !selectedCategory) {
+      setValidationError("Selecione a categoria com margens para este produto.");
+      return;
+    }
+
+    const finalCategoryName = selectedCategory?.name || categoria;
+    const finalCategoryId = selectedCategory?.id || categoryId || undefined;
+    const finalMargin = margemOverride ? parseFloat(margemOverride) : parsedMargemDesejada;
+
     // Module configuration validation rules
     if (activeModule.validationRules.validate) {
       const moduleError = activeModule.validationRules.validate({
         ...extraFieldValues,
         nome: nome.trim(),
-        categoria,
+        categoria: finalCategoryName,
         fornecedor: fornecedor.trim(),
         quantidade: parsedQuantidade,
         custoCompra: parsedCustoCompra,
-        margemDesejada: parsedMargemDesejada,
+        margemDesejada: finalMargin,
         venderEmbalagemInteira,
         unidadeCompra,
         unidadeVenda,
@@ -687,8 +700,10 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
 
       await onSave({
         nome: nome.trim(),
-        categoria,
+        categoria: finalCategoryName,
         fornecedor: fornecedor.trim(),
+        storeId: productToEdit?.storeId || categoryStoreId || "default",
+        storeName: productToEdit?.storeName || currentStore?.storeName || userStores[0]?.nome,
 
         // FIX #3: Campos obrigatórios para cadastro de produtos
         numeroFatura: numeroFatura.trim(),
@@ -697,9 +712,10 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
         quantidade: parsedQuantidade,
 
         // NOVO (Fase 2): Category-based margins
-        categoryId: categoryId || null,
-        margemOverride: margemOverride ? parseFloat(margemOverride) : null,
-        margemOverrideReason: margemOverrideReason || null,
+        categoryId: finalCategoryId,
+        margemOverride: margemOverride ? parseFloat(margemOverride) : undefined,
+        margemOverrideReason: margemOverrideReason || undefined,
+        margemAplicada: finalMargin,
 
         // Phase 3 structural storage
         unidadeMedida,
@@ -752,7 +768,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
         outrosCustosFixos: parseOrZero(outrosCustosFixos),
         outrosCustosFixosTipo,
 
-        margemDesejada: parsedMargemDesejada,
+        margemDesejada: finalMargin,
         precoVendaRecomendado: calculated.precoVendaRecomendado,
         lucroEstimado: calculated.lucroEstimado,
         margemReal: calculated.margemReal,
@@ -879,6 +895,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
                       if (selected) {
                         setCategoryId(selected.id);
                         setSelectedCategory(selected);
+                        setCategoria(selected.name);
                         setMargemDesejada(selected.marginRules.baseMargin.toString());
                         setMargemOverride("");
                       }
@@ -904,24 +921,25 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
                 )}
               </div>
 
-              {/* Legacy category field for compatibility */}
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
-                  Categoria (Legacy)
-                </label>
-                <select
-                  id="form-categoria"
-                  value={categoria}
-                  onChange={(e) => setCategoria(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-800 text-slate-800 dark:text-slate-100 cursor-pointer transition-colors"
-                >
-                  {activeModule.categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {categories.length === 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
+                    Categoria do Produto
+                  </label>
+                  <select
+                    id="form-categoria"
+                    value={categoria}
+                    onChange={(e) => setCategoria(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-800 text-slate-800 dark:text-slate-100 cursor-pointer transition-colors"
+                  >
+                    {activeModule.categories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">
