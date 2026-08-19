@@ -6,11 +6,12 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { DollarSign, Plus, History } from 'lucide-react';
+import { DollarSign, Plus, History, ClipboardCheck } from 'lucide-react';
 import { Product } from '../types';
 import SalesAnalyticsDashboard from './SalesAnalyticsDashboard';
 import QuickSalesRecorder from './QuickSalesRecorder';
 import SalesHistory from './SalesHistory';
+import SalesCashClosing from './SalesCashClosing';
 import { useStore } from '../contexts/StoreContext';
 
 interface SalesTabProps {
@@ -18,7 +19,7 @@ interface SalesTabProps {
   onNotification?: (message: string, type: 'success' | 'error') => void;
 }
 
-type SalesView = 'analytics' | 'recorder' | 'history';
+type SalesView = 'analytics' | 'recorder' | 'history' | 'closing';
 
 export const SalesTab: React.FC<SalesTabProps> = ({ products, onNotification }) => {
   const { currentStore } = useStore();
@@ -26,8 +27,9 @@ export const SalesTab: React.FC<SalesTabProps> = ({ products, onNotification }) 
 
   const views: Array<{ id: SalesView; label: string; icon: React.ReactNode }> = [
     { id: 'recorder', label: 'POS / Nova Venda', icon: <Plus className="w-4 h-4" /> },
-    { id: 'analytics', label: 'Análise', icon: <DollarSign className="w-4 h-4" /> },
     { id: 'history', label: 'Histórico', icon: <History className="w-4 h-4" /> },
+    { id: 'closing', label: 'Fecho de Caixa', icon: <ClipboardCheck className="w-4 h-4" /> },
+    { id: 'analytics', label: 'Análise', icon: <DollarSign className="w-4 h-4" /> },
   ];
 
   return (
@@ -113,6 +115,18 @@ export const SalesTab: React.FC<SalesTabProps> = ({ products, onNotification }) 
             transition={{ duration: 0.2 }}
           >
             <SalesHistory />
+          </motion.div>
+        )}
+
+        {activeView === 'closing' && (
+          <motion.div
+            key="closing"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <SalesCashClosing />
           </motion.div>
         )}
       </AnimatePresence>
