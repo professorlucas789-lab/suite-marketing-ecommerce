@@ -70,10 +70,10 @@ export const SalesHistory: React.FC<SalesHistoryProps> = () => {
     return {
       totalSales: filteredSales.length,
       totalRevenue: filteredSales.reduce((sum, s) => sum + (s.totalPrice || 0), 0),
-      totalProfit: filteredSales.reduce((sum, s) => sum + (s.profitTotal || 0), 0),
+      totalProfit: filteredSales.reduce((sum, s) => sum + (s.totalProfit || s.profitTotal || 0), 0),
       totalUnits: filteredSales.reduce((sum, s) => sum + s.quantity, 0),
       avgMargin: filteredSales.length > 0
-        ? filteredSales.reduce((sum, s) => sum + (s.margemReal || 0), 0) / filteredSales.length
+        ? filteredSales.reduce((sum, s) => sum + (s.profitMargin || s.margemReal || 0), 0) / filteredSales.length
         : 0,
     };
   }, [filteredSales]);
@@ -83,6 +83,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = () => {
       cash: '💵 Dinheiro',
       card: '💳 Cartão',
       transfer: '🏦 Transferência',
+      multicaixa: '💳 Multicaixa',
+      mobile_money: '📱 Carteira móvel',
+      credit: '🧾 Crédito',
       cheque: '✓ Cheque',
       other: '❓ Outro',
     };
@@ -155,6 +158,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = () => {
             <option value="cash">Dinheiro</option>
             <option value="card">Cartão</option>
             <option value="transfer">Transferência</option>
+            <option value="multicaixa">Multicaixa</option>
+            <option value="mobile_money">Carteira móvel</option>
+            <option value="credit">Crédito</option>
             <option value="cheque">Cheque</option>
             <option value="other">Outro</option>
           </select>
@@ -267,8 +273,8 @@ export const SalesHistory: React.FC<SalesHistoryProps> = () => {
                     <td className="px-4 py-3 text-right text-slate-900 dark:text-white font-semibold">
                       {(sale.totalPrice || 0).toFixed(2)} Kz
                     </td>
-                    <td className={`px-4 py-3 text-right font-semibold ${getSeverityColor(sale.margemReal || 0)}`}>
-                      {(sale.margemReal || 0).toFixed(1)}%
+                    <td className={`px-4 py-3 text-right font-semibold ${getSeverityColor(sale.profitMargin || sale.margemReal || 0)}`}>
+                      {(sale.profitMargin || sale.margemReal || 0).toFixed(1)}%
                     </td>
                     <td className="px-4 py-3 text-center text-slate-600 dark:text-slate-400 text-xs">
                       {getPaymentMethodLabel(sale.paymentMethod)}

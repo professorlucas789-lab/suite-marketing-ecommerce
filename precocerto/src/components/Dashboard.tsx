@@ -33,12 +33,11 @@ import * as XLSX from "xlsx";
 import HealthCheckPanel from "./HealthCheckPanel"; // NOVO (Fase 13 - Health Check)
 import { useCriticalExpiryAlerts } from "../hooks/useExpiryAlerts"; // NOVO (Fase 13)
 import { useLowStockAlerts } from "../hooks/useLowStockAlerts"; // NOVO (Fase 13)
-import QuickSaleRecorder from "./QuickSaleRecorder"; // NOVO (Fase 13 - Quick Sales)
 
 interface DashboardProps {
   products?: Product[];
   settings: BusinessSettings | null;
-  onNavigate: (tab: "add-product" | "products" | "reports") => void;
+  onNavigate: (tab: "add-product" | "products" | "reports" | "vendas") => void;
 }
 
 // Sparkline component using beautiful cubic bezier curves and smooth linear gradients
@@ -96,9 +95,6 @@ export default function Dashboard({ products = [], settings, onNavigate }: Dashb
   const { criticalAlerts, warningAlerts, loading: expiryLoading } = useCriticalExpiryAlerts("default");
   const expiryAlerts = [...criticalAlerts, ...warningAlerts];
   const { lowStockProducts } = useLowStockAlerts({ products, defaultMinQuantity: 5 });
-
-  // NOVO (Fase 13): Quick Sales Recorder
-  const [isQuickSaleOpen, setIsQuickSaleOpen] = useState(false);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -453,7 +449,7 @@ export default function Dashboard({ products = [], settings, onNavigate }: Dashb
           {/* NOVO (Fase 13): Quick Sales Recorder Button */}
           <button
             id="dashboard-quick-sale-btn"
-            onClick={() => setIsQuickSaleOpen(true)}
+            onClick={() => onNavigate("vendas")}
             className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto"
             title="Registar venda rápida"
           >
@@ -462,21 +458,6 @@ export default function Dashboard({ products = [], settings, onNavigate }: Dashb
           </button>
         </div>
       </div>
-
-      {/* NOVO (Fase 13): Quick Sales Recorder Modal */}
-      <QuickSaleRecorder
-        products={products}
-        isOpen={isQuickSaleOpen}
-        onClose={() => setIsQuickSaleOpen(false)}
-        onSaleRecorded={async (sale) => {
-          try {
-            console.log("Recording sale:", sale);
-            // Sales will be recorded via the hook in useQuickSale
-          } catch (error) {
-            console.error("Error recording sale:", error);
-          }
-        }}
-      />
 
       {/* Grid of Main Stats (Matching SilverLogix style exactly) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -22,12 +22,12 @@ type SalesView = 'analytics' | 'recorder' | 'history';
 
 export const SalesTab: React.FC<SalesTabProps> = ({ products, onNotification }) => {
   const { currentStore } = useStore();
-  const [activeView, setActiveView] = useState<SalesView>('analytics');
+  const [activeView, setActiveView] = useState<SalesView>('recorder');
 
   const views: Array<{ id: SalesView; label: string; icon: React.ReactNode }> = [
-    { id: 'analytics', label: '📊 Análise', icon: <DollarSign className="w-4 h-4" /> },
-    { id: 'recorder', label: '➕ Registar', icon: <Plus className="w-4 h-4" /> },
-    { id: 'history', label: '📋 Histórico', icon: <History className="w-4 h-4" /> },
+    { id: 'recorder', label: 'POS / Nova Venda', icon: <Plus className="w-4 h-4" /> },
+    { id: 'analytics', label: 'Análise', icon: <DollarSign className="w-4 h-4" /> },
+    { id: 'history', label: 'Histórico', icon: <History className="w-4 h-4" /> },
   ];
 
   return (
@@ -38,9 +38,9 @@ export const SalesTab: React.FC<SalesTabProps> = ({ products, onNotification }) 
         animate={{ opacity: 1, y: 0 }}
         className="bg-gradient-to-r from-green-500 to-green-600 dark:from-green-900 dark:to-green-800 rounded-lg p-6 text-white"
       >
-        <h1 className="text-2xl font-bold mb-2">💰 Módulo de Vendas</h1>
+        <h1 className="text-2xl font-bold mb-2">Módulo de Vendas</h1>
         <p className="text-green-100">
-          Registar transações, rastrear receitas e analisar desempenho de vendas
+          POS interno para venda, recibo, baixa de estoque e análise comercial
         </p>
         {currentStore && (
           <p className="text-sm text-green-200 mt-2">Loja: {currentStore.storeName}</p>
@@ -93,9 +93,9 @@ export const SalesTab: React.FC<SalesTabProps> = ({ products, onNotification }) 
           >
             <QuickSalesRecorder
               products={products}
-              onSuccess={(sale) =>
+              onSuccess={(receipt) =>
                 onNotification?.(
-                  `Venda registada: ${sale.productName} × ${sale.quantity} (${(sale.totalPrice || 0).toFixed(2)} Kz)`,
+                  `Venda finalizada: ${receipt.receiptNumber} (${(receipt.subtotal || 0).toFixed(2)} Kz)`,
                   'success'
                 )
               }
@@ -125,8 +125,8 @@ export const SalesTab: React.FC<SalesTabProps> = ({ products, onNotification }) 
         className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4"
       >
         <p className="text-sm text-green-900 dark:text-green-300">
-          <strong>💡 Dica:</strong> Use a aba "Registar" para adicionar vendas. O histórico será
-          atualizado automaticamente e você verá as análises em tempo real na aba "Análise".
+          <strong>Nota fiscal:</strong> os documentos emitidos aqui são internos para controlo comercial e estoque.
+          Para documento fiscal oficial, valide a emissão no sistema/portal autorizado da AGT.
         </p>
       </motion.div>
     </div>

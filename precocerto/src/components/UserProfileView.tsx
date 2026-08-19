@@ -201,6 +201,11 @@ export const UserProfileView: React.FC<{ onNavigate?: (tab: string) => void }> =
     setIsUploadingAvatar(true);
 
     try {
+      if (!storage) {
+        setMessage({ type: 'error', text: 'Upload de avatar indisponível nesta sessão.' });
+        return;
+      }
+
       // Criar preview local
       const reader = new FileReader();
       reader.onloadend = () => {

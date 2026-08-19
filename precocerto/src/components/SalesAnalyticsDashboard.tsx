@@ -237,7 +237,7 @@ export const SalesAnalyticsDashboard: React.FC<SalesAnalyticsDashboardProps> = (
               {kpis.paymentMethods && (
                 <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                   <p className="font-medium text-slate-900 dark:text-white mb-3">Métodos de Pagamento</p>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     <div className="text-center">
                       <p className="text-sm text-slate-600 dark:text-slate-400">Dinheiro</p>
                       <p className="text-lg font-bold text-slate-900 dark:text-white">
@@ -254,6 +254,24 @@ export const SalesAnalyticsDashboard: React.FC<SalesAnalyticsDashboardProps> = (
                       <p className="text-sm text-slate-600 dark:text-slate-400">Transferência</p>
                       <p className="text-lg font-bold text-slate-900 dark:text-white">
                         {kpis.paymentMethods.transfer || 0}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-slate-600 dark:text-slate-400">Multicaixa</p>
+                      <p className="text-lg font-bold text-slate-900 dark:text-white">
+                        {kpis.paymentMethods.multicaixa || 0}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-slate-600 dark:text-slate-400">Carteira móvel</p>
+                      <p className="text-lg font-bold text-slate-900 dark:text-white">
+                        {kpis.paymentMethods.mobile_money || 0}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-slate-600 dark:text-slate-400">Crédito</p>
+                      <p className="text-lg font-bold text-slate-900 dark:text-white">
+                        {kpis.paymentMethods.credit || 0}
                       </p>
                     </div>
                     <div className="text-center">
