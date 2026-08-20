@@ -156,32 +156,38 @@ export default function MarginSelector({
             Nenhuma categoria criada. Aceda a "Categorias" para criar uma.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => onCategoryChange(cat.id)}
-                className={`p-3 rounded-lg border-2 transition-all text-left ${
-                  selectedCategoryId === cat.id
-                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
-                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 hover:border-emerald-400"
-                }`}
-              >
-                <div className="font-semibold text-sm text-slate-800 dark:text-slate-100">
-                  {cat.name}
-                </div>
-                <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                  Base: <span className="font-bold text-emerald-600">{cat.marginRules.baseMargin}%</span>
-                  {" "} | Range: {cat.marginRules.minMargin}%-{cat.marginRules.maxMargin}%
-                </div>
-                {cat.regulatoryConstraints?.maxMarginPercentage && (
-                  <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                    Máx regulatório: {cat.regulatoryConstraints.maxMarginPercentage}%
-                  </div>
+          <div className="space-y-3">
+            <select
+              value={selectedCategoryId}
+              onChange={(event) => onCategoryChange(event.target.value)}
+              className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer"
+            >
+              <option value="">Selecionar categoria com margem</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name} - Base {cat.marginRules.baseMargin}% ({cat.marginRules.minMargin}%-{cat.marginRules.maxMargin}%)
+                </option>
+              ))}
+            </select>
+
+            {selectedCategory && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/60 rounded-lg text-xs text-slate-700 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                  {selectedCategory.name}
+                </span>
+                <span>
+                  Base: <strong className="text-emerald-700 dark:text-emerald-300">{selectedCategory.marginRules.baseMargin}%</strong>
+                </span>
+                <span>
+                  Intervalo: {selectedCategory.marginRules.minMargin}%-{selectedCategory.marginRules.maxMargin}%
+                </span>
+                {selectedCategory.regulatoryConstraints?.maxMarginPercentage && (
+                  <span className="text-amber-700 dark:text-amber-300">
+                    Máx regulatório: {selectedCategory.regulatoryConstraints.maxMarginPercentage}%
+                  </span>
                 )}
-              </button>
-            ))}
+              </div>
+            )}
           </div>
         )}
       </div>
