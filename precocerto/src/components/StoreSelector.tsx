@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { useStore } from '../contexts/StoreContext';
+import { getStoreTypeLabel } from '../utils/businessUnitMapping';
 import { Building2, ChevronDown, Loader2 } from 'lucide-react';
 
 export function StoreSelector() {
@@ -67,7 +68,7 @@ export function StoreSelector() {
                   <Building2 size={14} />
                   <div>
                     <div className="font-medium">{store.nome}</div>
-                    <div className="text-xs opacity-70">{store.tipo}</div>
+                    <div className="text-xs opacity-70">{getStoreTypeLabel(store.tipo)}</div>
                   </div>
                 </div>
               </button>

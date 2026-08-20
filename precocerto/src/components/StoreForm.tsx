@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Store, StoreType } from '../types/store';
 import { createStore, updateStore } from '../utils/storeUtils';
+import { getDefaultModuleForStoreType, STORE_TYPE_OPTIONS } from '../utils/businessUnitMapping';
 import { Loader2, AlertCircle, Check } from 'lucide-react';
 
 interface StoreFormProps {
@@ -28,12 +29,7 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const storeTypes: { value: StoreType; label: string; descricao: string }[] = [
-    { value: 'farmacia', label: 'Farmácia', descricao: 'Loja de medicamentos' },
-    { value: 'informatica', label: 'Informática', descricao: 'Loja de produtos informáticos' },
-    { value: 'ortopedico', label: 'Ortopédico', descricao: 'Loja de material ortopédico' },
-    { value: 'generico', label: 'Genérico', descricao: 'Outro tipo de loja' },
-  ];
+  const storeTypes = STORE_TYPE_OPTIONS;
 
   useEffect(() => {
     if (store) {
@@ -82,6 +78,9 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
         await updateStore(store.id, {
           nome: formData.nome,
           tipo: formData.tipo,
+          moduleId: store.tipo === formData.tipo
+            ? store.moduleId || getDefaultModuleForStoreType(formData.tipo)
+            : getDefaultModuleForStoreType(formData.tipo),
           endereco: formData.endereco,
           telefone: formData.telefone,
           email: formData.email,
@@ -93,6 +92,7 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
         storeId = await createStore({
           nome: formData.nome,
           tipo: formData.tipo,
+          moduleId: getDefaultModuleForStoreType(formData.tipo),
           endereco: formData.endereco,
           telefone: formData.telefone,
           email: formData.email,

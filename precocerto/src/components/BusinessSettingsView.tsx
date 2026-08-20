@@ -112,11 +112,16 @@ export default function BusinessSettingsView({ settings, onSave }: BusinessSetti
         <div>
           <h2 className="text-xl font-bold text-slate-850 dark:text-slate-100 flex items-center gap-2">
             <Building2 className="text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
-            Configurações do Negócio
+            Configurações da Unidade de Negócio
           </h2>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-            Configure as regras de comportamento do sistema, moeda, categorias personalizadas e o tipo de estabelecimento.
+            Configure o módulo, moeda, categorias e identidade da loja/unidade atualmente selecionada.
           </p>
+          {settings?.storeName && (
+            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-2">
+              Unidade atual: {settings.storeName}
+            </p>
+          )}
         </div>
         <div className={`text-xs px-3 py-1.5 rounded-full font-bold flex items-center gap-1.5 self-start md:self-center bg-${currentModule.color || 'emerald-600'} text-white shadow-xs`}>
           <span>Módulo Ativo: {currentModule.name}</span>
@@ -152,7 +157,7 @@ export default function BusinessSettingsView({ settings, onSave }: BusinessSetti
 
             <div>
               <label className="block text-xs font-bold text-slate-600 dark:text-slate-350 mb-1.5">
-                Tipo de Negócio (Módulo Inteligente) <span className="text-rose-500">*</span>
+                Módulo da Unidade Atual <span className="text-rose-500">*</span>
               </label>
               <select
                 value={businessType}
@@ -164,7 +169,7 @@ export default function BusinessSettingsView({ settings, onSave }: BusinessSetti
                 ))}
               </select>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 italic">
-                💡 Ao alterar esta opção, toda a interface, categorias, campos extras e regras do dashboard mudam instantaneamente!
+                Esta opção afeta a loja/unidade atual. Outras unidades mantêm o seu próprio módulo.
               </p>
             </div>
 

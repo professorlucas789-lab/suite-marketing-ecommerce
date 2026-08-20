@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Store } from '../types/store';
 import { getAllStores, deleteStore } from '../utils/storeUtils';
+import { getStoreTypeLabel } from '../utils/businessUnitMapping';
 import {
   Plus,
   Edit2,
@@ -26,13 +27,6 @@ export function StoreList() {
   const [showForm, setShowForm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  const storeTypeLabels: Record<string, string> = {
-    farmacia: 'Farmácia',
-    informatica: 'Informática',
-    ortopedico: 'Ortopédico',
-    generico: 'Genérico',
-  };
 
   useEffect(() => {
     loadStores();
@@ -183,7 +177,7 @@ export function StoreList() {
                   <div>
                     <h3 className="font-semibold text-slate-900 dark:text-white">{store.nome}</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {storeTypeLabels[store.tipo] || store.tipo}
+                      {getStoreTypeLabel(store.tipo)}
                     </p>
                   </div>
                 </div>

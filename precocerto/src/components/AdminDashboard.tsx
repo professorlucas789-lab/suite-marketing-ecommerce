@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Store, StoreStats } from '../types/store';
 import { getAllStores } from '../utils/storeUtils';
+import { getStoreTypeLabel, STORE_TYPE_OPTIONS } from '../utils/businessUnitMapping';
 import { useStoreStats } from '../hooks/useStoreData';
 import { Loader2, AlertCircle, TrendingUp, Users, Package, BarChart3, Filter } from 'lucide-react';
 
@@ -41,17 +42,15 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
     }
   };
 
-  const storeTypeLabels: Record<string, string> = {
-    farmacia: 'Farmácia',
-    informatica: 'Informática',
-    ortopedico: 'Ortopédico',
-    generico: 'Genérico',
-  };
-
   const storeTypeColors: Record<string, string> = {
     farmacia: 'bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-300',
     informatica: 'bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300',
+    papelaria_informatica: 'bg-cyan-100 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300',
+    colegio: 'bg-indigo-100 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300',
+    ortopedico_hospitalar: 'bg-violet-100 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300',
     ortopedico: 'bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300',
+    mobiliario_escolar_escritorio: 'bg-stone-100 dark:bg-stone-900/40 text-stone-700 dark:text-stone-300',
+    escritorio_central: 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200',
     generico: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
   };
 
@@ -223,10 +222,9 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
               className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
             >
               <option value="">Todas as Lojas</option>
-              <option value="farmacia">Farmácia</option>
-              <option value="informatica">Informática</option>
-              <option value="ortopedico">Ortopédico</option>
-              <option value="generico">Genérico</option>
+              {STORE_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </div>
 
@@ -252,7 +250,7 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
       {/* Stores Grid */}
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-          {filterType ? `Lojas - ${storeTypeLabels[filterType]}` : 'Todas as Lojas'}
+          {filterType ? `Lojas - ${getStoreTypeLabel(filterType)}` : 'Todas as Lojas'}
         </h2>
 
         {sortedStores.length === 0 ? (
@@ -277,7 +275,7 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
                         storeTypeColors[store.tipo]
                       }`}
                     >
-                      {storeTypeLabels[store.tipo]}
+                      {getStoreTypeLabel(store.tipo)}
                     </span>
                   </div>
                   <div

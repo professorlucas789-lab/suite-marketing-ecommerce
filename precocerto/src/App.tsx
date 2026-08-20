@@ -56,6 +56,8 @@ import {
   prepareProductsForExport
 } from "./utils/reportExporter"; // NOVO (Fase 5B Item 3 - Export)
 import { getTailwindColorHex, injectPrimaryColorCSS } from "./utils/colorUtils"; // NOVO: Sistema de cores dinâmicas
+import { useStore } from "./contexts/StoreContext";
+import { getStoreModuleId } from "./utils/businessUnitMapping";
 
 // Loading component for lazy-loaded sections (Fase 12 - Performance Optimization)
 const LazyComponentLoader = () => (
@@ -106,6 +108,7 @@ export default function App() {
 
   // NOVO (Fase 10 - RBAC): Obter dados do utilizador com papel
   const { papel, isAdmin, isLojaManager, isFuncionario } = useUserAuth();
+  const { currentStore, userStores } = useStore();
 
   // Theme state
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -186,40 +189,39 @@ export default function App() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const docSnap = snapshot.docs[0];
-        const data = docSnap.data();
-        setBusinessSettings({
-          id: docSnap.id,
-          userId: data.userId,
-          companyName: data.companyName || "PreçoCerto Lda",
-          businessType: data.businessType || "farmacia",
-          currency: data.currency || "Kz",
-          country: data.country || "Angola",
-          language: data.language || "Português",
-          logoUrl: data.logoUrl || "",
-          primaryColor: data.primaryColor || "emerald-600",
-          dateFormat: data.dateFormat || "DD/MM/YYYY",
-          numberFormat: data.numberFormat || "1.234,56",
-          customCategories: data.customCategories || [],
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt
-        });
-      } else {
-        setBusinessSettings({
-          userId: user.uid,
-          companyName: "PreçoCerto Lda",
-          businessType: "farmacia",
-          currency: "Kz",
-          country: "Angola",
-          language: "Português",
-          logoUrl: "",
-          primaryColor: "emerald-600",
-          dateFormat: "DD/MM/YYYY",
-          numberFormat: "1.234,56",
-          customCategories: []
-        });
-      }
+      const selectedStore = userStores.find((store) => store.id === currentStore?.storeId);
+      const defaultBusinessType = getStoreModuleId(selectedStore || (currentStore ? {
+        tipo: currentStore.storeType,
+      } : null));
+
+      const storeSettingsDoc = currentStore
+        ? snapshot.docs.find((item) => item.data().storeId === currentStore.storeId)
+        : undefined;
+      const legacySettingsDoc = snapshot.docs.find((item) => !item.data().storeId);
+      const docSnap = storeSettingsDoc || legacySettingsDoc;
+      const data = docSnap?.data() || {};
+      const hasStoreSettings = !!storeSettingsDoc;
+
+      setBusinessSettings({
+        id: hasStoreSettings || !currentStore ? docSnap?.id : undefined,
+        userId: data.userId || user.uid,
+        storeId: currentStore?.storeId,
+        storeName: currentStore?.storeName,
+        companyName: data.companyName || currentStore?.storeName || "PreçoCerto Lda",
+        businessType: hasStoreSettings
+          ? data.businessType || defaultBusinessType
+          : defaultBusinessType || data.businessType || "outro",
+        currency: data.currency || "Kz",
+        country: data.country || "Angola",
+        language: data.language || "Português",
+        logoUrl: data.logoUrl || "",
+        primaryColor: data.primaryColor || "emerald-600",
+        dateFormat: data.dateFormat || "DD/MM/YYYY",
+        numberFormat: data.numberFormat || "1.234,56",
+        customCategories: data.customCategories || [],
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt
+      });
       setSettingsLoading(false);
     }, (error) => {
       setSettingsLoading(false);
@@ -227,7 +229,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, currentStore?.storeId, currentStore?.storeName, currentStore?.storeType, userStores]);
 
   // NOVO: Injetar cores CSS dinâmicas quando a cor primária mudar
   useEffect(() => {
@@ -241,12 +243,20 @@ export default function App() {
   const handleSaveBusinessSettings = async (settingsData: Omit<BusinessSettings, "userId" | "id">) => {
     if (!user) return;
     const timestamp = new Date().toISOString();
+    const scopedSettingsData = currentStore
+      ? {
+          ...settingsData,
+          storeId: currentStore.storeId,
+          storeName: currentStore.storeName,
+        }
+      : settingsData;
+
     try {
       if (businessSettings && businessSettings.id) {
         try {
           const docRef = doc(db, "businessSettings", businessSettings.id);
           await updateDoc(docRef, {
-            ...settingsData,
+            ...scopedSettingsData,
             updatedAt: timestamp
           });
         } catch (error) {
@@ -255,7 +265,7 @@ export default function App() {
       } else {
         try {
           await addDoc(collection(db, "businessSettings"), {
-            ...settingsData,
+            ...scopedSettingsData,
             userId: user.uid,
             createdAt: timestamp,
             updatedAt: timestamp
@@ -285,6 +295,16 @@ export default function App() {
       const productsData: Product[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
+        const productStoreId = data.storeId || "";
+
+        if (currentStore && productStoreId && productStoreId !== currentStore.storeId) {
+          return;
+        }
+
+        if (currentStore && !productStoreId && userStores.length > 1) {
+          return;
+        }
+
         productsData.push({
           ...data,
           id: docSnap.id,
@@ -293,7 +313,7 @@ export default function App() {
           fornecedor: data.fornecedor,
           numeroFatura: data.numeroFatura || "",
           dataEmissaoFatura: data.dataEmissaoFatura || "",
-          storeId: data.storeId || "",
+          storeId: productStoreId,
           custoCompra: data.custoCompra || 0,
           custoTransporte: data.custoTransporte || 0,
           custoEmbalagem: data.custoEmbalagem || 0,
@@ -342,7 +362,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, currentStore?.storeId, userStores.length]);
 
   // Logout handler
   const handleLogout = async () => {
@@ -363,6 +383,13 @@ export default function App() {
     if (!user) return;
 
     const timestamp = new Date().toISOString();
+    const productDataWithStore = currentStore
+      ? {
+          ...productData,
+          storeId: productData.storeId || currentStore.storeId,
+          storeName: productData.storeName || currentStore.storeName,
+        }
+      : productData;
 
     try {
       if (editingProduct && editingProduct.id) {
@@ -416,7 +443,7 @@ export default function App() {
         try {
           const productRef = doc(db, "products", editingProduct.id);
           await updateDoc(productRef, {
-            ...productData,
+            ...productDataWithStore,
             updatedAt: timestamp
           });
 
@@ -449,7 +476,7 @@ export default function App() {
         // Create mode
         try {
           const docRef = await addDoc(collection(db, "products"), {
-            ...productData,
+            ...productDataWithStore,
             userId: user.uid,
             createdAt: timestamp,
             updatedAt: timestamp
@@ -523,6 +550,12 @@ export default function App() {
       const duplicatedProduct = {
         ...originalProductWithoutId,
         nome: `${originalProductWithoutId.nome} Cópia`,
+        ...(currentStore
+          ? {
+              storeId: originalProductWithoutId.storeId || currentStore.storeId,
+              storeName: originalProductWithoutId.storeName || currentStore.storeName,
+            }
+          : {}),
         createdAt: timestamp,
         updatedAt: timestamp,
         userId: user.uid,
@@ -663,9 +696,17 @@ export default function App() {
     try {
       for (const productData of productsData) {
         try {
+          const productDataWithStore = currentStore
+            ? {
+                ...productData,
+                storeId: productData.storeId || currentStore.storeId,
+                storeName: productData.storeName || currentStore.storeName,
+              }
+            : productData;
+
           // Create product document
           const docRef = await addDoc(collection(db, "products"), {
-            ...productData,
+            ...productDataWithStore,
             userId: user.uid,
             createdAt: timestamp,
             updatedAt: timestamp

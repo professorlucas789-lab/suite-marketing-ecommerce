@@ -3,7 +3,16 @@
  * Fase 6: Sistema Multi-Loja
  */
 
-export type StoreType = 'farmacia' | 'informatica' | 'ortopedico' | 'generico';
+export type StoreType =
+  | 'farmacia'
+  | 'colegio'
+  | 'papelaria_informatica'
+  | 'informatica'
+  | 'ortopedico'
+  | 'ortopedico_hospitalar'
+  | 'mobiliario_escolar_escritorio'
+  | 'escritorio_central'
+  | 'generico';
 export type UserRole = 'admin' | 'loja-manager' | 'funcionario';
 
 /**
@@ -24,6 +33,8 @@ export interface Store {
   id: string;
   nome: string;
   tipo: StoreType;
+  moduleId?: string;
+  businessGroupId?: string;
   endereco: string;
   telefone: string;
   email: string;

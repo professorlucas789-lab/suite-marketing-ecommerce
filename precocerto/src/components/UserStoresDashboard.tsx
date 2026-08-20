@@ -25,6 +25,7 @@ import { useUserAuth } from '../hooks/useUserAuth';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Store, StoreStats } from '../types/store';
+import { getStoreTypeLabel as getBusinessStoreTypeLabel } from '../utils/businessUnitMapping';
 
 interface StoreCardData extends Store {
   stats?: {
@@ -113,15 +114,7 @@ export function UserStoresDashboard() {
     };
   };
 
-  const getStoreTypeLabel = (tipo: string) => {
-    const labels: Record<string, string> = {
-      farmacia: 'Farmácia',
-      informatica: 'Informática',
-      ortopedico: 'Ortopédico',
-      generico: 'Genérico',
-    };
-    return labels[tipo] || tipo;
-  };
+  const getStoreTypeLabel = (tipo: string) => getBusinessStoreTypeLabel(tipo);
 
   const getStoreTypeColor = (tipo: string) => {
     const colors: Record<string, string> = {
