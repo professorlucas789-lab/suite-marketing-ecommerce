@@ -31,6 +31,8 @@ import {
 } from '../types/sales';
 import { calculateChangeDue, saleDocumentPrefixes, validatePaymentAmount } from '../utils/salesDocumentUtils';
 import type { StockMovement } from '../types/stock';
+import type { Customer } from '../types/customers';
+import { calculateCustomerBalance, validateCreditSale } from '../utils/customerLedgerUtils';
 
 const roundMoney = (value: number) => Math.round((value || 0) * 100) / 100;
 
@@ -221,14 +223,67 @@ export async function recordSaleTransaction(input: SaleTransactionInput): Promis
   const totalCost = roundMoney(receiptItems.reduce((sum, item) => sum + item.totalCost, 0));
   const totalProfit = roundMoney(receiptItems.reduce((sum, item) => sum + item.totalProfit, 0));
   const profitMargin = subtotal > 0 ? roundMoney((totalProfit / subtotal) * 100) : 0;
-  const paymentError = validatePaymentAmount(subtotal, input.amountPaid);
+  const paymentError = input.paymentMethod === 'credit'
+    ? null
+    : validatePaymentAmount(subtotal, input.amountPaid);
   if (paymentError) throw new Error(paymentError);
-  const amountPaid = input.amountPaid === undefined ? subtotal : roundMoney(input.amountPaid);
+  const amountPaid = input.paymentMethod === 'credit'
+    ? 0
+    : input.amountPaid === undefined ? subtotal : roundMoney(input.amountPaid);
   const changeDue = calculateChangeDue(subtotal, amountPaid);
+  let customerForCredit: Customer | null = null;
+  let customerBalanceAfter: number | null = null;
+
+  if (input.paymentMethod === 'credit') {
+    if (!input.customerId) {
+      throw new Error('Selecione um cliente cadastrado para vender a crédito.');
+    }
+
+    const customerRef = doc(db, 'customers', input.customerId);
+    const customerSnap = await getDoc(customerRef);
+    if (!customerSnap.exists()) throw new Error('Cliente não encontrado.');
+
+    customerForCredit = { id: customerSnap.id, ...customerSnap.data() } as Customer;
+    if (customerForCredit.storeId !== input.storeId) {
+      throw new Error('Este cliente não pertence à loja atual.');
+    }
+
+    const creditError = validateCreditSale(customerForCredit, subtotal);
+    if (creditError) throw new Error(creditError);
+
+    customerBalanceAfter = calculateCustomerBalance(customerForCredit.currentBalance || 0, 'sale_credit', subtotal);
+
+    batch.update(customerRef, {
+      currentBalance: customerBalanceAfter,
+      lastTransactionAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    const ledgerRef = doc(collection(db, 'customerLedger'));
+    batch.set(ledgerRef, cleanForFirestore({
+      customerId: input.customerId,
+      customerName: customerForCredit.name,
+      storeId: input.storeId,
+      storeName: input.storeName,
+      userId: input.userId,
+      userName: input.userName,
+      type: 'sale_credit',
+      amount: subtotal,
+      balanceAfter: customerBalanceAfter,
+      receiptNumber,
+      paymentMethod: input.paymentMethod,
+      description: `Venda a crédito ${receiptNumber}`,
+      createdAt: timestamp,
+    }));
+  }
 
   pendingSales.forEach(({ ref, data }) => {
     batch.set(ref, cleanForFirestore({
       ...data,
+      customerId: input.customerId,
+      customerName: customerForCredit?.name || data.customerName,
+      customerNif: customerForCredit?.nif || data.customerNif,
+      customerPhone: customerForCredit?.phone || data.customerPhone,
       amountPaid,
       changeDue,
     }));
@@ -245,9 +300,10 @@ export async function recordSaleTransaction(input: SaleTransactionInput): Promis
     receiptNumber,
     storeId: input.storeId,
     storeName: input.storeName,
-    customerName: input.customerName?.trim() || '',
-    customerNif: input.customerNif?.trim() || '',
-    customerPhone: input.customerPhone?.trim() || '',
+    customerId: input.customerId,
+    customerName: customerForCredit?.name || input.customerName?.trim() || '',
+    customerNif: customerForCredit?.nif || input.customerNif?.trim() || '',
+    customerPhone: customerForCredit?.phone || input.customerPhone?.trim() || '',
     paymentMethod: input.paymentMethod,
     documentType: input.documentType,
     status: 'completed',
@@ -281,6 +337,7 @@ export async function recordSale(
     customerName: sale.customerName,
     customerNif: sale.customerNif,
     customerPhone: sale.customerPhone,
+    customerId: sale.customerId,
     paymentMethod: sale.paymentMethod || 'cash',
     documentType: sale.documentType || 'internal_receipt',
     amountPaid: sale.amountPaid,
@@ -300,6 +357,7 @@ export async function recordSale(
     id: receipt.receiptNumber,
     receiptNumber: receipt.receiptNumber,
     status: 'completed',
+    customerId: receipt.customerId,
     customerPhone: receipt.customerPhone,
     amountPaid: receipt.amountPaid,
     changeDue: receipt.changeDue,

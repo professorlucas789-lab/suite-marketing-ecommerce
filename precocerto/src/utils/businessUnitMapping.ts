@@ -598,6 +598,7 @@ export function isNavigationAllowedForUnit(itemId: string, unitType?: string): b
   const rules = getOperationalUnitRules(unitType);
 
   if (["vendas"].includes(itemId)) return rules.canSell;
+  if (["clientes"].includes(itemId)) return rules.canSell || rules.canViewReports;
   if (["add-product", "edit-product", "batch-products"].includes(itemId)) {
     return rules.canManageProducts;
   }

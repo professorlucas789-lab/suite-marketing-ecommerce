@@ -43,6 +43,7 @@ const UserStoresDashboard = React.lazy(() => import("./components/UserStoresDash
 const UserProfileView = React.lazy(() => import("./components/UserProfileView").then(m => ({ default: m.UserProfileView })));
 const AdminDiagnostics = React.lazy(() => import("./components/AdminDiagnostics").then(m => ({ default: m.AdminDiagnostics })));
 const SalesTab = React.lazy(() => import("./components/SalesTab").then(m => ({ default: m.SalesTab })));
+const CustomersView = React.lazy(() => import("./components/CustomersView"));
 const StockManagementView = React.lazy(() => import("./components/StockManagementView"));
 const MultiStoreComparisonDashboard = React.lazy(() => import("./components/MultiStoreComparisonDashboard").then(m => ({ default: m.MultiStoreComparisonDashboard })));
 const AlertMonitorPanel = React.lazy(() => import("./components/AlertMonitorPanel").then(m => ({ default: m.AlertMonitorPanel })));
@@ -102,7 +103,8 @@ import {
   Building2, // NOVO (Fase 6 - Multi-Store)
   Bell, // NOVO (Fase 4 - Alertas de Validade)
   DollarSign, // NOVO (Fase 6 - Módulo de Vendas)
-  PackageCheck // NOVO: Gestão de stock multi-unidade
+  PackageCheck, // NOVO: Gestão de stock multi-unidade
+  Users
 } from "lucide-react";
 
 export default function App() {
@@ -862,7 +864,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "estoque" | "vendas" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
+    id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "estoque" | "vendas" | "clientes" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -882,6 +884,7 @@ export default function App() {
     Settings,
     Database,
     PackageCheck,
+    Users,
   };
 
   // NOVO (Fase 10 - RBAC): Gerar navigationItems dinamicamente baseado no papel
@@ -897,6 +900,7 @@ export default function App() {
     { id: "history", label: "Histórico", icon: History },
     { id: "reports", label: "Relatórios", icon: FileText },
     { id: "vendas", label: "Vendas", icon: DollarSign }, // NOVO (Fase 6 - Módulo de Vendas)
+    { id: "clientes", label: "Clientes", icon: Users },
     { id: "users", label: "Utilizadores", icon: UserIcon }, // NOVO (Fase 10)
     { id: "user-profile", label: "Meu Perfil", icon: UserIcon }, // NOVO (Fase 11 - User Profile)
     { id: "settings", label: "Configurações", icon: Settings },
@@ -1352,6 +1356,20 @@ export default function App() {
                         settings={businessSettings}
                         onNotification={triggerNotification}
                       />
+                    </Suspense>
+                  </motion.div>
+                )}
+
+                {activeTab === "clientes" && user && (
+                  <motion.div
+                    key="clientes-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <CustomersView onNotification={triggerNotification} />
                     </Suspense>
                   </motion.div>
                 )}

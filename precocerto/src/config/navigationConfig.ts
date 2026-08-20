@@ -15,6 +15,7 @@ export type NavigationItemId =
   | 'alertas' // NOVO (Fase 4 - Alertas de Validade)
   | 'estoque' // NOVO (Fase 5 - Gestão de Estoque)
   | 'vendas' // NOVO (Fase 6 - Módulo de Vendas)
+  | 'clientes' // NOVO (Fase 6 - Clientes e contas correntes)
   | 'multi-loja' // NOVO (Fase 9 - Dashboard Multi-Loja)
   | 'notificacoes' // NOVO (Fase 10 - Configurações de Notificações)
   | 'automacao' // NOVO (Fase 10 - Monitoramento de Automação)
@@ -133,6 +134,14 @@ export const navigationConfig: NavigationConfig[] = [
     label: '💰 Módulo de Vendas',
     icon: 'DollarSign',
     roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 6): Todos podem registar vendas
+    section: 'management',
+  },
+
+  {
+    id: 'clientes',
+    label: 'Clientes',
+    icon: 'Users',
+    roles: ['admin', 'loja-manager', 'funcionario'],
     section: 'management',
   },
 

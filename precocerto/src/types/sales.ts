@@ -27,6 +27,7 @@ export interface SaleTransactionInput {
   storeName?: string;
   userId: string;
   userName?: string;
+  customerId?: string;
   customerName?: string;
   customerNif?: string;
   customerPhone?: string;
@@ -60,6 +61,7 @@ export interface SaleReceipt {
   receiptNumber: string;
   storeId: string;
   storeName?: string;
+  customerId?: string;
   customerName?: string;
   customerNif?: string;
   customerPhone?: string;

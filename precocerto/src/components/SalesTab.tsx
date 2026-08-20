@@ -13,6 +13,7 @@ import QuickSalesRecorder from './QuickSalesRecorder';
 import SalesHistory from './SalesHistory';
 import SalesCashClosing from './SalesCashClosing';
 import { useStore } from '../contexts/StoreContext';
+import { useCustomers } from '../hooks/useCustomers';
 
 interface SalesTabProps {
   products: Product[];
@@ -23,8 +24,9 @@ interface SalesTabProps {
 type SalesView = 'analytics' | 'recorder' | 'history' | 'closing';
 
 export const SalesTab: React.FC<SalesTabProps> = ({ products, settings, onNotification }) => {
-  const { currentStore } = useStore();
+  const { currentStore, currentUser } = useStore();
   const [activeView, setActiveView] = useState<SalesView>('recorder');
+  const { activeCustomers } = useCustomers(currentUser?.id, currentStore?.storeId);
 
   const views: Array<{ id: SalesView; label: string; icon: React.ReactNode }> = [
     { id: 'recorder', label: 'POS / Nova Venda', icon: <Plus className="w-4 h-4" /> },
@@ -97,6 +99,7 @@ export const SalesTab: React.FC<SalesTabProps> = ({ products, settings, onNotifi
             <QuickSalesRecorder
               products={products}
               settings={settings}
+              customers={activeCustomers}
               onSuccess={(receipt) =>
                 onNotification?.(
                   `Venda finalizada: ${receipt.receiptNumber} (${(receipt.subtotal || 0).toFixed(2)} Kz)`,

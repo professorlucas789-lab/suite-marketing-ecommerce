@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { CheckCircle, Minus, Plus, Printer, Receipt, Search, Trash2 } from 'lucide-react';
 import { BusinessSettings, Product } from '../types';
+import type { Customer } from '../types/customers';
 import { PaymentMethod, SaleDocumentType, SaleReceipt, SaleTransactionInput } from '../types/sales';
 import { recordSaleTransaction } from '../services/salesService';
 import { useStore } from '../contexts/StoreContext';
@@ -21,6 +22,7 @@ import {
 interface QuickSalesRecorderProps {
   products: Product[];
   settings?: BusinessSettings | null;
+  customers?: Customer[];
   onSuccess?: (receipt: SaleReceipt) => void;
   onError?: (error: string) => void;
   onClose?: () => void;
@@ -124,6 +126,7 @@ function printReceipt(receipt: SaleReceipt) {
 export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
   products,
   settings,
+  customers = [],
   onSuccess,
   onError,
 }) => {
@@ -132,6 +135,7 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
   const [selectedProductId, setSelectedProductId] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerNif, setCustomerNif] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -161,6 +165,11 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
   }, [storeProducts, search]);
 
   const selectedProduct = storeProducts.find((product) => product.id === selectedProductId);
+  const activeCustomers = useMemo(
+    () => customers.filter((customer) => customer.status === 'active'),
+    [customers]
+  );
+  const selectedCustomer = activeCustomers.find((customer) => customer.id === selectedCustomerId);
 
   const totals = useMemo(() => {
     const subtotal = cart.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
@@ -179,6 +188,13 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
       setAmountPaid(totals.subtotal.toFixed(2));
     }
   }, [totals.subtotal, amountPaid]);
+
+  useEffect(() => {
+    if (!selectedCustomer) return;
+    setCustomerName(selectedCustomer.name);
+    setCustomerNif(selectedCustomer.nif || '');
+    setCustomerPhone(selectedCustomer.phone || '');
+  }, [selectedCustomer]);
 
   const amountPaidNumber = paymentMethod === 'credit'
     ? undefined
@@ -260,6 +276,11 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
       return;
     }
 
+    if (paymentMethod === 'credit' && !selectedCustomerId) {
+      setError('Selecione um cliente cadastrado para venda a credito.');
+      return;
+    }
+
     const paymentError = paymentMethod === 'credit'
       ? null
       : validatePaymentAmount(totals.subtotal, amountPaidNumber);
@@ -275,6 +296,7 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
         storeName: currentStore.storeName,
         userId: currentUser.id,
         userName: currentUser.nome,
+        customerId: selectedCustomerId || undefined,
         customerName,
         customerNif,
         customerPhone,
@@ -292,6 +314,7 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
       const result = await recordSaleTransaction(input);
       setReceipt(result);
       setCart([]);
+      setSelectedCustomerId('');
       setCustomerName('');
       setCustomerNif('');
       setCustomerPhone('');
@@ -532,12 +555,34 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
           <h3 className="font-bold text-slate-900 dark:text-white">Finalizar venda</h3>
 
           <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Cliente cadastrado</label>
+            <select
+              value={selectedCustomerId}
+              onChange={(event) => setSelectedCustomerId(event.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+            >
+              <option value="">Consumidor final / venda sem conta</option>
+              {activeCustomers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name} {customer.currentBalance > 0 ? `- saldo ${formatKz(customer.currentBalance)}` : ''}
+                </option>
+              ))}
+            </select>
+            {paymentMethod === 'credit' && activeCustomers.length === 0 && (
+              <p className="text-[11px] text-amber-700 mt-1">
+                Cadastre clientes no menu Clientes antes de vender a credito.
+              </p>
+            )}
+          </div>
+
+          <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Cliente</label>
             <input
               type="text"
               value={customerName}
               onChange={(event) => setCustomerName(event.target.value)}
               placeholder="Consumidor final"
+              disabled={!!selectedCustomer}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
             />
           </div>
@@ -549,6 +594,7 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
               value={customerNif}
               onChange={(event) => setCustomerNif(event.target.value)}
               placeholder="Opcional"
+              disabled={!!selectedCustomer}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
             />
           </div>
@@ -560,9 +606,23 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
               value={customerPhone}
               onChange={(event) => setCustomerPhone(event.target.value)}
               placeholder="Opcional"
+              disabled={!!selectedCustomer}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
             />
           </div>
+
+          {selectedCustomer && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+              <div className="flex justify-between gap-3">
+                <span>Saldo atual</span>
+                <strong>{formatKz(selectedCustomer.currentBalance || 0)}</strong>
+              </div>
+              <div className="flex justify-between gap-3 mt-1">
+                <span>Limite</span>
+                <strong>{selectedCustomer.creditLimit > 0 ? formatKz(selectedCustomer.creditLimit) : 'Sem limite definido'}</strong>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Documento</label>
