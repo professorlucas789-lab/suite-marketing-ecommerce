@@ -34,6 +34,7 @@ import type { StockMovement } from '../types/stock';
 import type { Customer } from '../types/customers';
 import type { FinancialTransaction } from '../types/finance';
 import { calculateCustomerBalance, validateCreditSale } from '../utils/customerLedgerUtils';
+import { getDefaultAccountForPaymentMethod } from '../utils/financeUtils';
 
 const roundMoney = (value: number) => Math.round((value || 0) * 100) / 100;
 
@@ -280,6 +281,7 @@ export async function recordSaleTransaction(input: SaleTransactionInput): Promis
 
   if (input.paymentMethod !== 'credit' && subtotal > 0) {
     const financeRef = doc(collection(db, 'financialTransactions'));
+    const account = getDefaultAccountForPaymentMethod(input.paymentMethod);
     batch.set(financeRef, cleanForFirestore({
       storeId: input.storeId,
       storeName: input.storeName,
@@ -289,11 +291,15 @@ export async function recordSaleTransaction(input: SaleTransactionInput): Promis
       type: 'sale_income',
       amount: subtotal,
       paymentMethod: input.paymentMethod,
+      accountId: account.accountId,
+      accountName: account.accountName,
+      accountType: account.accountType,
       description: `Venda ${receiptNumber}`,
       sourceId: receiptNumber,
       sourceType: 'sale',
       partnerId: input.customerId,
       partnerName: customerForCredit?.name || input.customerName?.trim() || 'Consumidor final',
+      reconciled: false,
       occurredAt: timestamp,
       createdAt: timestamp,
     } satisfies FinancialTransaction));

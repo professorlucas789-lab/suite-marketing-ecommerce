@@ -3,12 +3,19 @@ import {
   collection,
   doc,
   getDoc,
+  updateDoc,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { ExpenseInput, FinancialTransaction, SupplierPaymentInput } from '../types/finance';
+import type {
+  AccountTransferInput,
+  ExpenseInput,
+  FinancialTransaction,
+  ReconcileTransactionInput,
+  SupplierPaymentInput,
+} from '../types/finance';
 import type { Supplier } from '../types/purchasing';
-import { assertPositiveAmount } from '../utils/financeUtils';
+import { assertPositiveAmount, getDefaultAccountForPaymentMethod } from '../utils/financeUtils';
 
 const roundMoney = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -25,6 +32,7 @@ export async function recordExpense(input: ExpenseInput): Promise<string> {
   if (!input.description.trim()) throw new Error('Informe a descrição da despesa.');
 
   const timestamp = new Date().toISOString();
+  const account = getDefaultAccountForPaymentMethod(input.paymentMethod);
   const docRef = await addDoc(collection(db, 'financialTransactions'), cleanForFirestore({
     storeId: input.storeId,
     storeName: input.storeName,
@@ -34,9 +42,13 @@ export async function recordExpense(input: ExpenseInput): Promise<string> {
     type: 'expense',
     amount: roundMoney(input.amount),
     paymentMethod: input.paymentMethod,
+    accountId: account.accountId,
+    accountName: account.accountName,
+    accountType: account.accountType,
     category: input.category,
     description: input.description.trim(),
     sourceType: 'manual',
+    reconciled: false,
     occurredAt: input.occurredAt || timestamp,
     createdAt: timestamp,
   } satisfies FinancialTransaction));
@@ -65,6 +77,7 @@ export async function recordSupplierPayment(input: SupplierPaymentInput): Promis
 
   const timestamp = new Date().toISOString();
   const balanceAfter = roundMoney(currentPayable - amount);
+  const account = getDefaultAccountForPaymentMethod(input.paymentMethod);
   const batch = writeBatch(db);
   const ledgerRef = doc(collection(db, 'supplierLedger'));
   const financeRef = doc(collection(db, 'financialTransactions'));
@@ -98,14 +111,96 @@ export async function recordSupplierPayment(input: SupplierPaymentInput): Promis
     type: 'supplier_payment',
     amount,
     paymentMethod: input.paymentMethod,
+    accountId: account.accountId,
+    accountName: account.accountName,
+    accountType: account.accountType,
     description: input.notes?.trim() || `Pagamento ao fornecedor ${supplier.name}`,
     sourceId: input.supplierId,
     sourceType: 'supplier',
     partnerId: input.supplierId,
     partnerName: supplier.name,
+    reconciled: false,
     occurredAt: timestamp,
     createdAt: timestamp,
   } satisfies FinancialTransaction));
 
   await batch.commit();
+}
+
+export async function recordAccountTransfer(input: AccountTransferInput): Promise<void> {
+  assertPositiveAmount(input.amount);
+  if (!input.storeId) throw new Error('Loja obrigatória para transferir valores.');
+  if (!input.userId) throw new Error('Utilizador obrigatório para transferir valores.');
+  if (!input.fromAccountId || !input.toAccountId) throw new Error('Selecione a conta de origem e destino.');
+  if (input.fromAccountId === input.toAccountId) throw new Error('A conta de origem deve ser diferente da conta de destino.');
+
+  const amount = roundMoney(input.amount);
+  const timestamp = new Date().toISOString();
+  const transferGroupId = `${input.storeId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const batch = writeBatch(db);
+  const outRef = doc(collection(db, 'financialTransactions'));
+  const inRef = doc(collection(db, 'financialTransactions'));
+  const description = input.notes?.trim() || `Transferência de ${input.fromAccountName} para ${input.toAccountName}`;
+
+  batch.set(outRef, cleanForFirestore({
+    storeId: input.storeId,
+    storeName: input.storeName,
+    userId: input.userId,
+    userName: input.userName,
+    direction: 'out',
+    type: 'transfer_out',
+    amount,
+    paymentMethod: 'internal_transfer',
+    accountId: input.fromAccountId,
+    accountName: input.fromAccountName,
+    accountType: input.fromAccountType,
+    description,
+    sourceId: transferGroupId,
+    sourceType: 'transfer',
+    transferGroupId,
+    partnerId: input.toAccountId,
+    partnerName: input.toAccountName,
+    reconciled: false,
+    occurredAt: timestamp,
+    createdAt: timestamp,
+  } satisfies FinancialTransaction));
+
+  batch.set(inRef, cleanForFirestore({
+    storeId: input.storeId,
+    storeName: input.storeName,
+    userId: input.userId,
+    userName: input.userName,
+    direction: 'in',
+    type: 'transfer_in',
+    amount,
+    paymentMethod: 'internal_transfer',
+    accountId: input.toAccountId,
+    accountName: input.toAccountName,
+    accountType: input.toAccountType,
+    description,
+    sourceId: transferGroupId,
+    sourceType: 'transfer',
+    transferGroupId,
+    partnerId: input.fromAccountId,
+    partnerName: input.fromAccountName,
+    reconciled: false,
+    occurredAt: timestamp,
+    createdAt: timestamp,
+  } satisfies FinancialTransaction));
+
+  await batch.commit();
+}
+
+export async function reconcileFinancialTransaction(input: ReconcileTransactionInput): Promise<void> {
+  if (!input.transactionId) throw new Error('Movimento financeiro inválido.');
+  if (!input.userId) throw new Error('Utilizador obrigatório para conciliar movimento.');
+
+  const timestamp = new Date().toISOString();
+  await updateDoc(doc(db, 'financialTransactions', input.transactionId), cleanForFirestore({
+    reconciled: true,
+    reconciledAt: timestamp,
+    reconciledBy: input.userId,
+    reconciledByName: input.userName,
+    reconciliationNotes: input.notes?.trim(),
+  }));
 }

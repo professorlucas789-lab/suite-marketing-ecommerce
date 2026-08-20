@@ -18,6 +18,7 @@ import {
   normalizePurchasePayment,
 } from '../utils/purchasingUtils';
 import { getProductAvailableStock } from '../utils/stockUtils';
+import { getDefaultAccountForPaymentMethod } from '../utils/financeUtils';
 
 const roundMoney = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -205,6 +206,8 @@ export async function recordPurchaseReceipt(input: PurchaseReceiptInput): Promis
   batch.set(purchaseRef, cleanForFirestore(purchase));
   if (payment.amountPaid > 0) {
     const financeRef = doc(collection(db, 'financialTransactions'));
+    const paymentMethod = input.paymentMethod || (input.paymentStatus === 'paid' ? 'transfer' : 'other');
+    const account = getDefaultAccountForPaymentMethod(paymentMethod);
     batch.set(financeRef, cleanForFirestore({
       storeId: input.storeId,
       storeName: input.storeName,
@@ -213,12 +216,16 @@ export async function recordPurchaseReceipt(input: PurchaseReceiptInput): Promis
       direction: 'out',
       type: 'purchase_payment',
       amount: payment.amountPaid,
-      paymentMethod: input.paymentMethod || (input.paymentStatus === 'paid' ? 'compra_paga' : 'pagamento_parcial'),
+      paymentMethod,
+      accountId: account.accountId,
+      accountName: account.accountName,
+      accountType: account.accountType,
       description: `Pagamento da compra ${receiptNumber}`,
       sourceId: purchaseRef.id,
       sourceType: 'purchase',
       partnerId: supplier.id,
       partnerName: supplier.name,
+      reconciled: false,
       occurredAt: timestamp,
       createdAt: timestamp,
     } satisfies FinancialTransaction));

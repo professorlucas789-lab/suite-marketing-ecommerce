@@ -10,6 +10,7 @@ import { db } from '../firebase';
 import type { Customer, CustomerPaymentInput } from '../types/customers';
 import type { FinancialTransaction } from '../types/finance';
 import { calculateCustomerBalance, validateCustomerPayment } from '../utils/customerLedgerUtils';
+import { getDefaultAccountForPaymentMethod } from '../utils/financeUtils';
 
 const roundMoney = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -85,6 +86,7 @@ export async function recordCustomerPayment(input: CustomerPaymentInput): Promis
 
   const timestamp = new Date().toISOString();
   const balanceAfter = calculateCustomerBalance(customer.currentBalance || 0, 'payment', amount);
+  const account = getDefaultAccountForPaymentMethod(input.paymentMethod);
   const batch = writeBatch(db);
   const ledgerRef = doc(collection(db, 'customerLedger'));
   const financeRef = doc(collection(db, 'financialTransactions'));
@@ -119,11 +121,15 @@ export async function recordCustomerPayment(input: CustomerPaymentInput): Promis
     type: 'customer_payment',
     amount,
     paymentMethod: input.paymentMethod,
+    accountId: account.accountId,
+    accountName: account.accountName,
+    accountType: account.accountType,
     description: input.notes?.trim() || `Pagamento de cliente ${customer.name}`,
     sourceId: input.customerId,
     sourceType: 'customer',
     partnerId: input.customerId,
     partnerName: customer.name,
+    reconciled: false,
     occurredAt: timestamp,
     createdAt: timestamp,
   } satisfies FinancialTransaction));
