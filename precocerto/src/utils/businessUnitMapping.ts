@@ -1,4 +1,4 @@
-import type { Store, StoreType } from "../types/store";
+import type { OperationalUnitType, Store, StoreType } from "../types/store";
 
 export type StoreTypeOption = {
   value: StoreType;
@@ -6,6 +6,24 @@ export type StoreTypeOption = {
   descricao: string;
   defaultModuleId: string;
 };
+
+export type BusinessSegmentOption = {
+  id: string;
+  label: string;
+  descricao: string;
+  defaultStoreType: StoreType;
+  defaultUnitType: OperationalUnitType;
+  defaultModuleId: string;
+};
+
+export type OperationalUnitTypeOption = {
+  value: OperationalUnitType;
+  label: string;
+  descricao: string;
+};
+
+export const DEFAULT_BUSINESS_GROUP_ID = "grupo-alberto";
+export const DEFAULT_BUSINESS_GROUP_NAME = "Grupo Alberto";
 
 export const STORE_TYPE_OPTIONS: StoreTypeOption[] = [
   {
@@ -64,6 +82,108 @@ export const STORE_TYPE_OPTIONS: StoreTypeOption[] = [
   },
 ];
 
+export const BUSINESS_SEGMENT_OPTIONS: BusinessSegmentOption[] = [
+  {
+    id: "farmacias",
+    label: "Farmácias",
+    descricao: "Farmácias, postos farmacêuticos, armazéns e unidades de apoio",
+    defaultStoreType: "farmacia",
+    defaultUnitType: "farmacia",
+    defaultModuleId: "farmacia",
+  },
+  {
+    id: "escola_colegio",
+    label: "Escola / Colégio Privado",
+    descricao: "Unidades escolares, secretaria, tesouraria e serviços educacionais",
+    defaultStoreType: "colegio",
+    defaultUnitType: "escola",
+    defaultModuleId: "colegio",
+  },
+  {
+    id: "papelaria_informatica",
+    label: "Papelaria & Informática",
+    descricao: "Lojas, postos de venda e armazéns de material escolar, escritório e informática",
+    defaultStoreType: "papelaria_informatica",
+    defaultUnitType: "loja",
+    defaultModuleId: "papelaria_informatica",
+  },
+  {
+    id: "ortopedico_hospitalar",
+    label: "Consumíveis Ortopédicos & Equipamentos Hospitalares",
+    descricao: "Produtos ortopédicos, equipamentos hospitalares e dispositivos médicos",
+    defaultStoreType: "ortopedico_hospitalar",
+    defaultUnitType: "loja",
+    defaultModuleId: "ortopedico_hospitalar",
+  },
+  {
+    id: "mobiliario_escolar_escritorio",
+    label: "Mobiliário Escolar & Escritório",
+    descricao: "Mobiliário administrativo, escolar e comercial",
+    defaultStoreType: "mobiliario_escolar_escritorio",
+    defaultUnitType: "loja",
+    defaultModuleId: "mobiliario_escolar_escritorio",
+  },
+  {
+    id: "escritorio_central",
+    label: "Escritório Central",
+    descricao: "Administração geral, gestão consolidada e controlo do grupo",
+    defaultStoreType: "escritorio_central",
+    defaultUnitType: "escritorio_central",
+    defaultModuleId: "escritorio_central",
+  },
+  {
+    id: "generico",
+    label: "Outro Negócio",
+    descricao: "Segmento ainda sem módulo especializado",
+    defaultStoreType: "generico",
+    defaultUnitType: "generico",
+    defaultModuleId: "outro",
+  },
+];
+
+export const OPERATIONAL_UNIT_TYPE_OPTIONS: OperationalUnitTypeOption[] = [
+  {
+    value: "loja",
+    label: "Loja",
+    descricao: "Unidade que vende, fatura e movimenta stock próprio",
+  },
+  {
+    value: "farmacia",
+    label: "Farmácia",
+    descricao: "Unidade farmacêutica com produtos, margens e regras de farmácia",
+  },
+  {
+    value: "armazem",
+    label: "Armazém",
+    descricao: "Recebe, guarda e transfere stock; normalmente não vende ao público",
+  },
+  {
+    value: "posto_venda",
+    label: "Posto de Venda",
+    descricao: "Ponto de venda dependente de uma loja ou armazém",
+  },
+  {
+    value: "escritorio_central",
+    label: "Escritório Central",
+    descricao: "Unidade administrativa para gestão e relatórios consolidados",
+  },
+  {
+    value: "escola",
+    label: "Escola / Colégio",
+    descricao: "Unidade escolar com lógica própria de serviços e operações",
+  },
+  {
+    value: "servico",
+    label: "Unidade de Serviço",
+    descricao: "Área operacional sem venda direta de produto físico",
+  },
+  {
+    value: "generico",
+    label: "Unidade Genérica",
+    descricao: "Unidade operacional ainda sem classificação específica",
+  },
+];
+
 export function getDefaultModuleForStoreType(type?: string): string {
   return STORE_TYPE_OPTIONS.find((option) => option.value === type)?.defaultModuleId || "outro";
 }
@@ -74,4 +194,57 @@ export function getStoreTypeLabel(type?: string): string {
 
 export function getStoreModuleId(store?: Pick<Store, "tipo" | "moduleId"> | null): string {
   return store?.moduleId || getDefaultModuleForStoreType(store?.tipo);
+}
+
+export function getBusinessSegmentById(segmentId?: string): BusinessSegmentOption {
+  return (
+    BUSINESS_SEGMENT_OPTIONS.find((segment) => segment.id === segmentId) ||
+    BUSINESS_SEGMENT_OPTIONS.find((segment) => segment.id === "generico") ||
+    BUSINESS_SEGMENT_OPTIONS[0]
+  );
+}
+
+export function getDefaultBusinessSegmentForStoreType(type?: string): BusinessSegmentOption {
+  return (
+    BUSINESS_SEGMENT_OPTIONS.find((segment) => segment.defaultStoreType === type) ||
+    BUSINESS_SEGMENT_OPTIONS.find((segment) => segment.id === "generico") ||
+    BUSINESS_SEGMENT_OPTIONS[0]
+  );
+}
+
+export function getOperationalUnitLabel(unitType?: string): string {
+  return OPERATIONAL_UNIT_TYPE_OPTIONS.find((option) => option.value === unitType)?.label || "Unidade";
+}
+
+export function getStoreBusinessSegmentLabel(store?: Pick<Store, "tipo" | "businessSegmentId" | "businessSegmentName"> | null): string {
+  if (store?.businessSegmentName) return store.businessSegmentName;
+  if (store?.businessSegmentId) return getBusinessSegmentById(store.businessSegmentId).label;
+  return getDefaultBusinessSegmentForStoreType(store?.tipo).label;
+}
+
+export function getStoreOperationalUnitLabel(store?: Pick<Store, "tipo" | "unitType"> | null): string {
+  if (store?.unitType) return getOperationalUnitLabel(store.unitType);
+  return getOperationalUnitLabel(getDefaultBusinessSegmentForStoreType(store?.tipo).defaultUnitType);
+}
+
+export function normalizeStoreBusinessScope<T extends Partial<Store>>(store: T): T & Pick<
+  Store,
+  "businessGroupId" | "businessGroupName" | "businessSegmentId" | "businessSegmentName" | "unitType" | "moduleId"
+> {
+  const segment = store.businessSegmentId
+    ? getBusinessSegmentById(store.businessSegmentId)
+    : getDefaultBusinessSegmentForStoreType(store.tipo);
+
+  return {
+    ...store,
+    businessGroupId: store.businessGroupId || DEFAULT_BUSINESS_GROUP_ID,
+    businessGroupName: store.businessGroupName || DEFAULT_BUSINESS_GROUP_NAME,
+    businessSegmentId: store.businessSegmentId || segment.id,
+    businessSegmentName: store.businessSegmentName || segment.label,
+    unitType: store.unitType || segment.defaultUnitType,
+    moduleId: store.moduleId || segment.defaultModuleId || getDefaultModuleForStoreType(store.tipo),
+  } as T & Pick<
+    Store,
+    "businessGroupId" | "businessGroupName" | "businessSegmentId" | "businessSegmentName" | "unitType" | "moduleId"
+  >;
 }

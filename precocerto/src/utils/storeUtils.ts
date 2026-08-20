@@ -16,6 +16,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { Store, User, AuditLog, ActivityStream } from '../types/store';
+import { normalizeStoreBusinessScope } from './businessUnitMapping';
 
 /**
  * Criar nova loja
@@ -188,10 +189,12 @@ function getTipoAtividadeFromAcao(acao: string, entityType: string): any {
 export async function getAllStores() {
   try {
     const snapshot = await getDocs(query(collection(db, 'stores'), where('ativo', '==', true)));
-    return snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Store[];
+    return snapshot.docs.map((doc) =>
+      normalizeStoreBusinessScope({
+        id: doc.id,
+        ...doc.data(),
+      } as Store)
+    );
   } catch (error) {
     console.error('Erro ao obter lojas:', error);
     throw error;
@@ -210,7 +213,7 @@ export async function getStore(storeId: string) {
     if (docSnap.empty) return null;
 
     const doc = docSnap.docs[0];
-    return { id: doc.id, ...doc.data() } as Store;
+    return normalizeStoreBusinessScope({ id: doc.id, ...doc.data() } as Store);
   } catch (error) {
     console.error('Erro ao obter loja:', error);
     throw error;

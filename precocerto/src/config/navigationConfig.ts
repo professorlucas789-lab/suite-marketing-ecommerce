@@ -90,9 +90,9 @@ export const navigationConfig: NavigationConfig[] = [
   // SECÇÃO DE GESTÃO - Apenas Admins
   {
     id: 'stores',
-    label: 'Lojas',
+    label: 'Unidades',
     icon: 'Building2',
-    roles: ['admin'], // EXCLUSIVO: Apenas admin pode criar/editar lojas
+    roles: ['admin'], // EXCLUSIVO: Apenas admin pode criar/editar unidades
     section: 'management',
   },
 

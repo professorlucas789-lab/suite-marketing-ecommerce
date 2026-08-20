@@ -192,6 +192,7 @@ export default function App() {
       const selectedStore = userStores.find((store) => store.id === currentStore?.storeId);
       const defaultBusinessType = getStoreModuleId(selectedStore || (currentStore ? {
         tipo: currentStore.storeType,
+        moduleId: currentStore.moduleId,
       } : null));
 
       const storeSettingsDoc = currentStore
@@ -207,6 +208,11 @@ export default function App() {
         userId: data.userId || user.uid,
         storeId: currentStore?.storeId,
         storeName: currentStore?.storeName,
+        businessGroupId: currentStore?.businessGroupId,
+        businessGroupName: currentStore?.businessGroupName,
+        businessSegmentId: currentStore?.businessSegmentId,
+        businessSegmentName: currentStore?.businessSegmentName,
+        unitType: currentStore?.unitType,
         companyName: data.companyName || currentStore?.storeName || "PreçoCerto Lda",
         businessType: hasStoreSettings
           ? data.businessType || defaultBusinessType
@@ -229,7 +235,19 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user, currentStore?.storeId, currentStore?.storeName, currentStore?.storeType, userStores]);
+  }, [
+    user,
+    currentStore?.storeId,
+    currentStore?.storeName,
+    currentStore?.storeType,
+    currentStore?.moduleId,
+    currentStore?.businessGroupId,
+    currentStore?.businessGroupName,
+    currentStore?.businessSegmentId,
+    currentStore?.businessSegmentName,
+    currentStore?.unitType,
+    userStores,
+  ]);
 
   // NOVO: Injetar cores CSS dinâmicas quando a cor primária mudar
   useEffect(() => {
@@ -248,6 +266,11 @@ export default function App() {
           ...settingsData,
           storeId: currentStore.storeId,
           storeName: currentStore.storeName,
+          businessGroupId: currentStore.businessGroupId,
+          businessGroupName: currentStore.businessGroupName,
+          businessSegmentId: currentStore.businessSegmentId,
+          businessSegmentName: currentStore.businessSegmentName,
+          unitType: currentStore.unitType,
         }
       : settingsData;
 
@@ -848,7 +871,7 @@ export default function App() {
     { id: "batch-products", label: "Cadastro em Lote", icon: Boxes }, // NOVO (Fase 3)
     { id: "categories", label: "Categorias", icon: Folder }, // NOVO (Fase 1)
     { id: "reverse-calculator", label: "Calculadora Reversa", icon: Calculator },
-    { id: "stores", label: "Lojas", icon: Building2 }, // NOVO (Fase 6 - Multi-Store)
+    { id: "stores", label: "Unidades", icon: Building2 }, // Base multi-negócio
     { id: "history", label: "Histórico", icon: History },
     { id: "reports", label: "Relatórios", icon: FileText },
     { id: "vendas", label: "Vendas", icon: DollarSign }, // NOVO (Fase 6 - Módulo de Vendas)

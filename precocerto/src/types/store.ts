@@ -13,6 +13,39 @@ export type StoreType =
   | 'mobiliario_escolar_escritorio'
   | 'escritorio_central'
   | 'generico';
+
+export type OperationalUnitType =
+  | 'loja'
+  | 'farmacia'
+  | 'armazem'
+  | 'posto_venda'
+  | 'escritorio_central'
+  | 'escola'
+  | 'servico'
+  | 'generico';
+
+export interface BusinessGroup {
+  id: string;
+  nome: string;
+  nif?: string;
+  pais?: string;
+  ativo: boolean;
+  criadoPor: string;
+  dataCriacao: string;
+  dataAtualizacao: string;
+}
+
+export interface BusinessSegment {
+  id: string;
+  businessGroupId: string;
+  nome: string;
+  tipo: StoreType;
+  moduleId: string;
+  ativo: boolean;
+  dataCriacao: string;
+  dataAtualizacao: string;
+}
+
 export type UserRole = 'admin' | 'loja-manager' | 'funcionario';
 
 /**
@@ -35,6 +68,11 @@ export interface Store {
   tipo: StoreType;
   moduleId?: string;
   businessGroupId?: string;
+  businessGroupName?: string;
+  businessSegmentId?: string;
+  businessSegmentName?: string;
+  unitType?: OperationalUnitType;
+  parentUnitId?: string;
   endereco: string;
   telefone: string;
   email: string;
@@ -133,6 +171,12 @@ export interface StoreContext {
   storeId: string;
   storeName: string;
   storeType: StoreType;
+  moduleId?: string;
+  businessGroupId?: string;
+  businessGroupName?: string;
+  businessSegmentId?: string;
+  businessSegmentName?: string;
+  unitType?: OperationalUnitType;
 }
 
 /**

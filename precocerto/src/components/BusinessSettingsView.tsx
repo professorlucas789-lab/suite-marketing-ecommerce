@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { BusinessSettings } from "../types";
 import { businessModuleRegistry } from "../modules/business-types";
+import { getOperationalUnitLabel } from "../utils/businessUnitMapping";
 import { motion } from "motion/react";
 import { 
   Building2, 
@@ -118,9 +119,16 @@ export default function BusinessSettingsView({ settings, onSave }: BusinessSetti
             Configure o módulo, moeda, categorias e identidade da loja/unidade atualmente selecionada.
           </p>
           {settings?.storeName && (
-            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-2">
-              Unidade atual: {settings.storeName}
-            </p>
+            <div className="mt-2 space-y-0.5">
+              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                Unidade atual: {settings.storeName}
+              </p>
+              {(settings.businessGroupName || settings.businessSegmentName || settings.unitType) && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {settings.businessGroupName || "Grupo"} · {settings.businessSegmentName || "Segmento"} · {getOperationalUnitLabel(settings.unitType)}
+                </p>
+              )}
+            </div>
           )}
         </div>
         <div className={`text-xs px-3 py-1.5 rounded-full font-bold flex items-center gap-1.5 self-start md:self-center bg-${currentModule.color || 'emerald-600'} text-white shadow-xs`}>
@@ -141,7 +149,7 @@ export default function BusinessSettingsView({ settings, onSave }: BusinessSetti
 
             <div>
               <label className="block text-xs font-bold text-slate-600 dark:text-slate-350 mb-1.5">
-                Nome da Empresa / Negócio <span className="text-rose-500">*</span>
+                Nome Comercial da Unidade <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -149,7 +157,7 @@ export default function BusinessSettingsView({ settings, onSave }: BusinessSetti
                   required
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="Ex: PreçoCerto Angola Lda"
+                  placeholder="Ex: Farmácia Central, Papelaria Kilamba"
                   className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors"
                 />
               </div>

@@ -7,6 +7,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Store, StoreContext as IStoreContext, User, UserSession } from '../types/store';
 import { auth, db } from '../firebase';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { normalizeStoreBusinessScope } from '../utils/businessUnitMapping';
 
 interface StoreContextType {
   currentStore: IStoreContext | null;
@@ -114,7 +115,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       for (const storeId of userLojas) {
         const storeDoc = await getDoc(doc(db, 'stores', storeId));
         if (storeDoc.exists()) {
-          storesData.push({ id: storeDoc.id, ...storeDoc.data() } as Store);
+          storesData.push(normalizeStoreBusinessScope({ id: storeDoc.id, ...storeDoc.data() } as Store));
           console.log(`  ✓ Loja carregada: ${storeId}`);
         } else {
           console.log(`  ✗ Loja não encontrada: ${storeId}`);
@@ -135,6 +136,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           storeId: defaultStore.id,
           storeName: defaultStore.nome,
           storeType: defaultStore.tipo,
+          moduleId: defaultStore.moduleId,
+          businessGroupId: defaultStore.businessGroupId,
+          businessGroupName: defaultStore.businessGroupName,
+          businessSegmentId: defaultStore.businessSegmentId,
+          businessSegmentName: defaultStore.businessSegmentName,
+          unitType: defaultStore.unitType,
         };
 
         setCurrentStore(storeContext);
@@ -182,6 +189,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         storeId: store.id,
         storeName: store.nome,
         storeType: store.tipo,
+        moduleId: store.moduleId,
+        businessGroupId: store.businessGroupId,
+        businessGroupName: store.businessGroupName,
+        businessSegmentId: store.businessSegmentId,
+        businessSegmentName: store.businessSegmentName,
+        unitType: store.unitType,
       };
 
       setCurrentStore(storeContext);

@@ -6,7 +6,16 @@
 import React, { useState, useEffect } from 'react';
 import { Store, StoreType } from '../types/store';
 import { createStore, updateStore } from '../utils/storeUtils';
-import { getDefaultModuleForStoreType, STORE_TYPE_OPTIONS } from '../utils/businessUnitMapping';
+import {
+  BUSINESS_SEGMENT_OPTIONS,
+  DEFAULT_BUSINESS_GROUP_ID,
+  DEFAULT_BUSINESS_GROUP_NAME,
+  getBusinessSegmentById,
+  getDefaultBusinessSegmentForStoreType,
+  getDefaultModuleForStoreType,
+  OPERATIONAL_UNIT_TYPE_OPTIONS,
+  STORE_TYPE_OPTIONS,
+} from '../utils/businessUnitMapping';
 import { Loader2, AlertCircle, Check } from 'lucide-react';
 
 interface StoreFormProps {
@@ -18,6 +27,9 @@ interface StoreFormProps {
 export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
   const [formData, setFormData] = useState({
     nome: '',
+    businessGroupName: DEFAULT_BUSINESS_GROUP_NAME,
+    businessSegmentId: 'generico',
+    unitType: 'loja',
     tipo: 'generico' as StoreType,
     endereco: '',
     telefone: '',
@@ -30,11 +42,20 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
   const [success, setSuccess] = useState(false);
 
   const storeTypes = STORE_TYPE_OPTIONS;
+  const businessSegments = BUSINESS_SEGMENT_OPTIONS;
+  const unitTypes = OPERATIONAL_UNIT_TYPE_OPTIONS;
 
   useEffect(() => {
     if (store) {
+      const segment = store.businessSegmentId
+        ? getBusinessSegmentById(store.businessSegmentId)
+        : getDefaultBusinessSegmentForStoreType(store.tipo);
+
       setFormData({
         nome: store.nome,
+        businessGroupName: store.businessGroupName || DEFAULT_BUSINESS_GROUP_NAME,
+        businessSegmentId: store.businessSegmentId || segment.id,
+        unitType: store.unitType || segment.defaultUnitType,
         tipo: store.tipo,
         endereco: store.endereco,
         telefone: store.telefone,
@@ -46,6 +67,18 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+
+    if (name === 'businessSegmentId') {
+      const segment = getBusinessSegmentById(value);
+      setFormData((prev) => ({
+        ...prev,
+        businessSegmentId: segment.id,
+        tipo: segment.defaultStoreType,
+        unitType: segment.defaultUnitType,
+      }));
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -61,6 +94,7 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
     try {
       // Validações
       if (!formData.nome.trim()) throw new Error('Nome é obrigatório');
+      if (!formData.businessGroupName.trim()) throw new Error('Grupo/Empresa é obrigatório');
       if (!formData.endereco.trim()) throw new Error('Endereço é obrigatório');
       if (!formData.telefone.trim()) throw new Error('Telefone é obrigatório');
       if (!formData.email.trim()) throw new Error('Email é obrigatório');
@@ -72,12 +106,22 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
       }
 
       let storeId: string;
+      const segment = getBusinessSegmentById(formData.businessSegmentId);
+      const businessGroupName = formData.businessGroupName.trim();
+      const businessScope = {
+        businessGroupId: store?.businessGroupId || DEFAULT_BUSINESS_GROUP_ID,
+        businessGroupName,
+        businessSegmentId: segment.id,
+        businessSegmentName: segment.label,
+        unitType: formData.unitType as Store['unitType'],
+      };
 
       if (store) {
-        // Atualizar loja existente
+        // Atualizar unidade existente
         await updateStore(store.id, {
           nome: formData.nome,
           tipo: formData.tipo,
+          ...businessScope,
           moduleId: store.tipo === formData.tipo
             ? store.moduleId || getDefaultModuleForStoreType(formData.tipo)
             : getDefaultModuleForStoreType(formData.tipo),
@@ -88,10 +132,11 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
         });
         storeId = store.id;
       } else {
-        // Criar nova loja
+        // Criar nova unidade
         storeId = await createStore({
           nome: formData.nome,
           tipo: formData.tipo,
+          ...businessScope,
           moduleId: getDefaultModuleForStoreType(formData.tipo),
           endereco: formData.endereco,
           telefone: formData.telefone,
@@ -132,16 +177,32 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
           <Check size={18} className="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-green-800 dark:text-green-200">
-              {store ? 'Loja atualizada' : 'Loja criada'} com sucesso!
+              {store ? 'Unidade atualizada' : 'Unidade criada'} com sucesso!
             </p>
           </div>
         </div>
       )}
 
+      {/* Grupo */}
+      <div>
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          Grupo / Empresa *
+        </label>
+        <input
+          type="text"
+          name="businessGroupName"
+          value={formData.businessGroupName}
+          onChange={handleChange}
+          disabled={loading || success}
+          placeholder="Ex: Grupo Alberto"
+          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+        />
+      </div>
+
       {/* Nome */}
       <div>
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-          Nome da Loja *
+          Nome da Unidade *
         </label>
         <input
           type="text"
@@ -149,42 +210,79 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
           value={formData.nome}
           onChange={handleChange}
           disabled={loading || success}
-          placeholder="Ex: Farmácia Central"
+          placeholder="Ex: Farmácia Central, Armazém Principal, Loja Kilamba"
           className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 disabled:opacity-50"
         />
       </div>
 
-      {/* Tipo de Loja */}
+      {/* Segmento e tipo operacional */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            Negócio / Segmento *
+          </label>
+          <select
+            name="businessSegmentId"
+            value={formData.businessSegmentId}
+            onChange={handleChange}
+            disabled={loading || success}
+            className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+          >
+            {businessSegments.map((segment) => (
+              <option key={segment.id} value={segment.id}>
+                {segment.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {getBusinessSegmentById(formData.businessSegmentId).descricao}
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            Tipo de Unidade *
+          </label>
+          <select
+            name="unitType"
+            value={formData.unitType}
+            onChange={handleChange}
+            disabled={loading || success}
+            className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+          >
+            {unitTypes.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {unitTypes.find((type) => type.value === formData.unitType)?.descricao}
+          </p>
+        </div>
+      </div>
+
+      {/* Módulo */}
       <div>
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-          Tipo de Loja *
+          Módulo Inteligente *
         </label>
-        <div className="grid grid-cols-2 gap-3">
+        <select
+          name="tipo"
+          value={formData.tipo}
+          onChange={handleChange}
+          disabled={loading || success}
+          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+        >
           {storeTypes.map((type) => (
-            <label
-              key={type.value}
-              className={`relative flex items-start p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-                formData.tipo === type.value
-                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20'
-                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-              }`}
-            >
-              <input
-                type="radio"
-                name="tipo"
-                value={type.value}
-                checked={formData.tipo === type.value}
-                onChange={handleChange}
-                disabled={loading || success}
-                className="mt-1"
-              />
-              <div className="ml-3">
-                <p className="font-medium text-slate-900 dark:text-slate-100">{type.label}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{type.descricao}</p>
-              </div>
-            </label>
+            <option key={type.value} value={type.value}>
+              {type.label}
+            </option>
           ))}
-        </div>
+        </select>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          {storeTypes.find((type) => type.value === formData.tipo)?.descricao}
+        </p>
       </div>
 
       {/* Endereço */}
@@ -198,7 +296,7 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
           value={formData.endereco}
           onChange={handleChange}
           disabled={loading || success}
-          placeholder="Ex: Rua Principal, 123, Lisboa"
+          placeholder="Ex: Rua Principal, Bairro/Província"
           className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 disabled:opacity-50"
         />
       </div>
@@ -239,7 +337,7 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
       {/* NIF */}
       <div>
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-          NIF/CNPJ (Opcional)
+          NIF (Opcional)
         </label>
         <input
           type="text"
@@ -260,7 +358,7 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
           className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           {loading && <Loader2 size={16} className="animate-spin" />}
-          {loading ? 'A guardar...' : store ? 'Atualizar Loja' : 'Criar Loja'}
+          {loading ? 'A guardar...' : store ? 'Atualizar Unidade' : 'Criar Unidade'}
         </button>
 
         {onCancel && (

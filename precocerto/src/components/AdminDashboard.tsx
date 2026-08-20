@@ -6,7 +6,12 @@
 import React, { useState, useEffect } from 'react';
 import { Store, StoreStats } from '../types/store';
 import { getAllStores } from '../utils/storeUtils';
-import { getStoreTypeLabel, STORE_TYPE_OPTIONS } from '../utils/businessUnitMapping';
+import {
+  getStoreBusinessSegmentLabel,
+  getStoreOperationalUnitLabel,
+  getStoreTypeLabel,
+  STORE_TYPE_OPTIONS,
+} from '../utils/businessUnitMapping';
 import { useStoreStats } from '../hooks/useStoreData';
 import { Loader2, AlertCircle, TrendingUp, Users, Package, BarChart3, Filter } from 'lucide-react';
 
@@ -35,7 +40,7 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
       const data = await getAllStores();
       setStores(data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar lojas';
+      const message = err instanceof Error ? err.message : 'Erro ao carregar unidades';
       setError(message);
     } finally {
       setLoading(false);
@@ -111,7 +116,7 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Painel Admin</h1>
-        <p className="text-slate-600 dark:text-slate-400 mt-1">Monitorize todas as suas lojas</p>
+        <p className="text-slate-600 dark:text-slate-400 mt-1">Monitorize todas as unidades do grupo</p>
       </div>
 
       {/* Error */}
@@ -131,7 +136,7 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Total Lojas</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">Total Unidades</p>
               <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
                 {totalStores}
               </p>
@@ -214,14 +219,14 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
           {/* Filter by Type */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Tipo de Loja
+              Módulo / Atividade
             </label>
             <select
               value={filterType || ''}
               onChange={(e) => setFilterType(e.target.value || null)}
               className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
             >
-              <option value="">Todas as Lojas</option>
+              <option value="">Todas as unidades</option>
               {STORE_TYPE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
@@ -250,13 +255,13 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
       {/* Stores Grid */}
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-          {filterType ? `Lojas - ${getStoreTypeLabel(filterType)}` : 'Todas as Lojas'}
+          {filterType ? `Unidades - ${getStoreTypeLabel(filterType)}` : 'Todas as Unidades'}
         </h2>
 
         {sortedStores.length === 0 ? (
           <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
             <Package size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-4" />
-            <p className="text-slate-600 dark:text-slate-400">Nenhuma loja encontrada</p>
+            <p className="text-slate-600 dark:text-slate-400">Nenhuma unidade encontrada</p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -275,8 +280,11 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
                         storeTypeColors[store.tipo]
                       }`}
                     >
-                      {getStoreTypeLabel(store.tipo)}
+                      {getStoreOperationalUnitLabel(store)}
                     </span>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {getStoreBusinessSegmentLabel(store)}
+                    </p>
                   </div>
                   <div
                     className={`w-2 h-2 rounded-full flex-shrink-0 ${
@@ -289,6 +297,7 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
                 <div className="text-sm text-slate-600 dark:text-slate-400 mb-4 space-y-1">
                   <p>📧 {store.email}</p>
                   <p>📍 {store.endereco}</p>
+                  <p>🏢 {store.businessGroupName || 'Grupo não definido'}</p>
                 </div>
 
                 {/* Stats */}

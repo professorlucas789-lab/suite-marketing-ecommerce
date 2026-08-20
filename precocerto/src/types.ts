@@ -176,6 +176,11 @@ export interface BusinessSettings {
   userId: string;
   storeId?: string;
   storeName?: string;
+  businessGroupId?: string;
+  businessGroupName?: string;
+  businessSegmentId?: string;
+  businessSegmentName?: string;
+  unitType?: string;
   companyName: string;
   businessType: string; // One of the options e.g. "farmacia", "supermercado", "outro"
   currency: string;
