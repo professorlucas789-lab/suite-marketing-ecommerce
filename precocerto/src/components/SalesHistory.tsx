@@ -36,10 +36,13 @@ interface ReceiptGroup {
   storeName?: string;
   customerName?: string;
   customerNif?: string;
+  customerPhone?: string;
   paymentMethod?: string;
   documentType?: string;
   userName?: string;
   subtotal: number;
+  amountPaid?: number;
+  changeDue?: number;
   totalCost: number;
   totalProfit: number;
   totalUnits: number;
@@ -93,10 +96,13 @@ function buildReceiptGroups(sales: Sale[]): ReceiptGroup[] {
         storeName: first.storeName,
         customerName: first.customerName,
         customerNif: first.customerNif,
+        customerPhone: first.customerPhone,
         paymentMethod: first.paymentMethod,
         documentType: first.documentType,
         userName: first.userName,
         subtotal,
+        amountPaid: first.amountPaid,
+        changeDue: first.changeDue,
         totalCost,
         totalProfit,
         totalUnits,
@@ -144,6 +150,7 @@ function printReceipt(receipt: ReceiptGroup) {
         <div class="section">
           <div class="muted">Cliente: ${receipt.customerName || 'Consumidor final'}</div>
           <div class="muted">NIF: ${receipt.customerNif || 'N/A'}</div>
+          <div class="muted">Telefone: ${receipt.customerPhone || 'N/A'}</div>
           <div class="muted">Pagamento: ${paymentLabels[receipt.paymentMethod || 'other'] || 'Outro'}</div>
           <div class="muted">Operador: ${receipt.userName || 'N/A'}</div>
         </div>
@@ -159,6 +166,7 @@ function printReceipt(receipt: ReceiptGroup) {
           <span>Total</span>
           <span>${formatKz(receipt.subtotal)}</span>
         </div>
+        <div class="muted">Valor pago: ${formatKz(receipt.amountPaid ?? receipt.subtotal)} · Troco: ${formatKz(receipt.changeDue || 0)}</div>
         <p class="notice">
           Documento interno de controlo comercial e estoque. Validar requisitos fiscais no sistema/portal autorizado da AGT antes de usar como documento fiscal oficial.
         </p>
@@ -417,6 +425,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = () => {
                         <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
                           <span className="block font-medium">{receipt.customerName || 'Consumidor final'}</span>
                           <span className="block text-xs text-slate-500">{receipt.customerNif || 'NIF não informado'}</span>
+                          {receipt.customerPhone && (
+                            <span className="block text-xs text-slate-500">{receipt.customerPhone}</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-center text-slate-900 dark:text-white">
                           {receipt.items.length} linhas / {receipt.totalUnits} un.

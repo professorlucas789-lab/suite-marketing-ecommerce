@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DollarSign, Plus, History, ClipboardCheck } from 'lucide-react';
-import { Product } from '../types';
+import { BusinessSettings, Product } from '../types';
 import SalesAnalyticsDashboard from './SalesAnalyticsDashboard';
 import QuickSalesRecorder from './QuickSalesRecorder';
 import SalesHistory from './SalesHistory';
@@ -16,12 +16,13 @@ import { useStore } from '../contexts/StoreContext';
 
 interface SalesTabProps {
   products: Product[];
+  settings?: BusinessSettings | null;
   onNotification?: (message: string, type: 'success' | 'error') => void;
 }
 
 type SalesView = 'analytics' | 'recorder' | 'history' | 'closing';
 
-export const SalesTab: React.FC<SalesTabProps> = ({ products, onNotification }) => {
+export const SalesTab: React.FC<SalesTabProps> = ({ products, settings, onNotification }) => {
   const { currentStore } = useStore();
   const [activeView, setActiveView] = useState<SalesView>('recorder');
 
@@ -95,6 +96,7 @@ export const SalesTab: React.FC<SalesTabProps> = ({ products, onNotification }) 
           >
             <QuickSalesRecorder
               products={products}
+              settings={settings}
               onSuccess={(receipt) =>
                 onNotification?.(
                   `Venda finalizada: ${receipt.receiptNumber} (${(receipt.subtotal || 0).toFixed(2)} Kz)`,

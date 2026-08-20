@@ -29,6 +29,8 @@ import {
   SalesReport,
   SalesTrend,
 } from '../types/sales';
+import { calculateChangeDue, saleDocumentPrefixes, validatePaymentAmount } from '../utils/salesDocumentUtils';
+import type { StockMovement } from '../types/stock';
 
 const roundMoney = (value: number) => Math.round((value || 0) * 100) / 100;
 
@@ -38,12 +40,18 @@ const getAvailableStock = (product: Product) =>
 const getUnitCost = (product: Product) =>
   Number(product.custoRealUnidadeVenda ?? product.custoTotalReal ?? product.custoCompra ?? 0);
 
-const createReceiptNumber = () => {
+const cleanForFirestore = <T extends Record<string, any>>(value: T): T => {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined)
+  ) as T;
+};
+
+const createReceiptNumber = (documentType: SaleTransactionInput['documentType']) => {
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
   const timePart = now.toTimeString().slice(0, 8).replace(/:/g, '');
   const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `PC-${datePart}-${timePart}-${suffix}`;
+  return `PC-${saleDocumentPrefixes[documentType]}-${datePart}-${timePart}-${suffix}`;
 };
 
 const normalizeSale = (sale: any): Sale => {
@@ -82,9 +90,11 @@ export async function recordSaleTransaction(input: SaleTransactionInput): Promis
   const timestamp = now.toISOString();
   const date = timestamp.slice(0, 10);
   const time = now.toTimeString().slice(0, 5);
-  const receiptNumber = createReceiptNumber();
+  const receiptNumber = createReceiptNumber(input.documentType);
   const batch = writeBatch(db);
   const receiptItems: SaleReceiptItem[] = [];
+  const pendingSales: Array<{ ref: ReturnType<typeof doc>; data: Record<string, any> }> = [];
+  const pendingStockMovements: Array<{ ref: ReturnType<typeof doc>; data: StockMovement }> = [];
 
   for (const item of input.items) {
     if (!item.productId) throw new Error('Produto inválido no carrinho.');
@@ -125,41 +135,68 @@ export async function recordSaleTransaction(input: SaleTransactionInput): Promis
     });
 
     const saleRef = doc(collection(db, 'sales'));
-    batch.set(saleRef, {
-      storeId: input.storeId,
-      storeName: input.storeName,
-      receiptNumber,
-      documentType: input.documentType,
-      status: 'completed',
-      productId: product.id,
-      productName: product.nome,
-      category: product.categoria,
-      categoryId: product.categoryId,
-      quantity: item.quantity,
-      unitPrice: roundMoney(item.unitPrice),
-      totalPrice,
-      unitCost,
-      totalCost,
-      profitPerUnit,
-      totalProfit,
-      profitMargin,
-      costUnitPrice: unitCost,
-      costTotal: totalCost,
-      profitTotal: totalProfit,
-      margemReal: profitMargin,
-      stockBefore,
-      stockAfter,
-      date,
-      time,
-      timestamp,
-      userId: input.userId,
-      userName: input.userName,
-      customerName: input.customerName?.trim() || '',
-      customerNif: input.customerNif?.trim() || '',
-      paymentMethod: input.paymentMethod,
-      notes: input.notes?.trim() || '',
-      createdAt: timestamp,
-      updatedAt: timestamp,
+    pendingSales.push({
+      ref: saleRef,
+      data: {
+        storeId: input.storeId,
+        storeName: input.storeName,
+        receiptNumber,
+        documentType: input.documentType,
+        status: 'completed',
+        productId: product.id,
+        productName: product.nome,
+        category: product.categoria,
+        categoryId: product.categoryId,
+        quantity: item.quantity,
+        unitPrice: roundMoney(item.unitPrice),
+        totalPrice,
+        unitCost,
+        totalCost,
+        profitPerUnit,
+        totalProfit,
+        profitMargin,
+        costUnitPrice: unitCost,
+        costTotal: totalCost,
+        profitTotal: totalProfit,
+        margemReal: profitMargin,
+        stockBefore,
+        stockAfter,
+        date,
+        time,
+        timestamp,
+        userId: input.userId,
+        userName: input.userName,
+        customerName: input.customerName?.trim() || '',
+        customerNif: input.customerNif?.trim() || '',
+        customerPhone: input.customerPhone?.trim() || '',
+        paymentMethod: input.paymentMethod,
+        amountPaid: input.amountPaid,
+        notes: input.notes?.trim() || '',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+    });
+
+    const stockMovementRef = doc(collection(db, 'stockMovements'));
+    pendingStockMovements.push({
+      ref: stockMovementRef,
+      data: {
+        id: stockMovementRef.id,
+        movementType: 'sale',
+        productId: product.id!,
+        productName: product.nome,
+        category: product.categoria,
+        sourceStoreId: input.storeId,
+        sourceStoreName: input.storeName,
+        quantity: item.quantity,
+        stockBefore,
+        stockAfter,
+        reason: `Venda ${receiptNumber}`,
+        userId: input.userId,
+        userName: input.userName,
+        relatedMovementId: saleRef.id,
+        createdAt: timestamp,
+      },
     });
 
     receiptItems.push({
@@ -180,12 +217,28 @@ export async function recordSaleTransaction(input: SaleTransactionInput): Promis
     });
   }
 
-  await batch.commit();
-
   const subtotal = roundMoney(receiptItems.reduce((sum, item) => sum + item.totalPrice, 0));
   const totalCost = roundMoney(receiptItems.reduce((sum, item) => sum + item.totalCost, 0));
   const totalProfit = roundMoney(receiptItems.reduce((sum, item) => sum + item.totalProfit, 0));
   const profitMargin = subtotal > 0 ? roundMoney((totalProfit / subtotal) * 100) : 0;
+  const paymentError = validatePaymentAmount(subtotal, input.amountPaid);
+  if (paymentError) throw new Error(paymentError);
+  const amountPaid = input.amountPaid === undefined ? subtotal : roundMoney(input.amountPaid);
+  const changeDue = calculateChangeDue(subtotal, amountPaid);
+
+  pendingSales.forEach(({ ref, data }) => {
+    batch.set(ref, cleanForFirestore({
+      ...data,
+      amountPaid,
+      changeDue,
+    }));
+  });
+
+  pendingStockMovements.forEach(({ ref, data }) => {
+    batch.set(ref, cleanForFirestore(data));
+  });
+
+  await batch.commit();
 
   return {
     id: receiptNumber,
@@ -194,6 +247,7 @@ export async function recordSaleTransaction(input: SaleTransactionInput): Promis
     storeName: input.storeName,
     customerName: input.customerName?.trim() || '',
     customerNif: input.customerNif?.trim() || '',
+    customerPhone: input.customerPhone?.trim() || '',
     paymentMethod: input.paymentMethod,
     documentType: input.documentType,
     status: 'completed',
@@ -205,6 +259,8 @@ export async function recordSaleTransaction(input: SaleTransactionInput): Promis
     notes: input.notes?.trim() || '',
     items: receiptItems,
     subtotal,
+    amountPaid,
+    changeDue,
     totalCost,
     totalProfit,
     profitMargin,
@@ -224,8 +280,10 @@ export async function recordSale(
     userName: sale.userName,
     customerName: sale.customerName,
     customerNif: sale.customerNif,
+    customerPhone: sale.customerPhone,
     paymentMethod: sale.paymentMethod || 'cash',
     documentType: sale.documentType || 'internal_receipt',
+    amountPaid: sale.amountPaid,
     notes: sale.notes,
     items: [
       {
@@ -242,6 +300,9 @@ export async function recordSale(
     id: receipt.receiptNumber,
     receiptNumber: receipt.receiptNumber,
     status: 'completed',
+    customerPhone: receipt.customerPhone,
+    amountPaid: receipt.amountPaid,
+    changeDue: receipt.changeDue,
     timestamp: receipt.timestamp,
     createdAt: receipt.timestamp,
     updatedAt: receipt.timestamp,

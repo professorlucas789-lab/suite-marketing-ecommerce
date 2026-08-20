@@ -1349,6 +1349,7 @@ export default function App() {
                     <Suspense fallback={<LazyComponentLoader />}>
                       <SalesTab
                         products={products}
+                        settings={businessSettings}
                         onNotification={triggerNotification}
                       />
                     </Suspense>

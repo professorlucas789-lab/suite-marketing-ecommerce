@@ -3,17 +3,24 @@
  * Operational sales screen with cart, internal receipt and stock control.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { CheckCircle, Minus, Plus, Printer, Receipt, Search, Trash2 } from 'lucide-react';
-import { Product } from '../types';
-import { PaymentMethod, SaleReceipt, SaleTransactionInput } from '../types/sales';
+import { BusinessSettings, Product } from '../types';
+import { PaymentMethod, SaleDocumentType, SaleReceipt, SaleTransactionInput } from '../types/sales';
 import { recordSaleTransaction } from '../services/salesService';
 import { useStore } from '../contexts/StoreContext';
 import { formatKz } from '../utils';
+import {
+  calculateChangeDue,
+  getDefaultSaleDocumentType,
+  getSaleDocumentLabel,
+  validatePaymentAmount,
+} from '../utils/salesDocumentUtils';
 
 interface QuickSalesRecorderProps {
   products: Product[];
+  settings?: BusinessSettings | null;
   onSuccess?: (receipt: SaleReceipt) => void;
   onError?: (error: string) => void;
   onClose?: () => void;
@@ -62,25 +69,29 @@ function printReceipt(receipt: SaleReceipt) {
       <head>
         <title>${receipt.receiptNumber}</title>
         <style>
-          body { font-family: Arial, sans-serif; width: 320px; margin: 24px auto; color: #111827; }
-          h1 { font-size: 18px; margin: 0 0 4px; }
+          body { font-family: Arial, sans-serif; width: 360px; margin: 24px auto; color: #111827; }
+          h1 { font-size: 19px; margin: 0 0 4px; }
           .muted { color: #6b7280; font-size: 12px; }
           .section { border-top: 1px solid #e5e7eb; margin-top: 12px; padding-top: 12px; }
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
           th, td { padding: 6px 0; border-bottom: 1px dashed #e5e7eb; }
-          .total { font-size: 18px; font-weight: 700; display: flex; justify-content: space-between; }
+          .row { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; margin: 4px 0; }
+          .total { font-size: 18px; font-weight: 700; display: flex; justify-content: space-between; margin-top: 8px; }
           .notice { font-size: 11px; color: #6b7280; margin-top: 12px; line-height: 1.4; }
+          .stamp { border: 1px solid #111827; display: inline-block; padding: 4px 8px; font-size: 11px; font-weight: 700; margin-top: 8px; }
         </style>
       </head>
       <body>
         <h1>${receipt.storeName || 'PrecoCerto'}</h1>
-        <div class="muted">${receipt.documentType === 'internal_invoice_receipt' ? 'Fatura-recibo interna' : 'Recibo interno'}</div>
+        <div class="stamp">${getSaleDocumentLabel(receipt.documentType)}</div>
         <div class="muted">Documento: ${receipt.receiptNumber}</div>
-        <div class="muted">Data: ${receipt.date} ${receipt.time}</div>
+        <div class="muted">Emissão: ${receipt.date} ${receipt.time}</div>
         <div class="section">
           <div class="muted">Cliente: ${receipt.customerName || 'Consumidor final'}</div>
           <div class="muted">NIF: ${receipt.customerNif || 'N/A'}</div>
+          <div class="muted">Telefone: ${receipt.customerPhone || 'N/A'}</div>
           <div class="muted">Pagamento: ${paymentLabels[receipt.paymentMethod]}</div>
+          <div class="muted">Operador: ${receipt.userName || 'N/A'}</div>
         </div>
         <div class="section">
           <table>
@@ -90,9 +101,11 @@ function printReceipt(receipt: SaleReceipt) {
             <tbody>${lines}</tbody>
           </table>
         </div>
-        <div class="section total">
-          <span>Total</span>
-          <span>${formatKz(receipt.subtotal)}</span>
+        <div class="section">
+          <div class="row"><span>Subtotal</span><strong>${formatKz(receipt.subtotal)}</strong></div>
+          <div class="row"><span>Valor pago</span><strong>${formatKz(receipt.amountPaid ?? receipt.subtotal)}</strong></div>
+          <div class="row"><span>Troco</span><strong>${formatKz(receipt.changeDue || 0)}</strong></div>
+          <div class="total"><span>Total</span><span>${formatKz(receipt.subtotal)}</span></div>
         </div>
         <p class="notice">
           Documento interno de controlo comercial e estoque. Validar requisitos fiscais no sistema/portal autorizado da AGT antes de usar como documento fiscal oficial.
@@ -110,6 +123,7 @@ function printReceipt(receipt: SaleReceipt) {
 
 export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
   products,
+  settings,
   onSuccess,
   onError,
 }) => {
@@ -120,8 +134,10 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerNif, setCustomerNif] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
-  const [documentType, setDocumentType] = useState<'internal_receipt' | 'internal_invoice_receipt'>('internal_receipt');
+  const [documentType, setDocumentType] = useState<SaleDocumentType>(getDefaultSaleDocumentType(settings));
+  const [amountPaid, setAmountPaid] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -153,6 +169,23 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
     const margin = subtotal > 0 ? (profit / subtotal) * 100 : 0;
     return { subtotal, cost, profit, margin };
   }, [cart]);
+
+  useEffect(() => {
+    setDocumentType(getDefaultSaleDocumentType(settings));
+  }, [settings?.segmentConfig?.salesDocumentMode]);
+
+  useEffect(() => {
+    if (totals.subtotal > 0 && amountPaid === '') {
+      setAmountPaid(totals.subtotal.toFixed(2));
+    }
+  }, [totals.subtotal, amountPaid]);
+
+  const amountPaidNumber = paymentMethod === 'credit'
+    ? undefined
+    : amountPaid.trim() === ''
+      ? totals.subtotal
+      : Number(amountPaid);
+  const changeDue = calculateChangeDue(totals.subtotal, amountPaidNumber);
 
   const addToCart = () => {
     if (!selectedProduct?.id) return;
@@ -227,6 +260,14 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
       return;
     }
 
+    const paymentError = paymentMethod === 'credit'
+      ? null
+      : validatePaymentAmount(totals.subtotal, amountPaidNumber);
+    if (paymentError) {
+      setError(paymentError);
+      return;
+    }
+
     try {
       setLoading(true);
       const input: SaleTransactionInput = {
@@ -236,8 +277,10 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
         userName: currentUser.nome,
         customerName,
         customerNif,
+        customerPhone,
         paymentMethod,
         documentType,
+        amountPaid: amountPaidNumber,
         notes,
         items: cart.map((item) => ({
           productId: item.productId,
@@ -251,6 +294,8 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
       setCart([]);
       setCustomerName('');
       setCustomerNif('');
+      setCustomerPhone('');
+      setAmountPaid('');
       setNotes('');
       onSuccess?.(result);
     } catch (err) {
@@ -274,7 +319,7 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
             <CheckCircle className="w-10 h-10 text-emerald-600" />
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Venda finalizada</h3>
-              <p className="text-sm text-slate-500">Documento {receipt.receiptNumber}</p>
+              <p className="text-sm text-slate-500">{getSaleDocumentLabel(receipt.documentType)} {receipt.receiptNumber}</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -323,6 +368,14 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">Lucro estimado</span>
               <span className="font-semibold text-emerald-700">{formatKz(receipt.totalProfit)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Valor pago</span>
+              <span className="font-semibold">{formatKz(receipt.amountPaid ?? receipt.subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Troco</span>
+              <span className="font-semibold">{formatKz(receipt.changeDue || 0)}</span>
             </div>
             <div className="flex justify-between text-xl font-bold border-t border-slate-200 pt-2">
               <span>Total</span>
@@ -501,10 +554,21 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
           </div>
 
           <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone</label>
+            <input
+              type="text"
+              value={customerPhone}
+              onChange={(event) => setCustomerPhone(event.target.value)}
+              placeholder="Opcional"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+            />
+          </div>
+
+          <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Documento</label>
             <select
               value={documentType}
-              onChange={(event) => setDocumentType(event.target.value as any)}
+              onChange={(event) => setDocumentType(event.target.value as SaleDocumentType)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
             >
               <option value="internal_receipt">Recibo interno</option>
@@ -513,6 +577,19 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
             <p className="text-[11px] text-amber-700 mt-1">
               Documento interno; nao e emissao fiscal certificada pela AGT.
             </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Valor pago</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={amountPaid}
+              onChange={(event) => setAmountPaid(event.target.value)}
+              disabled={paymentMethod === 'credit'}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:bg-slate-100 disabled:text-slate-400"
+            />
           </div>
 
           <div>
@@ -551,6 +628,10 @@ export const QuickSalesRecorder: React.FC<QuickSalesRecorderProps> = ({
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">Margem</span>
               <span className="font-mono">{totals.margin.toFixed(1)}%</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Troco</span>
+              <span className="font-mono">{formatKz(changeDue)}</span>
             </div>
             <div className="flex justify-between text-xl font-black pt-2 border-t border-slate-200">
               <span>Total</span>

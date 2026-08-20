@@ -29,8 +29,11 @@ export interface SaleTransactionInput {
   userName?: string;
   customerName?: string;
   customerNif?: string;
+  customerPhone?: string;
   paymentMethod: PaymentMethod;
   documentType: SaleDocumentType;
+  amountPaid?: number;
+  changeDue?: number;
   notes?: string;
   items: SaleItemInput[];
 }
@@ -59,6 +62,7 @@ export interface SaleReceipt {
   storeName?: string;
   customerName?: string;
   customerNif?: string;
+  customerPhone?: string;
   paymentMethod: PaymentMethod;
   documentType: SaleDocumentType;
   status: SaleStatus;
@@ -70,6 +74,8 @@ export interface SaleReceipt {
   notes?: string;
   items: SaleReceiptItem[];
   subtotal: number;
+  amountPaid?: number;
+  changeDue?: number;
   totalCost: number;
   totalProfit: number;
   profitMargin: number;
@@ -120,7 +126,10 @@ export interface Sale {
   customerId?: string;
   customerName?: string;
   customerNif?: string;
+  customerPhone?: string;
   paymentMethod?: PaymentMethod;
+  amountPaid?: number;
+  changeDue?: number;
   notes?: string;
   cancelledAt?: string;
   cancelledBy?: string;
