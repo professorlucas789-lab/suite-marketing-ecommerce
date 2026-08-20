@@ -87,6 +87,14 @@ export const navigationConfig: NavigationConfig[] = [
     section: 'main',
   },
 
+  {
+    id: 'estoque',
+    label: 'Stock',
+    icon: 'PackageCheck',
+    roles: ['admin', 'loja-manager'],
+    section: 'main',
+  },
+
   // SECÇÃO DE GESTÃO - Apenas Admins
   {
     id: 'stores',

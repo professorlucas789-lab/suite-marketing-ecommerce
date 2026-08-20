@@ -90,6 +90,8 @@ describe("businessUnitMapping", () => {
     expect(isNavigationAllowedForUnit("edit-product", "posto_venda")).toBe(false);
     expect(isNavigationAllowedForUnit("batch-products", "posto_venda")).toBe(false);
     expect(isNavigationAllowedForUnit("products", "escritorio_central")).toBe(false);
+    expect(isNavigationAllowedForUnit("estoque", "armazem")).toBe(true);
+    expect(isNavigationAllowedForUnit("estoque", "escritorio_central")).toBe(false);
     expect(isNavigationAllowedForUnit("reports", "escritorio_central")).toBe(true);
   });
 

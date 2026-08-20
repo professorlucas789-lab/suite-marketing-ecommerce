@@ -43,6 +43,7 @@ const UserStoresDashboard = React.lazy(() => import("./components/UserStoresDash
 const UserProfileView = React.lazy(() => import("./components/UserProfileView").then(m => ({ default: m.UserProfileView })));
 const AdminDiagnostics = React.lazy(() => import("./components/AdminDiagnostics").then(m => ({ default: m.AdminDiagnostics })));
 const SalesTab = React.lazy(() => import("./components/SalesTab").then(m => ({ default: m.SalesTab })));
+const StockManagementView = React.lazy(() => import("./components/StockManagementView"));
 const MultiStoreComparisonDashboard = React.lazy(() => import("./components/MultiStoreComparisonDashboard").then(m => ({ default: m.MultiStoreComparisonDashboard })));
 const AlertMonitorPanel = React.lazy(() => import("./components/AlertMonitorPanel").then(m => ({ default: m.AlertMonitorPanel })));
 const TwilioConfigPanel = React.lazy(() => import("./components/TwilioConfigPanel").then(m => ({ default: m.TwilioConfigPanel })));
@@ -100,7 +101,8 @@ import {
   BarChart3, // NOVO (Fase 5B Item 3 - Custom Reports)
   Building2, // NOVO (Fase 6 - Multi-Store)
   Bell, // NOVO (Fase 4 - Alertas de Validade)
-  DollarSign // NOVO (Fase 6 - Módulo de Vendas)
+  DollarSign, // NOVO (Fase 6 - Módulo de Vendas)
+  PackageCheck // NOVO: Gestão de stock multi-unidade
 } from "lucide-react";
 
 export default function App() {
@@ -860,7 +862,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "vendas" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
+    id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "estoque" | "vendas" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -879,6 +881,7 @@ export default function App() {
     User: UserIcon,
     Settings,
     Database,
+    PackageCheck,
   };
 
   // NOVO (Fase 10 - RBAC): Gerar navigationItems dinamicamente baseado no papel
@@ -889,6 +892,7 @@ export default function App() {
     { id: "batch-products", label: "Cadastro em Lote", icon: Boxes }, // NOVO (Fase 3)
     { id: "categories", label: "Categorias", icon: Folder }, // NOVO (Fase 1)
     { id: "reverse-calculator", label: "Calculadora Reversa", icon: Calculator },
+    { id: "estoque", label: "Stock", icon: PackageCheck },
     { id: "stores", label: "Unidades", icon: Building2 }, // Base multi-negócio
     { id: "history", label: "Histórico", icon: History },
     { id: "reports", label: "Relatórios", icon: FileText },
@@ -1310,6 +1314,25 @@ export default function App() {
                         products={products}
                         settings={businessSettings}
                         userId={user.uid}
+                      />
+                    </Suspense>
+                  </motion.div>
+                )}
+
+                {activeTab === "estoque" && user && (
+                  <motion.div
+                    key="estoque-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <StockManagementView
+                        products={products}
+                        userId={user.uid}
+                        userName={user.displayName || user.email || ""}
+                        onNotification={triggerNotification}
                       />
                     </Suspense>
                   </motion.div>

@@ -604,6 +604,7 @@ export function isNavigationAllowedForUnit(itemId: string, unitType?: string): b
   if (["products", "reverse-calculator", "alertas"].includes(itemId)) {
     return rules.canManageProducts || rules.canManageStock;
   }
+  if (["estoque"].includes(itemId)) return rules.canManageStock;
   if (["categories"].includes(itemId)) return rules.canConfigurePricing || rules.canManageProducts;
   if (["reports", "history"].includes(itemId)) return rules.canViewReports;
 
