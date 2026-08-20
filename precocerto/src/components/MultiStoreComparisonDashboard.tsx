@@ -10,16 +10,22 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
+  CreditCard,
   Package,
   Percent,
   Award,
   AlertCircle,
   Zap,
   BarChart3,
+  WalletCards,
+  Landmark,
+  ReceiptText,
 } from 'lucide-react';
 import { useMultiStoreAnalytics } from '../hooks/useMultiStoreAnalytics';
 import { getPerformanceColor, generateStoreRecommendations } from '../services/multiStoreAnalyticsService';
 import { StorePerformance } from '../services/multiStoreAnalyticsService';
+import { useStore } from '../contexts/StoreContext';
+import { formatKz } from '../utils';
 
 interface MultiStoreComparisonDashboardProps {
   initialFromDate?: string;
@@ -30,7 +36,8 @@ export const MultiStoreComparisonDashboard: React.FC<MultiStoreComparisonDashboa
   initialFromDate,
   initialToDate,
 }) => {
-  const { comparison, loading, error, generateComparison, reset } = useMultiStoreAnalytics();
+  const { userStores } = useStore();
+  const { comparison, loading, error, generateComparison } = useMultiStoreAnalytics();
 
   const [dateRange, setDateRange] = useState({
     fromDate: initialFromDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -38,14 +45,14 @@ export const MultiStoreComparisonDashboard: React.FC<MultiStoreComparisonDashboa
   });
 
   const [expandedStore, setExpandedStore] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'ranking' | 'metrics' | 'recommendations'>('ranking');
+  const [activeTab, setActiveTab] = useState<'ranking' | 'financial' | 'metrics' | 'recommendations'>('ranking');
 
   useEffect(() => {
-    generateComparison(dateRange.fromDate, dateRange.toDate, 'Período Selecionado');
-  }, [dateRange]);
+    generateComparison(dateRange.fromDate, dateRange.toDate, 'Período Selecionado', userStores);
+  }, [dateRange.fromDate, dateRange.toDate, userStores.length]);
 
   const handleGenerateReport = () => {
-    generateComparison(dateRange.fromDate, dateRange.toDate, 'Período Selecionado');
+    generateComparison(dateRange.fromDate, dateRange.toDate, 'Período Selecionado', userStores);
   };
 
   if (!comparison && loading) {
@@ -57,7 +64,7 @@ export const MultiStoreComparisonDashboard: React.FC<MultiStoreComparisonDashboa
       >
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-slate-500 dark:text-slate-400">Carregando comparação de lojas...</p>
+          <p className="text-slate-500 dark:text-slate-400">Carregando visão consolidada...</p>
         </div>
       </motion.div>
     );
@@ -73,10 +80,10 @@ export const MultiStoreComparisonDashboard: React.FC<MultiStoreComparisonDashboa
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-blue-500 to-indigo-600 dark:from-blue-900 dark:to-indigo-800 rounded-lg p-6 text-white"
+        className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-6"
       >
-        <h1 className="text-2xl font-bold mb-2">🏪 Comparação Multi-Loja</h1>
-        <p className="text-blue-100">Análise consolidada de performance entre todas as lojas</p>
+        <h1 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">Visão Executiva Multi-Negócio</h1>
+        <p className="text-slate-500">Receita, margem, stock, caixa, contas a receber e contas a pagar por unidade.</p>
       </motion.div>
 
       {/* Date Range Selector */}
@@ -137,7 +144,7 @@ export const MultiStoreComparisonDashboard: React.FC<MultiStoreComparisonDashboa
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"
           >
             <KPICard
               icon={<DollarSign className="w-5 h-5" />}
@@ -145,6 +152,13 @@ export const MultiStoreComparisonDashboard: React.FC<MultiStoreComparisonDashboa
               value={comparison.consolidated.totalRevenue}
               format="currency"
               color="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+            />
+            <KPICard
+              icon={<WalletCards className="w-5 h-5" />}
+              label="Fluxo Líquido"
+              value={comparison.consolidated.netCashFlow}
+              format="currency"
+              color="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
             />
             <KPICard
               icon={<Percent className="w-5 h-5" />}
@@ -167,6 +181,34 @@ export const MultiStoreComparisonDashboard: React.FC<MultiStoreComparisonDashboa
               format="number"
               color="bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400"
             />
+            <KPICard
+              icon={<ReceiptText className="w-5 h-5" />}
+              label="A Receber"
+              value={comparison.consolidated.receivables}
+              format="currency"
+              color="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300"
+            />
+            <KPICard
+              icon={<CreditCard className="w-5 h-5" />}
+              label="A Pagar"
+              value={comparison.consolidated.payables}
+              format="currency"
+              color="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"
+            />
+            <KPICard
+              icon={<Landmark className="w-5 h-5" />}
+              label="Saldo Operacional"
+              value={comparison.consolidated.operationalBalance}
+              format="currency"
+              color="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+            />
+            <KPICard
+              icon={<AlertCircle className="w-5 h-5" />}
+              label="Pendente Conciliação"
+              value={comparison.consolidated.pendingReconciliation}
+              format="currency"
+              color="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300"
+            />
           </motion.div>
 
           {/* Navigation Tabs */}
@@ -176,9 +218,10 @@ export const MultiStoreComparisonDashboard: React.FC<MultiStoreComparisonDashboa
             className="flex gap-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-2"
           >
             {[
-              { id: 'ranking' as const, label: '🏆 Ranking', icon: Award },
-              { id: 'metrics' as const, label: '📊 Métricas', icon: BarChart3 },
-              { id: 'recommendations' as const, label: '💡 Recomendações', icon: Zap },
+              { id: 'ranking' as const, label: 'Ranking', icon: Award },
+              { id: 'financial' as const, label: 'Financeiro', icon: WalletCards },
+              { id: 'metrics' as const, label: 'Métricas', icon: BarChart3 },
+              { id: 'recommendations' as const, label: 'Recomendações', icon: Zap },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -187,8 +230,9 @@ export const MultiStoreComparisonDashboard: React.FC<MultiStoreComparisonDashboa
                   activeTab === tab.id
                     ? 'bg-blue-600 text-white'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
+                  }`}
               >
+                <tab.icon size={16} />
                 {tab.label}
               </button>
             ))}
@@ -220,6 +264,18 @@ export const MultiStoreComparisonDashboard: React.FC<MultiStoreComparisonDashboa
                     averageMargin={comparison.insights.averageMetrics.avgMargin}
                   />
                 ))}
+              </motion.div>
+            )}
+
+            {activeTab === 'financial' && (
+              <motion.div
+                key="financial"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <FinancialComparison comparison={comparison} />
               </motion.div>
             )}
 
@@ -338,7 +394,7 @@ const KPICard: React.FC<{
 }> = ({ icon, label, value, format, color }) => {
   let formattedValue = '';
   if (format === 'currency') {
-    formattedValue = `${(value / 1000).toFixed(1)}K Kz`;
+    formattedValue = formatKz(value);
   } else if (format === 'percentage') {
     formattedValue = `${value.toFixed(1)}%`;
   } else {
@@ -370,7 +426,6 @@ const StorePerformanceCard: React.FC<{
   averageMargin: number;
 }> = ({ store, rank, isExpanded, onToggle, averageMargin }) => {
   const colors = getPerformanceColor(store.trends.efficiency);
-  const medalEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '🏪';
 
   return (
     <motion.div
@@ -380,10 +435,14 @@ const StorePerformanceCard: React.FC<{
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">{medalEmoji}</span>
+          <span className={`w-9 h-9 rounded-lg ${colors.badge} flex items-center justify-center text-sm font-black`}>
+            {rank}
+          </span>
           <div>
             <p className={`${colors.text} font-bold text-lg`}>{store.storeName}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Ranking: #{store.rank}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {store.businessSegmentName || 'Negócio'} · {store.unitType || 'unidade'}
+            </p>
           </div>
         </div>
         <button className={`${colors.text} transition transform ${isExpanded ? 'rotate-180' : ''}`}>
@@ -396,7 +455,7 @@ const StorePerformanceCard: React.FC<{
         <div>
           <p className="text-xs text-slate-600 dark:text-slate-400">Receita</p>
           <p className={`${colors.text} font-bold`}>
-            {(store.metrics.totalRevenue / 1000).toFixed(0)}K Kz
+            {formatKz(store.metrics.totalRevenue)}
           </p>
         </div>
         <div>
@@ -422,7 +481,7 @@ const StorePerformanceCard: React.FC<{
               <div>
                 <p className="text-slate-600 dark:text-slate-400">Lucro Total</p>
                 <p className={`${colors.text} font-bold`}>
-                  {(store.metrics.totalProfit / 1000).toFixed(1)}K Kz
+                  {formatKz(store.metrics.totalProfit)}
                 </p>
               </div>
               <div>
@@ -432,12 +491,25 @@ const StorePerformanceCard: React.FC<{
               <div>
                 <p className="text-slate-600 dark:text-slate-400">Ticket Médio</p>
                 <p className={`${colors.text} font-bold`}>
-                  {store.metrics.avgTransactionValue.toFixed(0)} Kz
+                  {formatKz(store.metrics.avgTransactionValue)}
                 </p>
               </div>
               <div>
                 <p className="text-slate-600 dark:text-slate-400">Produtos</p>
                 <p className={`${colors.text} font-bold`}>{store.metrics.productCount}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-current border-opacity-20">
+              <div>
+                <p className="text-slate-600 dark:text-slate-400">Fluxo líquido</p>
+                <p className={`${store.metrics.netCashFlow >= 0 ? 'text-emerald-700' : 'text-red-700'} font-bold`}>
+                  {formatKz(store.metrics.netCashFlow)}
+                </p>
+              </div>
+              <div>
+                <p className="text-slate-600 dark:text-slate-400">A pagar</p>
+                <p className="text-red-700 font-bold">{formatKz(store.metrics.payables)}</p>
               </div>
             </div>
 
@@ -465,6 +537,59 @@ const StorePerformanceCard: React.FC<{
   );
 };
 
+const FinancialComparison: React.FC<{ comparison: any }> = ({ comparison }) => {
+  const stores = [...comparison.stores].sort((a: StorePerformance, b: StorePerformance) => b.metrics.operationalBalance - a.metrics.operationalBalance);
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-slate-900 dark:text-white">Financeiro por unidade</h2>
+      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-3 text-left">Unidade</th>
+                <th className="px-4 py-3 text-right">Entradas</th>
+                <th className="px-4 py-3 text-right">Saídas</th>
+                <th className="px-4 py-3 text-right">Fluxo</th>
+                <th className="px-4 py-3 text-right">A receber</th>
+                <th className="px-4 py-3 text-right">A pagar</th>
+                <th className="px-4 py-3 text-right">Saldo operacional</th>
+                <th className="px-4 py-3 text-right">Conciliação</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {stores.map((store: StorePerformance) => (
+                <tr key={store.storeId} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                  <td className="px-4 py-3">
+                    <p className="font-bold text-slate-900 dark:text-white">{store.storeName}</p>
+                    <p className="text-xs text-slate-500">{store.businessSegmentName || 'Negócio'} · {store.unitType || 'unidade'}</p>
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-emerald-700">{formatKz(store.metrics.cashIn)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-red-700">{formatKz(store.metrics.cashOut)}</td>
+                  <td className={`px-4 py-3 text-right font-mono font-bold ${store.metrics.netCashFlow >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {formatKz(store.metrics.netCashFlow)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-amber-700">{formatKz(store.metrics.receivables)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-red-700">{formatKz(store.metrics.payables)}</td>
+                  <td className={`px-4 py-3 text-right font-mono font-bold ${store.metrics.operationalBalance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {formatKz(store.metrics.operationalBalance)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-bold ${store.metrics.pendingReconciliation > 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                      {store.metrics.pendingReconciliation > 0 ? formatKz(store.metrics.pendingReconciliation) : 'Fechado'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /**
  * Metrics Comparison Component
  */
@@ -473,26 +598,31 @@ const MetricsComparison: React.FC<{ comparison: any }> = ({ comparison }) => {
     {
       name: 'Receita Total',
       key: 'totalRevenue',
-      format: (v: number) => `${(v / 1000).toFixed(1)}K Kz`,
+      consolidatedKey: 'totalRevenue',
+      format: (v: number) => formatKz(v),
     },
     {
       name: 'Lucro Total',
       key: 'totalProfit',
-      format: (v: number) => `${(v / 1000).toFixed(1)}K Kz`,
+      consolidatedKey: 'totalProfit',
+      format: (v: number) => formatKz(v),
     },
     {
       name: 'Margem Média',
       key: 'avgMargin',
+      consolidatedKey: 'avgMargin',
       format: (v: number) => `${v.toFixed(1)}%`,
     },
     {
       name: 'Unidades Vendidas',
       key: 'totalUnits',
+      consolidatedKey: 'totalUnits',
       format: (v: number) => v.toLocaleString('pt-AO'),
     },
     {
       name: 'Transações',
-      key: 'totalTransactions',
+      key: 'transactionCount',
+      consolidatedKey: 'totalTransactions',
       format: (v: number) => v.toLocaleString('pt-AO'),
     },
   ];
@@ -504,7 +634,7 @@ const MetricsComparison: React.FC<{ comparison: any }> = ({ comparison }) => {
         const stores = comparison.stores;
         const consolidated = comparison.consolidated;
         const metricValue =
-          (consolidated as any)[metric.key] || (metric.key === 'avgMargin' ? consolidated.avgMargin : 0);
+          (consolidated as any)[metric.consolidatedKey] || (metric.key === 'avgMargin' ? consolidated.avgMargin : 0);
 
         return (
           <div key={metric.name} className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
@@ -515,11 +645,12 @@ const MetricsComparison: React.FC<{ comparison: any }> = ({ comparison }) => {
                 .map((store: StorePerformance, idx: number) => {
                   const value = (store.metrics as any)[metric.key];
                   const percentage = metricValue > 0 ? (value / metricValue) * 100 : 0;
-                  const medalEmoji = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '';
 
                   return (
                     <div key={store.storeId} className="flex items-center gap-3">
-                      {medalEmoji && <span className="text-lg">{medalEmoji}</span>}
+                      <span className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center text-xs font-bold">
+                        {idx + 1}
+                      </span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
                           {store.storeName}
