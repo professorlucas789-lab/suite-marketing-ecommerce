@@ -4,9 +4,11 @@ import { ArrowLeft, Plus, Trash2, Save, AlertCircle } from "lucide-react";
 import { calculateProductFields } from "../utils/pricing";
 import { calculateProductPricesWithCategoryMargin } from "../utils/categoryUtils";
 import { useCategories } from "../hooks/useCategories";
+import { useMarkupTable } from "../hooks/useMarkupTable";
 import { useStore } from "../contexts/StoreContext";
 import { formatKz } from "../utils";
 import type { CategoryMarginConfig } from "../types/category";
+import { markupToMarginCategory } from "../utils/markupCategoryAdapter";
 
 interface BatchProductItem {
   id: string;
@@ -44,7 +46,17 @@ export default function BatchProductForm({
   const { currentStore, userStores } = useStore();
   const categoryStoreId = currentStore?.storeId || userStores[0]?.id || "";
   const storeName = currentStore?.storeName || userStores[0]?.nome;
-  const { categories, loading: categoriesLoading } = useCategories({ storeId: categoryStoreId });
+  const { categories: storedCategories, loading: categoriesLoading } = useCategories({ storeId: categoryStoreId });
+  const { markups, loading: markupsLoading } = useMarkupTable({ storeId: categoryStoreId });
+  const markupCategories = useMemo(
+    () =>
+      markups
+        .filter((markup) => markup.ativo !== false)
+        .map((markup) => markupToMarginCategory(markup, settings?.businessType || "outro")),
+    [markups, settings?.businessType]
+  );
+  const categories = markupCategories.length > 0 ? markupCategories : storedCategories;
+  const marginCategoriesLoading = markupsLoading || (markupCategories.length === 0 && categoriesLoading);
 
   const [items, setItems] = useState<BatchProductItem[]>([createEmptyItem("1")]);
   const [fornecedor, setFornecedor] = useState("");
@@ -406,7 +418,7 @@ export default function BatchProductForm({
                       />
                     </td>
                     <td className="py-3 px-2">
-                      {categoriesLoading ? (
+                      {marginCategoriesLoading ? (
                         <select disabled className="w-full px-2 py-1 border rounded text-xs bg-slate-100 text-slate-500">
                           <option>Carregando categorias...</option>
                         </select>

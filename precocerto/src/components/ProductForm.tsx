@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Product, BusinessSettings } from "../types";
 import { CATEGORY_PRESETS, formatKz } from "../utils";
 import { calculateProductFields, getPriceHealth } from "../utils/pricing";
@@ -12,6 +12,7 @@ import { PriceValidationBadge } from "./PriceValidationBadge"; // NOVO (Fase 13 
 import { obterMarkupPorNivel, sugerirFaixaPrecos } from "../utils/markupCalculation"; // NOVO (Fase 13)
 import { useRealtimePriceValidation } from "../hooks/usePriceValidation"; // NOVO (Fase 13 - Parte 3)
 import MarginSelector from "./MarginSelector"; // NOVO (Fase 13 - Margin Management)
+import { markupToMarginCategory } from "../utils/markupCategoryAdapter";
 import { motion } from "motion/react";
 import { 
   ArrowLeft, 
@@ -70,10 +71,19 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
 
   // NOVO (Fase 2): Categories and margin management
   // FIX #2: Passar storeId para o hook useCategories para evitar página branca
-  const { categories, loading: categoriesLoading } = useCategories({ storeId: categoryStoreId });
+  const { categories: storedCategories, loading: categoriesLoading } = useCategories({ storeId: categoryStoreId });
 
   // NOVO (Fase 13): Markup management
   const { markups, loading: markupsLoading } = useMarkupTable({ storeId: categoryStoreId });
+  const markupCategories = useMemo(
+    () =>
+      markups
+        .filter((markup) => markup.ativo !== false)
+        .map((markup) => markupToMarginCategory(markup, settings?.businessType || "outro")),
+    [markups, settings?.businessType]
+  );
+  const categories = markupCategories.length > 0 ? markupCategories : storedCategories;
+  const marginCategoriesLoading = markupsLoading || (markupCategories.length === 0 && categoriesLoading);
   const [markupLevelSelected, setMarkupLevelSelected] = useState<'minimo' | 'medio' | 'alto'>('medio');
   const [selectedMarkupCategory, setSelectedMarkupCategory] = useState<any>(null);
 
@@ -882,7 +892,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
 
               {/* NOVO (Fase 13): Advanced Margin Selector */}
               <div className="sm:col-span-2">
-                {categoriesLoading ? (
+                {marginCategoriesLoading ? (
                   <div className="p-4 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-500">
                     Carregando categorias...
                   </div>
