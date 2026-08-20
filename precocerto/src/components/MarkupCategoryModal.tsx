@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { MarkupCategory } from '../types/markup';
 import { calcularMargemReal } from '../types/markup';
+import type { MarkupApplyScope } from '../utils/pharmacyMarkupScope';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Loader2, AlertCircle } from 'lucide-react';
 
@@ -15,6 +16,8 @@ interface MarkupCategoryModalProps {
   markup?: MarkupCategory | null;
   onClose: () => void;
   onSave: (markupId: string | undefined, data: any) => Promise<void>;
+  enableScopeSelection?: boolean;
+  currentStoreName?: string;
 }
 
 export const MarkupCategoryModal: React.FC<MarkupCategoryModalProps> = ({
@@ -22,6 +25,8 @@ export const MarkupCategoryModal: React.FC<MarkupCategoryModalProps> = ({
   markup,
   onClose,
   onSave,
+  enableScopeSelection = false,
+  currentStoreName = 'farmácia atual',
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -34,6 +39,7 @@ export const MarkupCategoryModal: React.FC<MarkupCategoryModalProps> = ({
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [applyScope, setApplyScope] = useState<MarkupApplyScope>('current-store');
 
   // Calcular margem real com base no markup padrão
   const getMarkupValue = () => {
@@ -70,6 +76,7 @@ export const MarkupCategoryModal: React.FC<MarkupCategoryModalProps> = ({
         criterioUso: '',
       });
     }
+    setApplyScope('current-store');
     setError(null);
   }, [markup, isOpen]);
 
@@ -129,7 +136,7 @@ export const MarkupCategoryModal: React.FC<MarkupCategoryModalProps> = ({
 
     try {
       setSaving(true);
-      await onSave(markup?.id, formData);
+      await onSave(markup?.id, markup ? formData : { ...formData, applyScope });
       onClose();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao salvar';
@@ -203,6 +210,25 @@ export const MarkupCategoryModal: React.FC<MarkupCategoryModalProps> = ({
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 transition-colors"
                   />
                 </div>
+
+                {!markup && enableScopeSelection && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                      Aplicar categoria em
+                    </label>
+                    <select
+                      value={applyScope}
+                      onChange={(event) => setApplyScope(event.target.value as MarkupApplyScope)}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 transition-colors"
+                    >
+                      <option value="current-store">Apenas {currentStoreName}</option>
+                      <option value="all-pharmacies">Todas as farmácias ativas</option>
+                    </select>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                      Esta opção só afeta estabelecimentos do tipo farmácia.
+                    </p>
+                  </div>
+                )}
 
                 {/* Critério de Uso */}
                 <div>

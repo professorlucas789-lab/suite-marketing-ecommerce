@@ -17,6 +17,8 @@ interface MarkupTableProps {
   onUpdate: (markupId: string, updates: any) => Promise<void>;
   onCreate: (data: any) => Promise<void>;
   onDelete: (markupId: string) => Promise<void>;
+  enableScopeSelection?: boolean;
+  currentStoreName?: string;
 }
 
 export const MarkupTable: React.FC<MarkupTableProps> = ({
@@ -26,6 +28,8 @@ export const MarkupTable: React.FC<MarkupTableProps> = ({
   onUpdate,
   onCreate,
   onDelete,
+  enableScopeSelection = false,
+  currentStoreName,
 }) => {
   const [showModal, setShowModal] = useState(false);
   const [editingMarkup, setEditingMarkup] = useState<MarkupCategory | null>(null);
@@ -60,6 +64,15 @@ export const MarkupTable: React.FC<MarkupTableProps> = ({
     } finally {
       setDeleting(null);
     }
+  };
+
+  const handleModalSave = async (markupId: string | undefined, data: any) => {
+    if (editingMarkup && markupId) {
+      await onUpdate(markupId, data);
+      return;
+    }
+
+    await onCreate(data);
   };
 
   if (loading) {
@@ -190,6 +203,13 @@ export const MarkupTable: React.FC<MarkupTableProps> = ({
                           {markup.criterioUso}
                         </p>
                       )}
+                      <span className={`inline-flex mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        markup.scope === 'businessType'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200'
+                          : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      }`}>
+                        {markup.scope === 'businessType' ? 'Todas as farmácias' : 'Local'}
+                      </span>
                     </div>
                   </td>
 
@@ -272,7 +292,9 @@ export const MarkupTable: React.FC<MarkupTableProps> = ({
           isOpen={showModal}
           markup={editingMarkup}
           onClose={handleModalClose}
-          onSave={editingMarkup ? onUpdate : onCreate}
+          onSave={handleModalSave}
+          enableScopeSelection={enableScopeSelection}
+          currentStoreName={currentStoreName}
         />
       )}
     </div>

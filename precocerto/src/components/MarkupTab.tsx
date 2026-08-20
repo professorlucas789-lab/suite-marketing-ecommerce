@@ -8,18 +8,31 @@
 import React from 'react';
 import { useStore } from '../contexts/StoreContext';
 import { useMarkupTable } from '../hooks/useMarkupTable';
+import { upsertMarkupCategoryForPharmacies } from '../services/markupService';
 import { MarkupTable } from './MarkupTable';
 import { AlertCircle, Building2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import {
+  canApplyMarkupToAllPharmacies,
+  PHARMACY_BUSINESS_TYPE,
+} from '../utils/pharmacyMarkupScope';
 
 export const MarkupTab: React.FC = () => {
-  const { currentStore, userStores } = useStore();
+  const { currentStore, currentUser, userStores } = useStore();
 
   // Usar storeId atual, ou primeira loja se não houver
   const storeId = currentStore?.storeId || userStores[0]?.id;
+  const selectedStore = userStores.find(s => s.id === storeId);
+  const storeType = currentStore?.storeType || selectedStore?.tipo;
+  const isPharmacyStore = storeType === PHARMACY_BUSINESS_TYPE;
+  const enableScopeSelection = canApplyMarkupToAllPharmacies({
+    role: currentUser?.papel,
+    currentStoreType: storeType,
+    stores: userStores,
+  });
 
   const { markups, loading, error, actions } = useMarkupTable({
-    storeId: storeId || '',
+    storeId: isPharmacyStore ? storeId || '' : '',
   });
 
   if (!storeId) {
@@ -44,13 +57,54 @@ export const MarkupTab: React.FC = () => {
     );
   }
 
-  const storeName = userStores.find(s => s.id === storeId)?.nome || currentStore?.storeName || 'Desconhecida';
+  const storeName = selectedStore?.nome || currentStore?.storeName || 'Desconhecida';
+
+  if (!isPharmacyStore) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded-lg p-6"
+      >
+        <div className="flex gap-3">
+          <AlertCircle className="w-6 h-6 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+          <div>
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">
+              Markups farmacêuticos indisponíveis
+            </h3>
+            <p className="text-sm text-slate-700 dark:text-slate-300 mt-1">
+              Esta configuração é exclusiva para lojas do tipo farmácia. Selecione uma farmácia para gerir margens farmacêuticas.
+            </p>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
 
   const handleCreate = async (data: any) => {
     try {
-      await actions.create(data);
+      const { applyScope, ...markupData } = data;
+
+      if (applyScope === 'all-pharmacies' && enableScopeSelection) {
+        const results = await upsertMarkupCategoryForPharmacies(storeId, markupData);
+        const failed = results.filter(result => result.action === 'failed');
+
+        if (failed.length > 0) {
+          throw new Error(`Categoria aplicada parcialmente. Falhou em ${failed.length} farmácia(s).`);
+        }
+
+        return;
+      }
+
+      await actions.create({
+        ...markupData,
+        businessType: PHARMACY_BUSINESS_TYPE,
+        scope: 'store',
+        source: 'local',
+      });
     } catch (err) {
       console.error('Erro ao criar markup:', err);
+      throw err;
     }
   };
 
@@ -103,9 +157,8 @@ export const MarkupTab: React.FC = () => {
         className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg p-4"
       >
         <p className="text-sm text-blue-900 dark:text-blue-200">
-          <strong>💡 Dica:</strong> Configure as margens de lucro desejadas para cada categoria de produtos.
-          Os valores são aplicados automaticamente ao criar novos produtos. Você pode ter configurações
-          diferentes para cada loja (Zango, Viana, etc).
+          <strong>Nota:</strong> Esta tabela é exclusiva para farmácias. Ao criar uma categoria, o admin pode aplicar apenas nesta farmácia
+          ou em todas as farmácias ativas; outros tipos de negócio não são afetados.
         </p>
       </motion.div>
 
@@ -117,6 +170,8 @@ export const MarkupTab: React.FC = () => {
         onUpdate={handleUpdate}
         onCreate={handleCreate}
         onDelete={handleDelete}
+        enableScopeSelection={enableScopeSelection}
+        currentStoreName={storeName}
       />
     </div>
   );
