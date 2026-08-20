@@ -39,5 +39,6 @@ describe("markupCategoryAdapter", () => {
         recommendedMargin: 45,
       },
     });
+    expect((category as any).calculationMode).toBe("markup");
   });
 });

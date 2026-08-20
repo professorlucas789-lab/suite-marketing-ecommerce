@@ -24,7 +24,7 @@ export function markupToMarginCategory(
   const maxMargin = levels.length > 0 ? Math.max(...levels) : baseMargin;
   const now = markup.atualizadoEm || markup.criadoEm || new Date().toISOString();
 
-  return {
+  const category: CategoryMarginConfig = {
     id: markup.id,
     storeId: markup.storeId,
     name: markup.name,
@@ -44,4 +44,6 @@ export function markupToMarginCategory(
     createdAt: markup.criadoEm || now,
     updatedAt: now,
   };
+
+  return Object.assign(category, { calculationMode: "markup" as const });
 }
