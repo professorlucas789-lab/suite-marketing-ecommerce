@@ -46,6 +46,7 @@ export interface Product {
   modoCalculo?: "manual" | "lote";
   quantidade?: number; // Qtd comprada do lote
   quantidadeDisponivel?: number;
+  quantidadeDisponível?: number; // Alias legado com acento usado por módulos antigos
   quantidadeVendida?: number;
 
   // Tipos de cálculo de custos adicionais ("unidade" | "lote")
@@ -116,6 +117,7 @@ export interface Product {
   };
 
   precoVendaRecomendado: number;
+  preco?: number; // Alias legado para relatórios antigos
   lucroEstimado: number;
   margemReal: number; // in %
   roi?: number; // in %
@@ -123,6 +125,7 @@ export interface Product {
   userId: string;
   createdAt: string; // ISO String
   updatedAt: string; // ISO String
+  dataCriacao?: string; // Alias legado usado em exportações
 
   // Novas propriedades da Fase 4: Conversão de Embalagem / Retalho
   tipoProduto?: string; // "produto comum" | "medicamento/farmácia" | "cosmético" | "alimentar" | "material escolar/escritório" | "outro"
@@ -213,6 +216,7 @@ export interface BusinessSettings {
 
   // NOVO: Margem padrão da empresa
   defaultMargin?: number; // Margem padrão para novos produtos (%)
+  taxRate?: number; // Alias legado para taxa/imposto padrão
 
   // NOVO (Fase 1): Framework regulatório (referência global)
   regulatoryFramework?: {

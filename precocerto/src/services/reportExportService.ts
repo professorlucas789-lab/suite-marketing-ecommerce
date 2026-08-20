@@ -52,7 +52,10 @@ export function prepareConsolidatedReport(
   };
 
   return {
-    period: salesReport.period,
+    period: {
+      ...salesReport.period,
+      label: salesReport.period.label || `${salesReport.period.from} a ${salesReport.period.to}`,
+    },
     storeName,
     generatedAt: new Date().toISOString(),
     sales: salesReport,

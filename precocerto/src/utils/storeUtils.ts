@@ -72,6 +72,16 @@ export async function updateStore(storeId: string, updates: Partial<Store>) {
 
     await updateDoc(storeRef, updateData);
 
+    const mudancas = Object.fromEntries(
+      Object.entries(updates).map(([campo, novo]) => [
+        campo,
+        {
+          anterior: null,
+          novo,
+        },
+      ])
+    );
+
     // Registar auditoria
     await logAudit({
       acao: 'atualizar',
@@ -81,7 +91,7 @@ export async function updateStore(storeId: string, updates: Partial<Store>) {
       storeId: storeId,
       userId: user.uid,
       userName: user.displayName || user.email || 'Desconhecido',
-      mudancas: updates,
+      mudancas,
     });
   } catch (error) {
     console.error('Erro ao atualizar loja:', error);

@@ -13,7 +13,6 @@ import {
   getStoreTypeLabel,
   STORE_TYPE_OPTIONS,
 } from '../utils/businessUnitMapping';
-import { useStoreStats } from '../hooks/useStoreData';
 import { Loader2, AlertCircle, TrendingUp, Users, Package, BarChart3, Filter } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -85,20 +84,22 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
     }
   });
 
+  const storeStatsList = Array.from(storesStats.values()) as StoreStats[];
+
   // Calcular KPIs consolidados
   const totalStores = stores.length;
-  const totalProdutos = Array.from(storesStats.values()).reduce(
+  const totalProdutos = storeStatsList.reduce(
     (sum, stats) => sum + (stats?.totalProdutos || 0),
     0
   );
-  const totalUtilizadores = Array.from(storesStats.values()).reduce(
+  const totalUtilizadores = storeStatsList.reduce(
     (sum, stats) => sum + (stats?.totalUtilizadores || 0),
     0
   );
   const margemMediaGlobal =
-    Array.from(storesStats.values()).reduce((sum, stats) => sum + (stats?.margemMedia || 0), 0) /
+    storeStatsList.reduce((sum, stats) => sum + (stats?.margemMedia || 0), 0) /
     (storesStats.size || 1);
-  const valorTotalStockGlobal = Array.from(storesStats.values()).reduce(
+  const valorTotalStockGlobal = storeStatsList.reduce(
     (sum, stats) => sum + (stats?.valorTotalStock || 0),
     0
   );

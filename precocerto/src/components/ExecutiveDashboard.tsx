@@ -19,7 +19,7 @@ import { Product } from '../types';
 import { Sale } from '../types/sales';
 import { useSalesAnalytics } from '../hooks/useSalesAnalytics';
 import { useExpiryAlerts } from '../hooks/useExpiryAlerts';
-import { useStockAlerts } from '../hooks/useStockAlerts';
+import { useLowStockAlerts } from '../hooks/useLowStockAlerts';
 import { useStore } from '../contexts/StoreContext';
 
 interface ExecutiveDashboardProps {
@@ -29,8 +29,9 @@ interface ExecutiveDashboardProps {
 export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ products }) => {
   const { currentStore } = useStore();
   const { kpis, generateReport } = useSalesAnalytics();
-  const { alerts: expiryAlerts } = useExpiryAlerts();
-  const { alerts: stockAlerts } = useStockAlerts();
+  const [expiryAlertsState] = useExpiryAlerts(currentStore?.storeId || '');
+  const { lowStockProducts } = useLowStockAlerts({ products, defaultMinQuantity: 10 });
+  const expiryAlerts = expiryAlertsState.alerts;
 
   const [todaysSales, setTodaysSales] = useState<Sale[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<'revenue' | 'profit' | 'units'>('revenue');
@@ -70,7 +71,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ products
   // Alertas críticos (combinar todos os alertas)
   const criticalAlerts = [
     ...expiryAlerts.filter((a) => a.severity === 'CRITICAL').slice(0, 2),
-    ...stockAlerts.filter((a) => a.severity === 'CRITICAL').slice(0, 2),
+    ...lowStockProducts
+      .filter((item) => item.isCritical)
+      .map((item) => ({
+        id: item.product.id || item.product.nome,
+        productName: item.product.nome,
+        message: `Stock crítico: ${item.quantidadeDisponivel} unidade(s) disponível(is).`,
+      }))
+      .slice(0, 2),
   ].slice(0, 4);
 
   return (
@@ -240,7 +248,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ products
                         {alert.productName}
                       </p>
                       <p className="text-xs text-red-700 dark:text-red-300 truncate">
-                        {alert.message}
+                        {'message' in alert
+                          ? alert.message
+                          : `${alert.productName} expira em ${alert.daysUntilExpiry} dia(s).`}
                       </p>
                     </div>
                   </motion.div>

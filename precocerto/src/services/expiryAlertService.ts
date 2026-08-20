@@ -252,7 +252,7 @@ export class ExpiryAlertService {
       );
 
       // Registrar sucesso/falha
-      const notificationIds: Record<NotificationChannel, string> = {};
+      const notificationIds: Partial<Record<NotificationChannel, string>> = {};
       alert.channels.forEach((channel, index) => {
         if (results[index].success && results[index].messageId) {
           notificationIds[channel] = results[index].messageId!;

@@ -7,7 +7,6 @@
 import { db } from '../firebase';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { sendNotificationMultiChannel, NotificationPayload, AlertSeverity } from './notificationChannelService';
-import { userManagementService } from './userManagementService';
 
 export interface AlertRule {
   id: string;

@@ -75,6 +75,7 @@ export function useUserAuth(): AuthUserData {
                   },
                   ativo: true,
                   dataCriacao: new Date().toISOString(),
+                  criadoPor: fbUser.uid,
                 };
 
                 await setDoc(doc(db, 'users', fbUser.uid), defaultUser);

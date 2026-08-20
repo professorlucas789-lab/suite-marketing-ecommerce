@@ -15,6 +15,13 @@ import {
   DocumentData,
 } from 'firebase/firestore';
 import { useStore } from '../contexts/StoreContext';
+import { StoreStats } from '../types/store';
+
+type StoreActivityRecord = {
+  id: string;
+  timestamp?: string;
+  [key: string]: any;
+};
 
 /**
  * Hook para obter produtos de uma loja em tempo real
@@ -143,14 +150,14 @@ export function useStoreActivity(storeId?: string, limit: number = 50) {
       const unsubscribe = onSnapshot(
         q,
         (snapshot) => {
-          const data = snapshot.docs
-            .map((doc) => ({
+          const data: StoreActivityRecord[] = snapshot.docs
+            .map((doc): StoreActivityRecord => ({
               id: doc.id,
               ...doc.data(),
             }))
             .sort((a, b) => {
-              const timeA = new Date(a.timestamp).getTime();
-              const timeB = new Date(b.timestamp).getTime();
+              const timeA = new Date(a.timestamp || 0).getTime();
+              const timeB = new Date(b.timestamp || 0).getTime();
               return timeB - timeA; // Mais recentes primeiro
             })
             .slice(0, limit);
@@ -180,7 +187,7 @@ export function useStoreActivity(storeId?: string, limit: number = 50) {
  */
 export function useStoreStats(storeId?: string) {
   const { currentStore } = useStore();
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<StoreStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -232,11 +239,17 @@ export function useStoreStats(storeId?: string) {
       }
 
       setStats({
+        storeId: store,
+        storeName: currentStore?.storeName || '',
         totalProdutos,
+        produtosAtivos: totalProdutos,
         totalUtilizadores,
         precoMedio: Math.round(precoMedio * 100) / 100,
         margemMedia: Math.round(margemMedia * 100) / 100,
         valorTotalStock: Math.round(valorTotalStock * 100) / 100,
+        utilizadoresOnline: 0,
+        produtosAdicionadosSemana: 0,
+        produtosAlteradosSemana: 0,
         ultimaAtualizacao: new Date().toISOString(),
       });
 
@@ -246,7 +259,7 @@ export function useStoreStats(storeId?: string) {
     } finally {
       setLoading(false);
     }
-  }, [store]);
+  }, [store, currentStore?.storeName]);
 
   useEffect(() => {
     calculateStats();

@@ -8,7 +8,7 @@
  * - Canais de Entrega (In-app, Email, WhatsApp)
  */
 
-export type NotificationChannel = 'in-app' | 'email' | 'whatsapp' | 'sms';
+export type NotificationChannel = 'in-app' | 'email' | 'whatsapp' | 'sms' | 'telegram';
 export type AlertSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
 
 /**
@@ -87,6 +87,7 @@ export interface AlertHistory {
     channelsSent?: NotificationChannel[];
     reason?: string;
     nextAction?: string;
+    daysUntilExpiry?: number;
   };
 }
 

@@ -461,7 +461,7 @@ export function usePredictive() {
         start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         end: new Date().toISOString().split('T')[0],
       },
-      storeIds: [...new Set(models.map((m) => m.storeId))],
+      storeIds: Array.from(new Set(models.map((m) => m.storeId))) as string[],
       summary: {
         activePredictions: predictions.filter((p) => new Date(p.validUntil) > new Date()).length,
         activeAnomalies: anomalies.filter((a) => a.detected).length,

@@ -233,8 +233,8 @@ export function PerformanceChart({
     const radius = 40;
 
     let currentAngle = -90;
-    const slices: JSX.Element[] = [];
-    const labels: JSX.Element[] = [];
+    const slices: React.ReactElement[] = [];
+    const labels: React.ReactElement[] = [];
 
     data.forEach((item, idx) => {
       const sliceAngle = (item.value / total) * 360;

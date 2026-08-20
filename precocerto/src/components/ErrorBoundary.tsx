@@ -1,4 +1,4 @@
-import React, { ReactNode, ReactElement } from 'react';
+import { Component, ReactNode, ReactElement, ErrorInfo } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -9,7 +9,10 @@ interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends React.Component<Props, State> {
+export class ErrorBoundary extends Component<Props, State> {
+  declare props: Props;
+  declare state: State;
+
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -19,7 +22,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('❌ ERROR BOUNDARY CAUGHT:', error);
     console.error('📍 Error Info:', errorInfo);
   }

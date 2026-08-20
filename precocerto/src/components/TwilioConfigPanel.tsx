@@ -41,22 +41,22 @@ export const TwilioConfigPanel: React.FC = () => {
   // Carregar credenciais guardadas
   useEffect(() => {
     const loadCredentials = async () => {
-      if (!user?.uid) return;
-      const saved = await getTwilioCredentialsFromFirestore(user.uid);
+      if (!user?.id) return;
+      const saved = await getTwilioCredentialsFromFirestore(user.id);
       if (saved) {
         setCredentials(saved);
         setValidated(true);
       }
     };
     loadCredentials();
-  }, [user?.uid]);
+  }, [user?.id]);
 
   const handleSaveCredentials = async () => {
-    if (!user?.uid) return;
+    if (!user?.id) return;
 
     try {
       setLoading(true);
-      const saved = await saveTwilioCredentialsToFirestore(user.uid, credentials);
+      const saved = await saveTwilioCredentialsToFirestore(user.id, credentials);
       if (saved) {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);

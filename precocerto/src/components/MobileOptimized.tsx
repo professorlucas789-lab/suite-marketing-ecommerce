@@ -3,6 +3,7 @@ import React, { ReactNode } from 'react';
 interface TouchFriendlyButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
+  className?: string;
   variant?: 'primary' | 'secondary' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   fullWidth?: boolean;

@@ -151,9 +151,10 @@ export function useAudit() {
       const userActivity = Array.from(
         new Set(filtered.map((e) => e.userId))
       ).map((userId) => {
-        const userEntries = filtered.filter((e) => e.userId === userId);
+        const userIdValue = String(userId);
+        const userEntries = filtered.filter((e) => e.userId === userIdValue);
         return {
-          userId,
+          userId: userIdValue,
           userName: userEntries[0]?.userName || 'Unknown',
           actionCount: userEntries.length,
           lastActivity: userEntries[0]?.timestamp || '',

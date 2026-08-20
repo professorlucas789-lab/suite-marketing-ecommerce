@@ -129,6 +129,7 @@ export interface AuditLog {
       novo: any;
     };
   };
+  metadata?: Record<string, any>;
 
   timestamp: string; // ISO 8601
   ip?: string;
@@ -203,6 +204,7 @@ export interface StoreStats {
   storeId: string;
   storeName: string;
   totalProdutos: number;
+  totalUtilizadores: number;
   produtosAtivos: number;
   precoMedio: number;
   margemMedia: number;

@@ -11,6 +11,8 @@
 
 import { NotificationChannel, NotificationSendResponse } from '../types/notifications';
 
+export type { NotificationSendResponse };
+
 /**
  * Configuração de cada canal de notificação
  */

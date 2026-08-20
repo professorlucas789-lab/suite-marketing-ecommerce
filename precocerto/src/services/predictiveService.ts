@@ -87,7 +87,9 @@ export class PredictiveService {
   /**
    * Detectar sazonalidade em dados
    */
-  static detectSeasonality(data: DataPoint[]): { detected: boolean; pattern: string; amplitude: number } {
+  static detectSeasonality(
+    data: DataPoint[]
+  ): { detected: boolean; pattern: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'NONE'; amplitude: number } {
     if (data.length < 14) {
       return { detected: false, pattern: 'NONE', amplitude: 0 };
     }
