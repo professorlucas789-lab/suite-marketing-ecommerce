@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Customer, CustomerPaymentInput } from '../types/customers';
+import type { FinancialTransaction } from '../types/finance';
 import { calculateCustomerBalance, validateCustomerPayment } from '../utils/customerLedgerUtils';
 
 const roundMoney = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
@@ -86,6 +87,7 @@ export async function recordCustomerPayment(input: CustomerPaymentInput): Promis
   const balanceAfter = calculateCustomerBalance(customer.currentBalance || 0, 'payment', amount);
   const batch = writeBatch(db);
   const ledgerRef = doc(collection(db, 'customerLedger'));
+  const financeRef = doc(collection(db, 'financialTransactions'));
 
   batch.update(customerRef, {
     currentBalance: balanceAfter,
@@ -107,6 +109,24 @@ export async function recordCustomerPayment(input: CustomerPaymentInput): Promis
     description: input.notes?.trim() || `Pagamento de cliente ${customer.name}`,
     createdAt: timestamp,
   }));
+
+  batch.set(financeRef, cleanForFirestore({
+    storeId: input.storeId,
+    storeName: input.storeName,
+    userId: input.userId,
+    userName: input.userName,
+    direction: 'in',
+    type: 'customer_payment',
+    amount,
+    paymentMethod: input.paymentMethod,
+    description: input.notes?.trim() || `Pagamento de cliente ${customer.name}`,
+    sourceId: input.customerId,
+    sourceType: 'customer',
+    partnerId: input.customerId,
+    partnerName: customer.name,
+    occurredAt: timestamp,
+    createdAt: timestamp,
+  } satisfies FinancialTransaction));
 
   await batch.commit();
 }

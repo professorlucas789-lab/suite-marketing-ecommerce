@@ -9,6 +9,7 @@ import {
 import { db } from '../firebase';
 import type { Product } from '../types';
 import type { StockMovement } from '../types/stock';
+import type { FinancialTransaction } from '../types/finance';
 import type { PurchaseLine, PurchaseReceipt, PurchaseReceiptInput, Supplier } from '../types/purchasing';
 import {
   calculatePurchaseLineTotal,
@@ -191,6 +192,7 @@ export async function recordPurchaseReceipt(input: PurchaseReceiptInput): Promis
     invoiceNumber: input.invoiceNumber.trim(),
     invoiceDate: input.invoiceDate,
     paymentStatus: input.paymentStatus,
+    paymentMethod: input.paymentMethod,
     amountPaid: payment.amountPaid,
     balanceDue: payment.balanceDue,
     totalAmount,
@@ -201,6 +203,26 @@ export async function recordPurchaseReceipt(input: PurchaseReceiptInput): Promis
   };
 
   batch.set(purchaseRef, cleanForFirestore(purchase));
+  if (payment.amountPaid > 0) {
+    const financeRef = doc(collection(db, 'financialTransactions'));
+    batch.set(financeRef, cleanForFirestore({
+      storeId: input.storeId,
+      storeName: input.storeName,
+      userId: input.userId,
+      userName: input.userName,
+      direction: 'out',
+      type: 'purchase_payment',
+      amount: payment.amountPaid,
+      paymentMethod: input.paymentMethod || (input.paymentStatus === 'paid' ? 'compra_paga' : 'pagamento_parcial'),
+      description: `Pagamento da compra ${receiptNumber}`,
+      sourceId: purchaseRef.id,
+      sourceType: 'purchase',
+      partnerId: supplier.id,
+      partnerName: supplier.name,
+      occurredAt: timestamp,
+      createdAt: timestamp,
+    } satisfies FinancialTransaction));
+  }
   batch.update(supplierRef, {
     currentPayable: roundMoney((supplier.currentPayable || 0) + payment.balanceDue),
     lastPurchaseAt: timestamp,

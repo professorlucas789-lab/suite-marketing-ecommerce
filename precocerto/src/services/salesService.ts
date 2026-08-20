@@ -32,6 +32,7 @@ import {
 import { calculateChangeDue, saleDocumentPrefixes, validatePaymentAmount } from '../utils/salesDocumentUtils';
 import type { StockMovement } from '../types/stock';
 import type { Customer } from '../types/customers';
+import type { FinancialTransaction } from '../types/finance';
 import { calculateCustomerBalance, validateCreditSale } from '../utils/customerLedgerUtils';
 
 const roundMoney = (value: number) => Math.round((value || 0) * 100) / 100;
@@ -275,6 +276,27 @@ export async function recordSaleTransaction(input: SaleTransactionInput): Promis
       description: `Venda a crédito ${receiptNumber}`,
       createdAt: timestamp,
     }));
+  }
+
+  if (input.paymentMethod !== 'credit' && subtotal > 0) {
+    const financeRef = doc(collection(db, 'financialTransactions'));
+    batch.set(financeRef, cleanForFirestore({
+      storeId: input.storeId,
+      storeName: input.storeName,
+      userId: input.userId,
+      userName: input.userName,
+      direction: 'in',
+      type: 'sale_income',
+      amount: subtotal,
+      paymentMethod: input.paymentMethod,
+      description: `Venda ${receiptNumber}`,
+      sourceId: receiptNumber,
+      sourceType: 'sale',
+      partnerId: input.customerId,
+      partnerName: customerForCredit?.name || input.customerName?.trim() || 'Consumidor final',
+      occurredAt: timestamp,
+      createdAt: timestamp,
+    } satisfies FinancialTransaction));
   }
 
   pendingSales.forEach(({ ref, data }) => {

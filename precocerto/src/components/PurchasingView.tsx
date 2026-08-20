@@ -53,6 +53,7 @@ export default function PurchasingView({ products, onNotification }: PurchasingV
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentStatus, setPaymentStatus] = useState<PurchasePaymentStatus>('paid');
+  const [purchasePaymentMethod, setPurchasePaymentMethod] = useState('transfer');
   const [amountPaid, setAmountPaid] = useState('');
   const [purchaseNotes, setPurchaseNotes] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
@@ -191,6 +192,7 @@ export default function PurchasingView({ products, onNotification }: PurchasingV
         invoiceNumber,
         invoiceDate,
         paymentStatus,
+        paymentMethod: purchasePaymentMethod,
         amountPaid: amountPaid ? Number(amountPaid) : undefined,
         notes: purchaseNotes,
         lines,
@@ -200,6 +202,7 @@ export default function PurchasingView({ products, onNotification }: PurchasingV
       setInvoiceNumber('');
       setInvoiceDate(new Date().toISOString().slice(0, 10));
       setPaymentStatus('paid');
+      setPurchasePaymentMethod('transfer');
       setAmountPaid('');
       setPurchaseNotes('');
       setLines([]);
@@ -324,10 +327,23 @@ export default function PurchasingView({ products, onNotification }: PurchasingV
             </Field>
           </div>
 
-          {paymentStatus === 'partial' && (
-            <Field label="Valor pago">
-              <input type="number" min="0" step="0.01" value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} className={inputClass} />
-            </Field>
+          {paymentStatus !== 'unpaid' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="Forma de pagamento">
+                <select value={purchasePaymentMethod} onChange={(event) => setPurchasePaymentMethod(event.target.value)} className={inputClass}>
+                  <option value="cash">Dinheiro</option>
+                  <option value="multicaixa">Multicaixa</option>
+                  <option value="transfer">Transferência</option>
+                  <option value="card">Cartão</option>
+                  <option value="other">Outro</option>
+                </select>
+              </Field>
+              {paymentStatus === 'partial' && (
+                <Field label="Valor pago">
+                  <input type="number" min="0" step="0.01" value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} className={inputClass} />
+                </Field>
+              )}
+            </div>
           )}
 
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">

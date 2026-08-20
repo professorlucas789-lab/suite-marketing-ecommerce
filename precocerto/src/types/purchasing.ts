@@ -47,6 +47,7 @@ export interface PurchaseReceiptInput {
   invoiceNumber: string;
   invoiceDate: string;
   paymentStatus: PurchasePaymentStatus;
+  paymentMethod?: string;
   amountPaid?: number;
   notes?: string;
   lines: PurchaseLineInput[];
@@ -64,6 +65,7 @@ export interface PurchaseReceipt {
   invoiceNumber: string;
   invoiceDate: string;
   paymentStatus: PurchasePaymentStatus;
+  paymentMethod?: string;
   amountPaid: number;
   balanceDue: number;
   totalAmount: number;

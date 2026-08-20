@@ -45,6 +45,7 @@ const AdminDiagnostics = React.lazy(() => import("./components/AdminDiagnostics"
 const SalesTab = React.lazy(() => import("./components/SalesTab").then(m => ({ default: m.SalesTab })));
 const CustomersView = React.lazy(() => import("./components/CustomersView"));
 const PurchasingView = React.lazy(() => import("./components/PurchasingView"));
+const FinancialView = React.lazy(() => import("./components/FinancialView"));
 const StockManagementView = React.lazy(() => import("./components/StockManagementView"));
 const MultiStoreComparisonDashboard = React.lazy(() => import("./components/MultiStoreComparisonDashboard").then(m => ({ default: m.MultiStoreComparisonDashboard })));
 const AlertMonitorPanel = React.lazy(() => import("./components/AlertMonitorPanel").then(m => ({ default: m.AlertMonitorPanel })));
@@ -106,7 +107,8 @@ import {
   DollarSign, // NOVO (Fase 6 - Módulo de Vendas)
   PackageCheck, // NOVO: Gestão de stock multi-unidade
   Users,
-  Truck
+  Truck,
+  WalletCards
 } from "lucide-react";
 
 export default function App() {
@@ -866,7 +868,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "estoque" | "vendas" | "clientes" | "fornecedores" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
+    id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "estoque" | "vendas" | "clientes" | "fornecedores" | "financeiro" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -888,6 +890,7 @@ export default function App() {
     PackageCheck,
     Users,
     Truck,
+    WalletCards,
   };
 
   // NOVO (Fase 10 - RBAC): Gerar navigationItems dinamicamente baseado no papel
@@ -905,6 +908,7 @@ export default function App() {
     { id: "vendas", label: "Vendas", icon: DollarSign }, // NOVO (Fase 6 - Módulo de Vendas)
     { id: "clientes", label: "Clientes", icon: Users },
     { id: "fornecedores", label: "Fornecedores", icon: Truck },
+    { id: "financeiro", label: "Financeiro", icon: WalletCards },
     { id: "users", label: "Utilizadores", icon: UserIcon }, // NOVO (Fase 10)
     { id: "user-profile", label: "Meu Perfil", icon: UserIcon }, // NOVO (Fase 11 - User Profile)
     { id: "settings", label: "Configurações", icon: Settings },
@@ -1391,6 +1395,20 @@ export default function App() {
                         products={products}
                         onNotification={triggerNotification}
                       />
+                    </Suspense>
+                  </motion.div>
+                )}
+
+                {activeTab === "financeiro" && user && (
+                  <motion.div
+                    key="financeiro-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <FinancialView onNotification={triggerNotification} />
                     </Suspense>
                   </motion.div>
                 )}
