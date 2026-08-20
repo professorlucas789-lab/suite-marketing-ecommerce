@@ -9,6 +9,7 @@ import { getAllStores, deleteStore } from '../utils/storeUtils';
 import {
   getStoreBusinessSegmentLabel,
   getStoreOperationalUnitLabel,
+  getStoreOperationalRules,
   getStoreTypeLabel,
 } from '../utils/businessUnitMapping';
 import {
@@ -139,11 +140,14 @@ export function StoreList() {
             <p className="text-slate-600 dark:text-slate-400">Nenhuma unidade criada ainda</p>
           </div>
         ) : (
-          stores.map((store) => (
-            <div
-              key={store.id}
-              className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-lg dark:hover:shadow-slate-800 transition-shadow"
-            >
+          stores.map((store) => {
+            const rules = getStoreOperationalRules(store);
+
+            return (
+              <div
+                key={store.id}
+                className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-lg dark:hover:shadow-slate-800 transition-shadow"
+              >
               {/* Delete Confirmation */}
               {deleteConfirm === store.id && (
                 <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center z-40 p-2">
@@ -230,6 +234,23 @@ export function StoreList() {
                 </div>
               </div>
 
+              <div className="mb-4 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-3">
+                <p className="text-xs text-slate-600 dark:text-slate-300">{rules.summary}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${rules.canSell ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                    {rules.canSell ? 'Vende' : 'Não vende'}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${rules.canManageStock ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                    {rules.canManageStock ? 'Stock' : 'Sem stock'}
+                  </span>
+                  {rules.requiresParentUnit && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                      Requer unidade principal
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {/* Store Status */}
               <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-700">
                 <div className="flex items-center gap-2">
@@ -251,7 +272,8 @@ export function StoreList() {
                 </button>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

@@ -57,7 +57,11 @@ import {
 } from "./utils/reportExporter"; // NOVO (Fase 5B Item 3 - Export)
 import { getTailwindColorHex, injectPrimaryColorCSS } from "./utils/colorUtils"; // NOVO: Sistema de cores dinâmicas
 import { useStore } from "./contexts/StoreContext";
-import { getStoreModuleId } from "./utils/businessUnitMapping";
+import {
+  getOperationalUnitRules,
+  getStoreModuleId,
+  isNavigationAllowedForUnit,
+} from "./utils/businessUnitMapping";
 
 // Loading component for lazy-loaded sections (Fase 12 - Performance Optimization)
 const LazyComponentLoader = () => (
@@ -109,6 +113,7 @@ export default function App() {
   // NOVO (Fase 10 - RBAC): Obter dados do utilizador com papel
   const { papel, isAdmin, isLojaManager, isFuncionario } = useUserAuth();
   const { currentStore, userStores } = useStore();
+  const currentUnitRules = getOperationalUnitRules(currentStore?.unitType);
 
   // Theme state
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -159,6 +164,12 @@ export default function App() {
   const triggerNotification = (message: string, type: "success" | "error" = "success") => {
     setNotification({ message, type });
   };
+
+  useEffect(() => {
+    if (!isNavigationAllowedForUnit(activeTab, currentStore?.unitType)) {
+      setActiveTab("dashboard");
+    }
+  }, [activeTab, currentStore?.unitType]);
 
   // Auth listener
   useEffect(() => {
@@ -884,7 +895,8 @@ export default function App() {
   // Filtrar itens baseado no papel do utilizador (NOVO Fase 10 - RBAC)
   const configItems = getNavItemsForRole(papel);
   const navigationItems = allNavigationItems.filter((item) =>
-    configItems.some((cfgItem) => cfgItem.id === item.id)
+    configItems.some((cfgItem) => cfgItem.id === item.id) &&
+    isNavigationAllowedForUnit(item.id, currentStore?.unitType)
   );
 
   const isTabActive = (tabId: string) => {
@@ -1137,6 +1149,7 @@ export default function App() {
                     <Dashboard
                       products={products}
                       settings={businessSettings}
+                      unitRules={currentUnitRules}
                       onNavigate={(tab) => setActiveTab(tab)}
                     />
                   </motion.div>
@@ -1167,20 +1180,24 @@ export default function App() {
                   >
                     {/* NOVO (Fase 5A): Action buttons header */}
                     <div className="mb-6 flex gap-3 flex-wrap">
-                      <button
-                        onClick={handleAddNewTrigger}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
-                      >
-                        <Package size={18} />
-                        Novo Produto
-                      </button>
-                      <button
-                        onClick={() => setIsImportModalOpen(true)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                      >
-                        <Upload size={18} />
-                        Importar CSV
-                      </button>
+                      {currentUnitRules.canManageProducts && (
+                        <>
+                          <button
+                            onClick={handleAddNewTrigger}
+                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+                          >
+                            <Package size={18} />
+                            Novo Produto
+                          </button>
+                          <button
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                          >
+                            <Upload size={18} />
+                            Importar CSV
+                          </button>
+                        </>
+                      )}
                       <button
                         onClick={() => setIsReportBuilderOpen(true)}
                         className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
@@ -1197,6 +1214,7 @@ export default function App() {
                     <ProductList
                       products={products}
                       settings={businessSettings}
+                      canManageProducts={currentUnitRules.canManageProducts}
                       onAddProduct={handleAddNewTrigger}
                       onEditProduct={handleEditTrigger}
                       onDeleteProduct={handleDeleteProduct}

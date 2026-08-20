@@ -22,6 +22,22 @@ export type OperationalUnitTypeOption = {
   descricao: string;
 };
 
+export type OperationalUnitRules = {
+  canSell: boolean;
+  canIssueSalesDocuments: boolean;
+  canManageProducts: boolean;
+  canRegisterBatchProducts: boolean;
+  canManageStock: boolean;
+  canReceiveStock: boolean;
+  canTransferStock: boolean;
+  canConfigurePricing: boolean;
+  canViewReports: boolean;
+  canViewConsolidatedReports: boolean;
+  requiresParentUnit: boolean;
+  dashboardMode: "operational" | "stock" | "sales" | "administrative" | "service";
+  summary: string;
+};
+
 export const DEFAULT_BUSINESS_GROUP_ID = "grupo-alberto";
 export const DEFAULT_BUSINESS_GROUP_NAME = "Grupo Alberto";
 
@@ -184,6 +200,129 @@ export const OPERATIONAL_UNIT_TYPE_OPTIONS: OperationalUnitTypeOption[] = [
   },
 ];
 
+export const OPERATIONAL_UNIT_RULES: Record<OperationalUnitType, OperationalUnitRules> = {
+  loja: {
+    canSell: true,
+    canIssueSalesDocuments: true,
+    canManageProducts: true,
+    canRegisterBatchProducts: true,
+    canManageStock: true,
+    canReceiveStock: true,
+    canTransferStock: true,
+    canConfigurePricing: true,
+    canViewReports: true,
+    canViewConsolidatedReports: false,
+    requiresParentUnit: false,
+    dashboardMode: "operational",
+    summary: "Vende, fatura, gere produtos e movimenta stock próprio.",
+  },
+  farmacia: {
+    canSell: true,
+    canIssueSalesDocuments: true,
+    canManageProducts: true,
+    canRegisterBatchProducts: true,
+    canManageStock: true,
+    canReceiveStock: true,
+    canTransferStock: true,
+    canConfigurePricing: true,
+    canViewReports: true,
+    canViewConsolidatedReports: false,
+    requiresParentUnit: false,
+    dashboardMode: "operational",
+    summary: "Vende, fatura, gere produtos farmacêuticos, margens e validade.",
+  },
+  armazem: {
+    canSell: false,
+    canIssueSalesDocuments: false,
+    canManageProducts: true,
+    canRegisterBatchProducts: true,
+    canManageStock: true,
+    canReceiveStock: true,
+    canTransferStock: true,
+    canConfigurePricing: false,
+    canViewReports: true,
+    canViewConsolidatedReports: false,
+    requiresParentUnit: false,
+    dashboardMode: "stock",
+    summary: "Recebe, guarda e transfere stock; não vende ao público.",
+  },
+  posto_venda: {
+    canSell: true,
+    canIssueSalesDocuments: true,
+    canManageProducts: false,
+    canRegisterBatchProducts: false,
+    canManageStock: true,
+    canReceiveStock: false,
+    canTransferStock: false,
+    canConfigurePricing: false,
+    canViewReports: true,
+    canViewConsolidatedReports: false,
+    requiresParentUnit: true,
+    dashboardMode: "sales",
+    summary: "Vende ao público usando stock próprio ou vinculado a uma unidade principal.",
+  },
+  escritorio_central: {
+    canSell: false,
+    canIssueSalesDocuments: false,
+    canManageProducts: false,
+    canRegisterBatchProducts: false,
+    canManageStock: false,
+    canReceiveStock: false,
+    canTransferStock: false,
+    canConfigurePricing: true,
+    canViewReports: true,
+    canViewConsolidatedReports: true,
+    requiresParentUnit: false,
+    dashboardMode: "administrative",
+    summary: "Administra o grupo, utilizadores, configurações e relatórios consolidados.",
+  },
+  escola: {
+    canSell: false,
+    canIssueSalesDocuments: false,
+    canManageProducts: false,
+    canRegisterBatchProducts: false,
+    canManageStock: false,
+    canReceiveStock: false,
+    canTransferStock: false,
+    canConfigurePricing: true,
+    canViewReports: true,
+    canViewConsolidatedReports: false,
+    requiresParentUnit: false,
+    dashboardMode: "service",
+    summary: "Unidade educacional; usa regras próprias fora do fluxo comercial comum.",
+  },
+  servico: {
+    canSell: false,
+    canIssueSalesDocuments: false,
+    canManageProducts: false,
+    canRegisterBatchProducts: false,
+    canManageStock: false,
+    canReceiveStock: false,
+    canTransferStock: false,
+    canConfigurePricing: true,
+    canViewReports: true,
+    canViewConsolidatedReports: false,
+    requiresParentUnit: false,
+    dashboardMode: "service",
+    summary: "Unidade de serviço sem venda direta de produto físico.",
+  },
+  generico: {
+    canSell: true,
+    canIssueSalesDocuments: true,
+    canManageProducts: true,
+    canRegisterBatchProducts: true,
+    canManageStock: true,
+    canReceiveStock: true,
+    canTransferStock: true,
+    canConfigurePricing: true,
+    canViewReports: true,
+    canViewConsolidatedReports: false,
+    requiresParentUnit: false,
+    dashboardMode: "operational",
+    summary: "Unidade comercial genérica com vendas, produtos e stock ativos.",
+  },
+};
+
 export function getDefaultModuleForStoreType(type?: string): string {
   return STORE_TYPE_OPTIONS.find((option) => option.value === type)?.defaultModuleId || "outro";
 }
@@ -225,6 +364,35 @@ export function getStoreBusinessSegmentLabel(store?: Pick<Store, "tipo" | "busin
 export function getStoreOperationalUnitLabel(store?: Pick<Store, "tipo" | "unitType"> | null): string {
   if (store?.unitType) return getOperationalUnitLabel(store.unitType);
   return getOperationalUnitLabel(getDefaultBusinessSegmentForStoreType(store?.tipo).defaultUnitType);
+}
+
+export function getOperationalUnitRules(unitType?: string): OperationalUnitRules {
+  const normalizedUnitType = OPERATIONAL_UNIT_TYPE_OPTIONS.some((option) => option.value === unitType)
+    ? (unitType as OperationalUnitType)
+    : "generico";
+
+  return OPERATIONAL_UNIT_RULES[normalizedUnitType];
+}
+
+export function getStoreOperationalRules(store?: Pick<Store, "tipo" | "unitType"> | null): OperationalUnitRules {
+  const unitType = store?.unitType || getDefaultBusinessSegmentForStoreType(store?.tipo).defaultUnitType;
+  return getOperationalUnitRules(unitType);
+}
+
+export function isNavigationAllowedForUnit(itemId: string, unitType?: string): boolean {
+  const rules = getOperationalUnitRules(unitType);
+
+  if (["vendas"].includes(itemId)) return rules.canSell;
+  if (["add-product", "edit-product", "batch-products"].includes(itemId)) {
+    return rules.canManageProducts;
+  }
+  if (["products", "reverse-calculator", "alertas"].includes(itemId)) {
+    return rules.canManageProducts || rules.canManageStock;
+  }
+  if (["categories"].includes(itemId)) return rules.canConfigurePricing || rules.canManageProducts;
+  if (["reports", "history"].includes(itemId)) return rules.canViewReports;
+
+  return true;
 }
 
 export function normalizeStoreBusinessScope<T extends Partial<Store>>(store: T): T & Pick<

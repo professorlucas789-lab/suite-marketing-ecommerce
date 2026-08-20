@@ -13,6 +13,7 @@ import {
   getBusinessSegmentById,
   getDefaultBusinessSegmentForStoreType,
   getDefaultModuleForStoreType,
+  getOperationalUnitRules,
   OPERATIONAL_UNIT_TYPE_OPTIONS,
   STORE_TYPE_OPTIONS,
 } from '../utils/businessUnitMapping';
@@ -44,6 +45,7 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
   const storeTypes = STORE_TYPE_OPTIONS;
   const businessSegments = BUSINESS_SEGMENT_OPTIONS;
   const unitTypes = OPERATIONAL_UNIT_TYPE_OPTIONS;
+  const selectedUnitRules = getOperationalUnitRules(formData.unitType);
 
   useEffect(() => {
     if (store) {
@@ -259,6 +261,20 @@ export function StoreForm({ store, onSuccess, onCancel }: StoreFormProps) {
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             {unitTypes.find((type) => type.value === formData.unitType)?.descricao}
           </p>
+          <div className="mt-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3 text-xs text-slate-600 dark:text-slate-300">
+            <p className="font-semibold text-slate-800 dark:text-slate-100">{selectedUnitRules.summary}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className={`px-2 py-0.5 rounded-full ${selectedUnitRules.canSell ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                {selectedUnitRules.canSell ? 'Vendas ativas' : 'Sem venda direta'}
+              </span>
+              <span className={`px-2 py-0.5 rounded-full ${selectedUnitRules.canManageStock ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                {selectedUnitRules.canManageStock ? 'Gere stock' : 'Sem stock próprio'}
+              </span>
+              <span className={`px-2 py-0.5 rounded-full ${selectedUnitRules.canViewConsolidatedReports ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                {selectedUnitRules.canViewConsolidatedReports ? 'Relatórios consolidados' : 'Relatórios da unidade'}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 

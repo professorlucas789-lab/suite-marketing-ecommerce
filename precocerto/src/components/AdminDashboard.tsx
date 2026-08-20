@@ -9,6 +9,7 @@ import { getAllStores } from '../utils/storeUtils';
 import {
   getStoreBusinessSegmentLabel,
   getStoreOperationalUnitLabel,
+  getStoreOperationalRules,
   getStoreTypeLabel,
   STORE_TYPE_OPTIONS,
 } from '../utils/businessUnitMapping';
@@ -265,12 +266,15 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {sortedStores.map((store) => (
-              <div
-                key={store.id}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-lg dark:hover:shadow-slate-800 transition-shadow cursor-pointer"
-                onClick={() => onSelectStore?.(store.id)}
-              >
+            {sortedStores.map((store) => {
+              const rules = getStoreOperationalRules(store);
+
+              return (
+                <div
+                  key={store.id}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-lg dark:hover:shadow-slate-800 transition-shadow cursor-pointer"
+                  onClick={() => onSelectStore?.(store.id)}
+                >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -298,6 +302,23 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
                   <p>📧 {store.email}</p>
                   <p>📍 {store.endereco}</p>
                   <p>🏢 {store.businessGroupName || 'Grupo não definido'}</p>
+                </div>
+
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded p-3 mb-4">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">{rules.summary}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${rules.canSell ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                      {rules.canSell ? 'Vende' : 'Não vende'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${rules.canManageStock ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                      {rules.canManageStock ? 'Stock' : 'Sem stock'}
+                    </span>
+                    {rules.canViewConsolidatedReports && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-300">
+                        Consolidado
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Stats */}
@@ -336,7 +357,8 @@ export function AdminDashboard({ onSelectStore }: AdminDashboardProps) {
                   Ver Detalhes →
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

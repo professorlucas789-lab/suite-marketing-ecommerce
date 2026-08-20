@@ -27,12 +27,21 @@ interface ProductListProps {
   onDeleteProduct: (id: string) => void;
   onDuplicateProduct: (product: Product) => void;
   settings?: BusinessSettings | null;
+  canManageProducts?: boolean;
 }
 
 type SortField = "nome" | "custoTotal" | "precoVendaRecomendado" | "lucroEstimado" | "margemReal" | "createdAt" | "roi";
 type SortOrder = "asc" | "desc";
 
-export default function ProductList({ products, onAddProduct, onEditProduct, onDeleteProduct, onDuplicateProduct, settings }: ProductListProps) {
+export default function ProductList({
+  products,
+  onAddProduct,
+  onEditProduct,
+  onDeleteProduct,
+  onDuplicateProduct,
+  settings,
+  canManageProducts = true,
+}: ProductListProps) {
   const [search, setSearch] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>("createdAt");
@@ -202,14 +211,16 @@ export default function ProductList({ products, onAddProduct, onEditProduct, onD
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Produtos Cadastrados</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 font-sans">Visualize, ordene e simule preços para cada um dos seus produtos.</p>
         </div>
-        <button
-          id="list-add-product-button"
-          onClick={onAddProduct}
-          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
-        >
-          <Plus size={18} />
-          <span>Cadastrar Novo</span>
-        </button>
+        {canManageProducts && (
+          <button
+            id="list-add-product-button"
+            onClick={onAddProduct}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
+          >
+            <Plus size={18} />
+            <span>Cadastrar Novo</span>
+          </button>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -494,30 +505,34 @@ export default function ProductList({ products, onAddProduct, onEditProduct, onD
                             >
                               <FileText size={16} />
                             </button>
-                            <button
-                              id={`edit-product-${product.id}`}
-                              onClick={() => onEditProduct(product)}
-                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                              title="Editar Produto"
-                            >
-                              <Edit3 size={16} />
-                            </button>
-                            <button
-                              id={`duplicate-product-${product.id}`}
-                              onClick={() => onDuplicateProduct(product)}
-                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md text-amber-500 hover:text-amber-700 dark:hover:text-amber-400 transition-colors cursor-pointer"
-                              title="Duplicar Produto"
-                            >
-                              <Copy size={16} />
-                            </button>
-                            <button
-                              id={`delete-product-${product.id}`}
-                              onClick={() => setDeleteConfirmId(product.id || null)}
-                              className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-md text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                              title="Excluir Produto"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {canManageProducts && (
+                              <>
+                                <button
+                                  id={`edit-product-${product.id}`}
+                                  onClick={() => onEditProduct(product)}
+                                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                                  title="Editar Produto"
+                                >
+                                  <Edit3 size={16} />
+                                </button>
+                                <button
+                                  id={`duplicate-product-${product.id}`}
+                                  onClick={() => onDuplicateProduct(product)}
+                                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md text-amber-500 hover:text-amber-700 dark:hover:text-amber-400 transition-colors cursor-pointer"
+                                  title="Duplicar Produto"
+                                >
+                                  <Copy size={16} />
+                                </button>
+                                <button
+                                  id={`delete-product-${product.id}`}
+                                  onClick={() => setDeleteConfirmId(product.id || null)}
+                                  className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-md text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                  title="Excluir Produto"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -633,33 +648,37 @@ export default function ProductList({ products, onAddProduct, onEditProduct, onD
                         <FileText size={14} />
                         <span>Ver Detalhes</span>
                       </button>
-                      <button
-                        id={`edit-product-mobile-${product.id}`}
-                        onClick={() => onEditProduct(product)}
-                        className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1 text-xs font-semibold transition-all cursor-pointer"
-                        title="Editar"
-                      >
-                        <Edit3 size={14} />
-                        <span>Editar</span>
-                      </button>
-                      <button
-                        id={`duplicate-product-mobile-${product.id}`}
-                        onClick={() => onDuplicateProduct(product)}
-                        className="px-2.5 py-1.5 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded-lg text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1 text-xs font-semibold transition-all cursor-pointer"
-                        title="Duplicar"
-                      >
-                        <Copy size={14} />
-                        <span>Duplicar</span>
-                      </button>
-                      <button
-                        id={`delete-product-mobile-${product.id}`}
-                        onClick={() => setDeleteConfirmId(product.id || null)}
-                        className="px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-lg text-rose-600 dark:text-rose-400 flex items-center justify-center gap-1 text-xs font-semibold transition-all cursor-pointer"
-                        title="Apagar"
-                      >
-                        <Trash2 size={14} />
-                        <span>Apagar</span>
-                      </button>
+                      {canManageProducts && (
+                        <>
+                          <button
+                            id={`edit-product-mobile-${product.id}`}
+                            onClick={() => onEditProduct(product)}
+                            className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1 text-xs font-semibold transition-all cursor-pointer"
+                            title="Editar"
+                          >
+                            <Edit3 size={14} />
+                            <span>Editar</span>
+                          </button>
+                          <button
+                            id={`duplicate-product-mobile-${product.id}`}
+                            onClick={() => onDuplicateProduct(product)}
+                            className="px-2.5 py-1.5 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded-lg text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1 text-xs font-semibold transition-all cursor-pointer"
+                            title="Duplicar"
+                          >
+                            <Copy size={14} />
+                            <span>Duplicar</span>
+                          </button>
+                          <button
+                            id={`delete-product-mobile-${product.id}`}
+                            onClick={() => setDeleteConfirmId(product.id || null)}
+                            className="px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-lg text-rose-600 dark:text-rose-400 flex items-center justify-center gap-1 text-xs font-semibold transition-all cursor-pointer"
+                            title="Apagar"
+                          >
+                            <Trash2 size={14} />
+                            <span>Apagar</span>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

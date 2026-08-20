@@ -33,11 +33,13 @@ import * as XLSX from "xlsx";
 import HealthCheckPanel from "./HealthCheckPanel"; // NOVO (Fase 13 - Health Check)
 import { useCriticalExpiryAlerts } from "../hooks/useExpiryAlerts"; // NOVO (Fase 13)
 import { useLowStockAlerts } from "../hooks/useLowStockAlerts"; // NOVO (Fase 13)
+import type { OperationalUnitRules } from "../utils/businessUnitMapping";
 
 interface DashboardProps {
   products?: Product[];
   settings: BusinessSettings | null;
   onNavigate: (tab: "add-product" | "products" | "reports" | "vendas") => void;
+  unitRules?: OperationalUnitRules;
 }
 
 // Sparkline component using beautiful cubic bezier curves and smooth linear gradients
@@ -75,7 +77,7 @@ function Sparkline({ color }: { color: "blue" | "green" | "orange" | "purple" })
   );
 }
 
-export default function Dashboard({ products = [], settings, onNavigate }: DashboardProps) {
+export default function Dashboard({ products = [], settings, onNavigate, unitRules }: DashboardProps) {
   // Filters & State
   const [period, setPeriod] = useState<"all" | "month" | "year">("all");
   const [isPeriodDropdownOpen, setIsPeriodDropdownOpen] = useState(false);
@@ -117,6 +119,8 @@ export default function Dashboard({ products = [], settings, onNavigate }: Dashb
 
   const businessType = settings?.businessType || "farmacia";
   const currentModule = businessModuleRegistry.getModuleById(businessType);
+  const canAddProducts = unitRules?.canManageProducts ?? true;
+  const canRegisterSales = unitRules?.canSell ?? true;
 
   // Dynamic Excel Export of filtered products
   const handleExportProductsExcel = () => {
@@ -340,14 +344,20 @@ export default function Dashboard({ products = [], settings, onNavigate }: Dashb
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 mb-6 leading-relaxed">
             Ainda não tem produtos cadastrados. Adicione o seu primeiro produto para visualizar estatísticas financeiras, custos agregados e preços recomendados de venda.
           </p>
-          <button
-            id="dashboard-add-first-product"
-            onClick={() => onNavigate("add-product")}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm flex items-center gap-2 shadow-md shadow-emerald-600/10 hover:shadow-lg transition-all cursor-pointer"
-          >
-            <PlusCircle size={18} />
-            <span>Cadastrar Primeiro Produto</span>
-          </button>
+          {canAddProducts ? (
+            <button
+              id="dashboard-add-first-product"
+              onClick={() => onNavigate("add-product")}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm flex items-center gap-2 shadow-md shadow-emerald-600/10 hover:shadow-lg transition-all cursor-pointer"
+            >
+              <PlusCircle size={18} />
+              <span>Cadastrar Primeiro Produto</span>
+            </button>
+          ) : (
+            <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-600 dark:text-slate-300">
+              Esta unidade não está configurada para cadastro direto de produtos.
+            </div>
+          )}
         </motion.div>
       </div>
     );
@@ -437,25 +447,29 @@ export default function Dashboard({ products = [], settings, onNavigate }: Dashb
             <span>Gerar PDF</span>
           </button>
 
-          <button
-            id="dashboard-add-product-shortcut"
-            onClick={() => onNavigate("add-product")}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto"
-          >
-            <PlusCircle size={14} />
-            <span>Cadastrar Produto</span>
-          </button>
+          {canAddProducts && (
+            <button
+              id="dashboard-add-product-shortcut"
+              onClick={() => onNavigate("add-product")}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto"
+            >
+              <PlusCircle size={14} />
+              <span>Cadastrar Produto</span>
+            </button>
+          )}
 
           {/* NOVO (Fase 13): Quick Sales Recorder Button */}
-          <button
-            id="dashboard-quick-sale-btn"
-            onClick={() => onNavigate("vendas")}
-            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto"
-            title="Registar venda rápida"
-          >
-            <LucideIcons.ShoppingCart size={14} />
-            <span>Registar Venda</span>
-          </button>
+          {canRegisterSales && (
+            <button
+              id="dashboard-quick-sale-btn"
+              onClick={() => onNavigate("vendas")}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer w-full sm:w-auto"
+              title="Registar venda rápida"
+            >
+              <LucideIcons.ShoppingCart size={14} />
+              <span>Registar Venda</span>
+            </button>
+          )}
         </div>
       </div>
 

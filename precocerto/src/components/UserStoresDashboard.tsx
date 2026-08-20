@@ -28,6 +28,7 @@ import { Store, StoreStats } from '../types/store';
 import {
   getStoreBusinessSegmentLabel,
   getStoreOperationalUnitLabel,
+  getStoreOperationalRules,
 } from '../utils/businessUnitMapping';
 
 interface StoreCardData extends Store {
@@ -242,19 +243,22 @@ export function UserStoresDashboard() {
 
       {/* Grid de Lojas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {storesData.map((store, index) => (
-          <motion.div
-            key={store.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            onClick={() => handleSelectStore(store.id)}
-            className={`rounded-xl border-2 overflow-hidden cursor-pointer transition-all ${
-              selectedStore === store.id
-                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 shadow-lg shadow-emerald-500/20'
-                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md'
-            }`}
-          >
+        {storesData.map((store, index) => {
+            const rules = getStoreOperationalRules(store);
+
+            return (
+              <motion.div
+                key={store.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                onClick={() => handleSelectStore(store.id)}
+                className={`rounded-xl border-2 overflow-hidden cursor-pointer transition-all ${
+                  selectedStore === store.id
+                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 shadow-lg shadow-emerald-500/20'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md'
+                }`}
+              >
             {/* Header da Loja */}
             <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 p-4 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-start justify-between">
@@ -337,6 +341,10 @@ export function UserStoresDashboard() {
                   </div>
                 </div>
               )}
+
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{rules.summary}</p>
+              </div>
             </div>
 
             {/* Footer */}
@@ -356,7 +364,8 @@ export function UserStoresDashboard() {
               />
             </div>
           </motion.div>
-        ))}
+            );
+          })}
       </div>
 
       {/* Info */}

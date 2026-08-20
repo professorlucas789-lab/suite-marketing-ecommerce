@@ -4,11 +4,14 @@ import {
   DEFAULT_BUSINESS_GROUP_NAME,
   getDefaultBusinessSegmentForStoreType,
   getDefaultModuleForStoreType,
+  getOperationalUnitRules,
   getOperationalUnitLabel,
   getStoreBusinessSegmentLabel,
   getStoreModuleId,
   getStoreOperationalUnitLabel,
+  getStoreOperationalRules,
   getStoreTypeLabel,
+  isNavigationAllowedForUnit,
   normalizeStoreBusinessScope,
 } from "./businessUnitMapping";
 
@@ -53,5 +56,42 @@ describe("businessUnitMapping", () => {
     expect(normalized.businessSegmentName).toBe("Farmácias");
     expect(normalized.unitType).toBe("farmacia");
     expect(normalized.moduleId).toBe("farmacia");
+  });
+
+  it("define regras operacionais diferentes por tipo de unidade", () => {
+    expect(getOperationalUnitRules("armazem")).toMatchObject({
+      canSell: false,
+      canManageStock: true,
+      canTransferStock: true,
+      dashboardMode: "stock",
+    });
+
+    expect(getOperationalUnitRules("posto_venda")).toMatchObject({
+      canSell: true,
+      canManageProducts: false,
+      requiresParentUnit: true,
+      dashboardMode: "sales",
+    });
+
+    expect(getOperationalUnitRules("escritorio_central")).toMatchObject({
+      canSell: false,
+      canViewConsolidatedReports: true,
+      dashboardMode: "administrative",
+    });
+  });
+
+  it("filtra navegacao conforme regras da unidade", () => {
+    expect(isNavigationAllowedForUnit("vendas", "armazem")).toBe(false);
+    expect(isNavigationAllowedForUnit("vendas", "posto_venda")).toBe(true);
+    expect(isNavigationAllowedForUnit("add-product", "posto_venda")).toBe(false);
+    expect(isNavigationAllowedForUnit("edit-product", "posto_venda")).toBe(false);
+    expect(isNavigationAllowedForUnit("batch-products", "posto_venda")).toBe(false);
+    expect(isNavigationAllowedForUnit("products", "escritorio_central")).toBe(false);
+    expect(isNavigationAllowedForUnit("reports", "escritorio_central")).toBe(true);
+  });
+
+  it("infere regras da unidade pelo tipo antigo quando unitType nao existe", () => {
+    expect(getStoreOperationalRules({ tipo: "farmacia" }).canSell).toBe(true);
+    expect(getStoreOperationalRules({ tipo: "escritorio_central" }).canSell).toBe(false);
   });
 });
