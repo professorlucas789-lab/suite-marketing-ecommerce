@@ -16,6 +16,7 @@ export type NavigationItemId =
   | 'estoque' // NOVO (Fase 5 - Gestão de Estoque)
   | 'vendas' // NOVO (Fase 6 - Módulo de Vendas)
   | 'clientes' // NOVO (Fase 6 - Clientes e contas correntes)
+  | 'fornecedores' // NOVO (Fase 7 - Fornecedores e compras)
   | 'multi-loja' // NOVO (Fase 9 - Dashboard Multi-Loja)
   | 'notificacoes' // NOVO (Fase 10 - Configurações de Notificações)
   | 'automacao' // NOVO (Fase 10 - Monitoramento de Automação)
@@ -142,6 +143,14 @@ export const navigationConfig: NavigationConfig[] = [
     label: 'Clientes',
     icon: 'Users',
     roles: ['admin', 'loja-manager', 'funcionario'],
+    section: 'management',
+  },
+
+  {
+    id: 'fornecedores',
+    label: 'Fornecedores',
+    icon: 'Truck',
+    roles: ['admin', 'loja-manager'],
     section: 'management',
   },
 

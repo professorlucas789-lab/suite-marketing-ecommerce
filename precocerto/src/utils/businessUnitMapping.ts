@@ -599,6 +599,7 @@ export function isNavigationAllowedForUnit(itemId: string, unitType?: string): b
 
   if (["vendas"].includes(itemId)) return rules.canSell;
   if (["clientes"].includes(itemId)) return rules.canSell || rules.canViewReports;
+  if (["fornecedores"].includes(itemId)) return rules.canManageStock || rules.canReceiveStock;
   if (["add-product", "edit-product", "batch-products"].includes(itemId)) {
     return rules.canManageProducts;
   }

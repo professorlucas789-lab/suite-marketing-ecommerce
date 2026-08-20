@@ -6,6 +6,7 @@ export type StockMovementType =
   | "correction"
   | "transfer_out"
   | "transfer_in"
+  | "purchase_in"
   | "sale"
   | "return";
 
@@ -27,6 +28,9 @@ export interface StockMovement {
   userName?: string;
   relatedProductId?: string;
   relatedMovementId?: string;
+  supplierId?: string;
+  supplierName?: string;
+  invoiceNumber?: string;
   createdAt: string;
 }
 
