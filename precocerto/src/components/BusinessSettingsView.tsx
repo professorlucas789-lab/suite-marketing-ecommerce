@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { BusinessSettings } from "../types";
+import type { BusinessSegmentConfig, BusinessSettings } from "../types";
 import { businessModuleRegistry } from "../modules/business-types";
-import { getOperationalUnitLabel } from "../utils/businessUnitMapping";
+import {
+  CATEGORY_SCOPE_OPTIONS,
+  PRICING_POLICY_OPTIONS,
+  SALES_DOCUMENT_MODE_OPTIONS,
+  STOCK_POLICY_OPTIONS,
+  getBusinessSegmentConfigSummary,
+  getOperationalUnitLabel,
+  mergeBusinessSegmentConfig,
+} from "../utils/businessUnitMapping";
 import { motion } from "motion/react";
 import { 
   Building2, 
@@ -16,7 +24,8 @@ import {
   Plus, 
   Trash2,
   HelpCircle,
-  Check
+  Check,
+  SlidersHorizontal
 } from "lucide-react";
 
 interface BusinessSettingsViewProps {
@@ -36,6 +45,9 @@ export default function BusinessSettingsView({ settings, onSave }: BusinessSetti
   const [numberFormat, setNumberFormat] = useState("1.234,56");
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState("");
+  const [segmentConfig, setSegmentConfig] = useState<BusinessSegmentConfig>(
+    mergeBusinessSegmentConfig("farmacias")
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessMsg, setShowSuccessMsg] = useState(false);
 
@@ -51,8 +63,19 @@ export default function BusinessSettingsView({ settings, onSave }: BusinessSetti
       setDateFormat(settings.dateFormat || "DD/MM/YYYY");
       setNumberFormat(settings.numberFormat || "1.234,56");
       setCustomCategories(settings.customCategories || []);
+      setSegmentConfig(mergeBusinessSegmentConfig(settings.businessSegmentId, settings.segmentConfig));
     }
   }, [settings]);
+
+  const updateSegmentConfig = <K extends keyof BusinessSegmentConfig>(
+    key: K,
+    value: BusinessSegmentConfig[K]
+  ) => {
+    setSegmentConfig((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +91,9 @@ export default function BusinessSettingsView({ settings, onSave }: BusinessSetti
         primaryColor,
         dateFormat,
         numberFormat,
-        customCategories
+        customCategories,
+        segmentConfig,
+        defaultMargin: segmentConfig.defaultMargin
       });
       setShowSuccessMsg(true);
       setTimeout(() => setShowSuccessMsg(false), 3000);
@@ -294,6 +319,187 @@ export default function BusinessSettingsView({ settings, onSave }: BusinessSetti
             </div>
           </div>
 
+        </div>
+
+        {/* Sessão C: Regras de Segmento */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-xs space-y-5">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-350 flex items-center gap-2">
+              <SlidersHorizontal size={16} className="text-slate-400" />
+              Regras do Segmento
+            </h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+              {settings?.businessSegmentName || "Segmento atual"} · {getOperationalUnitLabel(settings?.unitType)} · {getBusinessSegmentConfigSummary(segmentConfig)}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-350 mb-1.5">
+                Escopo das Categorias e Margens
+              </label>
+              <select
+                value={segmentConfig.categoryScope}
+                onChange={(e) =>
+                  updateSegmentConfig("categoryScope", e.target.value as BusinessSegmentConfig["categoryScope"])
+                }
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors"
+              >
+                {CATEGORY_SCOPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">
+                {CATEGORY_SCOPE_OPTIONS.find((option) => option.value === segmentConfig.categoryScope)?.descricao}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-350 mb-1.5">
+                Política de Preço
+              </label>
+              <select
+                value={segmentConfig.pricingPolicy}
+                onChange={(e) =>
+                  updateSegmentConfig("pricingPolicy", e.target.value as BusinessSegmentConfig["pricingPolicy"])
+                }
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors"
+              >
+                {PRICING_POLICY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">
+                {PRICING_POLICY_OPTIONS.find((option) => option.value === segmentConfig.pricingPolicy)?.descricao}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-350 mb-1.5">
+                Política de Stock
+              </label>
+              <select
+                value={segmentConfig.stockPolicy}
+                onChange={(e) =>
+                  updateSegmentConfig("stockPolicy", e.target.value as BusinessSegmentConfig["stockPolicy"])
+                }
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors"
+              >
+                {STOCK_POLICY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">
+                {STOCK_POLICY_OPTIONS.find((option) => option.value === segmentConfig.stockPolicy)?.descricao}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-350 mb-1.5">
+                Documento de Venda
+              </label>
+              <select
+                value={segmentConfig.salesDocumentMode}
+                onChange={(e) =>
+                  updateSegmentConfig("salesDocumentMode", e.target.value as BusinessSegmentConfig["salesDocumentMode"])
+                }
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors"
+              >
+                {SALES_DOCUMENT_MODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">
+                {SALES_DOCUMENT_MODE_OPTIONS.find((option) => option.value === segmentConfig.salesDocumentMode)?.descricao}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-350 mb-1.5">
+                Margem Base do Segmento (%)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={500}
+                step={0.1}
+                value={segmentConfig.defaultMargin}
+                onChange={(e) => updateSegmentConfig("defaultMargin", Number(e.target.value))}
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-350 mb-1.5">
+                Taxa Padrão (%)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={segmentConfig.defaultTaxRate}
+                onChange={(e) => updateSegmentConfig("defaultTaxRate", Number(e.target.value))}
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={segmentConfig.requiresExpiryControl}
+                onChange={(e) => updateSegmentConfig("requiresExpiryControl", e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span>
+                <span className="block text-xs font-bold text-slate-700 dark:text-slate-300">Controlar validade</span>
+                <span className="block text-[10px] text-slate-400 dark:text-slate-500">Exige lote e vencimento.</span>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={segmentConfig.requiresSerialNumber}
+                onChange={(e) => updateSegmentConfig("requiresSerialNumber", e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span>
+                <span className="block text-xs font-bold text-slate-700 dark:text-slate-300">Controlar série</span>
+                <span className="block text-[10px] text-slate-400 dark:text-slate-500">Útil para informática e equipamentos.</span>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={segmentConfig.allowNegativeStock}
+                onChange={(e) => updateSegmentConfig("allowNegativeStock", e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span>
+                <span className="block text-xs font-bold text-slate-700 dark:text-slate-300">Permitir stock negativo</span>
+                <span className="block text-[10px] text-slate-400 dark:text-slate-500">Normalmente deve ficar desligado.</span>
+              </span>
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-350 mb-1.5">
+              Observação Operacional
+            </label>
+            <textarea
+              value={segmentConfig.notes || ""}
+              onChange={(e) => updateSegmentConfig("notes", e.target.value)}
+              rows={3}
+              className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors resize-none"
+              placeholder="Notas internas sobre margem, stock, documentos ou controlo aplicável a este segmento."
+            />
+          </div>
         </div>
 
         {/* Sessão C: Cor de Identidade Visual */}

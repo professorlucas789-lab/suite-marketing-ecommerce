@@ -1,4 +1,11 @@
 import type { OperationalUnitType, Store, StoreType } from "../types/store";
+import type {
+  BusinessSegmentConfig,
+  CategoryScope,
+  PricingPolicy,
+  SalesDocumentMode,
+  StockPolicy,
+} from "../types";
 
 export type StoreTypeOption = {
   value: StoreType;
@@ -36,6 +43,12 @@ export type OperationalUnitRules = {
   requiresParentUnit: boolean;
   dashboardMode: "operational" | "stock" | "sales" | "administrative" | "service";
   summary: string;
+};
+
+export type BusinessSegmentConfigOption<T extends string> = {
+  value: T;
+  label: string;
+  descricao: string;
 };
 
 export const DEFAULT_BUSINESS_GROUP_ID = "grupo-alberto";
@@ -323,6 +336,185 @@ export const OPERATIONAL_UNIT_RULES: Record<OperationalUnitType, OperationalUnit
   },
 };
 
+export const CATEGORY_SCOPE_OPTIONS: BusinessSegmentConfigOption<CategoryScope>[] = [
+  {
+    value: "segment",
+    label: "Por segmento",
+    descricao: "As categorias e margens são partilhadas por unidades do mesmo negócio.",
+  },
+  {
+    value: "unit",
+    label: "Por unidade",
+    descricao: "Cada loja, farmácia ou unidade pode ter categorias e margens próprias.",
+  },
+  {
+    value: "global",
+    label: "Global do grupo",
+    descricao: "As categorias e margens são administradas de forma centralizada.",
+  },
+];
+
+export const PRICING_POLICY_OPTIONS: BusinessSegmentConfigOption<PricingPolicy>[] = [
+  {
+    value: "regulated",
+    label: "Regulada",
+    descricao: "Usa margens controladas e atenção a limites do setor.",
+  },
+  {
+    value: "cost_plus",
+    label: "Custo + margem",
+    descricao: "Calcula preço pelo custo real de entrada mais margem definida.",
+  },
+  {
+    value: "service",
+    label: "Serviço",
+    descricao: "Usa preços por serviços, mensalidades ou pacotes.",
+  },
+  {
+    value: "admin",
+    label: "Administrativa",
+    descricao: "Usada para centros de gestão, sem venda direta.",
+  },
+];
+
+export const STOCK_POLICY_OPTIONS: BusinessSegmentConfigOption<StockPolicy>[] = [
+  {
+    value: "expiry_controlled",
+    label: "Com validade",
+    descricao: "Exige controlo de lote, validade e alertas de vencimento.",
+  },
+  {
+    value: "serialized",
+    label: "Com série/garantia",
+    descricao: "Permite controlar número de série, garantia e assistência.",
+  },
+  {
+    value: "standard",
+    label: "Stock padrão",
+    descricao: "Movimenta entradas, saídas, mínimo e transferências normais.",
+  },
+  {
+    value: "service",
+    label: "Serviço",
+    descricao: "Sem stock comercial principal, mas pode suportar materiais internos.",
+  },
+  {
+    value: "none",
+    label: "Sem stock",
+    descricao: "Unidade administrativa ou serviço sem inventário próprio.",
+  },
+];
+
+export const SALES_DOCUMENT_MODE_OPTIONS: BusinessSegmentConfigOption<SalesDocumentMode>[] = [
+  {
+    value: "invoice_receipt",
+    label: "Fatura-recibo",
+    descricao: "Documento de venda completo para recebimento imediato.",
+  },
+  {
+    value: "receipt",
+    label: "Recibo",
+    descricao: "Comprovativo simples de pagamento ou serviço.",
+  },
+  {
+    value: "internal",
+    label: "Documento interno",
+    descricao: "Usado em transferências, requisições ou controlo interno.",
+  },
+  {
+    value: "none",
+    label: "Sem documento de venda",
+    descricao: "Unidade sem venda direta ao cliente.",
+  },
+];
+
+export const BUSINESS_SEGMENT_CONFIG_DEFAULTS: Record<string, BusinessSegmentConfig> = {
+  farmacias: {
+    categoryScope: "segment",
+    pricingPolicy: "regulated",
+    stockPolicy: "expiry_controlled",
+    salesDocumentMode: "invoice_receipt",
+    defaultMargin: 32,
+    defaultTaxRate: 0,
+    allowNegativeStock: false,
+    requiresExpiryControl: true,
+    requiresSerialNumber: false,
+    notes: "Margens farmacêuticas, validade, lote e alertas regulatórios ativos.",
+  },
+  escola_colegio: {
+    categoryScope: "segment",
+    pricingPolicy: "service",
+    stockPolicy: "service",
+    salesDocumentMode: "receipt",
+    defaultMargin: 0,
+    defaultTaxRate: 0,
+    allowNegativeStock: false,
+    requiresExpiryControl: false,
+    requiresSerialNumber: false,
+    notes: "Serviços escolares, mensalidades e itens internos fora do fluxo comercial comum.",
+  },
+  papelaria_informatica: {
+    categoryScope: "segment",
+    pricingPolicy: "cost_plus",
+    stockPolicy: "serialized",
+    salesDocumentMode: "invoice_receipt",
+    defaultMargin: 35,
+    defaultTaxRate: 0,
+    allowNegativeStock: false,
+    requiresExpiryControl: false,
+    requiresSerialNumber: true,
+    notes: "Papelaria usa stock padrão; informática pode exigir série, garantia e assistência.",
+  },
+  ortopedico_hospitalar: {
+    categoryScope: "segment",
+    pricingPolicy: "cost_plus",
+    stockPolicy: "expiry_controlled",
+    salesDocumentMode: "invoice_receipt",
+    defaultMargin: 35,
+    defaultTaxRate: 0,
+    allowNegativeStock: false,
+    requiresExpiryControl: true,
+    requiresSerialNumber: true,
+    notes: "Controla validade para consumíveis e número de série para equipamentos hospitalares.",
+  },
+  mobiliario_escolar_escritorio: {
+    categoryScope: "segment",
+    pricingPolicy: "cost_plus",
+    stockPolicy: "standard",
+    salesDocumentMode: "invoice_receipt",
+    defaultMargin: 30,
+    defaultTaxRate: 0,
+    allowNegativeStock: false,
+    requiresExpiryControl: false,
+    requiresSerialNumber: false,
+    notes: "Stock físico padrão para mobiliário escolar, escritório e entregas.",
+  },
+  escritorio_central: {
+    categoryScope: "global",
+    pricingPolicy: "admin",
+    stockPolicy: "none",
+    salesDocumentMode: "none",
+    defaultMargin: 0,
+    defaultTaxRate: 0,
+    allowNegativeStock: false,
+    requiresExpiryControl: false,
+    requiresSerialNumber: false,
+    notes: "Gestão central sem venda direta, com visão consolidada e políticas do grupo.",
+  },
+  generico: {
+    categoryScope: "unit",
+    pricingPolicy: "cost_plus",
+    stockPolicy: "standard",
+    salesDocumentMode: "receipt",
+    defaultMargin: 25,
+    defaultTaxRate: 0,
+    allowNegativeStock: false,
+    requiresExpiryControl: false,
+    requiresSerialNumber: false,
+    notes: "Configuração comercial padrão para negócios ainda não especializados.",
+  },
+};
+
 export function getDefaultModuleForStoreType(type?: string): string {
   return STORE_TYPE_OPTIONS.find((option) => option.value === type)?.defaultModuleId || "outro";
 }
@@ -372,6 +564,29 @@ export function getOperationalUnitRules(unitType?: string): OperationalUnitRules
     : "generico";
 
   return OPERATIONAL_UNIT_RULES[normalizedUnitType];
+}
+
+export function getBusinessSegmentConfigDefaults(segmentId?: string): BusinessSegmentConfig {
+  return BUSINESS_SEGMENT_CONFIG_DEFAULTS[segmentId || ""] || BUSINESS_SEGMENT_CONFIG_DEFAULTS.generico;
+}
+
+export function mergeBusinessSegmentConfig(
+  segmentId?: string,
+  config?: Partial<BusinessSegmentConfig> | null
+): BusinessSegmentConfig {
+  return {
+    ...getBusinessSegmentConfigDefaults(segmentId),
+    ...(config || {}),
+  };
+}
+
+export function getBusinessSegmentConfigSummary(config: BusinessSegmentConfig): string {
+  const pricing = PRICING_POLICY_OPTIONS.find((option) => option.value === config.pricingPolicy)?.label || "Preço";
+  const stock = STOCK_POLICY_OPTIONS.find((option) => option.value === config.stockPolicy)?.label || "Stock";
+  const documentMode =
+    SALES_DOCUMENT_MODE_OPTIONS.find((option) => option.value === config.salesDocumentMode)?.label || "Documento";
+
+  return `${pricing} · ${stock} · ${documentMode} · Margem base ${config.defaultMargin}%`;
 }
 
 export function getStoreOperationalRules(store?: Pick<Store, "tipo" | "unitType"> | null): OperationalUnitRules {

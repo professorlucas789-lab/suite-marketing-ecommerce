@@ -3,6 +3,24 @@
  */
 import type { CategoryMarginConfig } from './types/category';
 
+export type CategoryScope = "segment" | "unit" | "global";
+export type PricingPolicy = "regulated" | "cost_plus" | "service" | "admin";
+export type StockPolicy = "expiry_controlled" | "serialized" | "standard" | "service" | "none";
+export type SalesDocumentMode = "invoice_receipt" | "receipt" | "internal" | "none";
+
+export interface BusinessSegmentConfig {
+  categoryScope: CategoryScope;
+  pricingPolicy: PricingPolicy;
+  stockPolicy: StockPolicy;
+  salesDocumentMode: SalesDocumentMode;
+  defaultMargin: number;
+  defaultTaxRate: number;
+  allowNegativeStock: boolean;
+  requiresExpiryControl: boolean;
+  requiresSerialNumber: boolean;
+  notes?: string;
+}
+
 export interface Product {
   id?: string;
   nome: string;
@@ -191,6 +209,7 @@ export interface BusinessSettings {
   dateFormat: string;
   numberFormat: string;
   customCategories?: string[]; // user custom categories (Fase 12)
+  segmentConfig?: BusinessSegmentConfig;
 
   // NOVO: Margem padrão da empresa
   defaultMargin?: number; // Margem padrão para novos produtos (%)

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_BUSINESS_GROUP_ID,
   DEFAULT_BUSINESS_GROUP_NAME,
+  getBusinessSegmentConfigDefaults,
+  getBusinessSegmentConfigSummary,
   getDefaultBusinessSegmentForStoreType,
   getDefaultModuleForStoreType,
   getOperationalUnitRules,
@@ -12,6 +14,7 @@ import {
   getStoreOperationalRules,
   getStoreTypeLabel,
   isNavigationAllowedForUnit,
+  mergeBusinessSegmentConfig,
   normalizeStoreBusinessScope,
 } from "./businessUnitMapping";
 
@@ -93,5 +96,50 @@ describe("businessUnitMapping", () => {
   it("infere regras da unidade pelo tipo antigo quando unitType nao existe", () => {
     expect(getStoreOperationalRules({ tipo: "farmacia" }).canSell).toBe(true);
     expect(getStoreOperationalRules({ tipo: "escritorio_central" }).canSell).toBe(false);
+  });
+
+  it("define configuracao padrao farmaceutica com margem regulada e validade", () => {
+    expect(getBusinessSegmentConfigDefaults("farmacias")).toMatchObject({
+      categoryScope: "segment",
+      pricingPolicy: "regulated",
+      stockPolicy: "expiry_controlled",
+      salesDocumentMode: "invoice_receipt",
+      defaultMargin: 32,
+      allowNegativeStock: false,
+      requiresExpiryControl: true,
+    });
+  });
+
+  it("define escritorio central como segmento administrativo sem venda e sem stock", () => {
+    expect(getBusinessSegmentConfigDefaults("escritorio_central")).toMatchObject({
+      categoryScope: "global",
+      pricingPolicy: "admin",
+      stockPolicy: "none",
+      salesDocumentMode: "none",
+      defaultMargin: 0,
+    });
+  });
+
+  it("permite sobrescrever campos mantendo o padrao do segmento", () => {
+    const config = mergeBusinessSegmentConfig("papelaria_informatica", {
+      defaultMargin: 42,
+      requiresSerialNumber: false,
+    });
+
+    expect(config).toMatchObject({
+      pricingPolicy: "cost_plus",
+      stockPolicy: "serialized",
+      salesDocumentMode: "invoice_receipt",
+      defaultMargin: 42,
+      requiresSerialNumber: false,
+    });
+  });
+
+  it("resume configuracao do segmento para exibicao no menu", () => {
+    const summary = getBusinessSegmentConfigSummary(getBusinessSegmentConfigDefaults("papelaria_informatica"));
+
+    expect(summary).toContain("Custo + margem");
+    expect(summary).toContain("Com série/garantia");
+    expect(summary).toContain("Margem base 35%");
   });
 });

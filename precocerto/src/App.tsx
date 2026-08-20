@@ -61,6 +61,7 @@ import {
   getOperationalUnitRules,
   getStoreModuleId,
   isNavigationAllowedForUnit,
+  mergeBusinessSegmentConfig,
 } from "./utils/businessUnitMapping";
 
 // Loading component for lazy-loaded sections (Fase 12 - Performance Optimization)
@@ -213,6 +214,10 @@ export default function App() {
       const docSnap = storeSettingsDoc || legacySettingsDoc;
       const data = docSnap?.data() || {};
       const hasStoreSettings = !!storeSettingsDoc;
+      const segmentConfig = mergeBusinessSegmentConfig(
+        currentStore?.businessSegmentId,
+        data.segmentConfig
+      );
 
       setBusinessSettings({
         id: hasStoreSettings || !currentStore ? docSnap?.id : undefined,
@@ -236,6 +241,8 @@ export default function App() {
         dateFormat: data.dateFormat || "DD/MM/YYYY",
         numberFormat: data.numberFormat || "1.234,56",
         customCategories: data.customCategories || [],
+        segmentConfig,
+        defaultMargin: data.defaultMargin ?? segmentConfig.defaultMargin,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt
       });
