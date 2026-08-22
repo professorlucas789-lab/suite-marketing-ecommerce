@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, Trash2, Save, AlertCircle } from "lucide-react";
 import { calculateProductFields } from "../utils/pricing";
 import { calculateProductPricesWithCategoryMargin } from "../utils/categoryUtils";
 import { useCategories } from "../hooks/useCategories";
+import { useGlobalCategories } from "../hooks/useGlobalCategories"; // NOVO (Fase 14)
 import { useMarkupTable } from "../hooks/useMarkupTable";
 import { useStore } from "../contexts/StoreContext";
 import { formatKz } from "../utils";
@@ -46,6 +47,11 @@ export default function BatchProductForm({
   const { currentStore, userStores } = useStore();
   const categoryStoreId = currentStore?.storeId || userStores[0]?.id || "";
   const storeName = currentStore?.storeName || userStores[0]?.nome;
+
+  // NOVO (Fase 14): Usar categorias globais sincronizadas entre lojas
+  const { categories: globalCategories, loading: globalLoading } = useGlobalCategories();
+
+  // NOVO (Fase 2): Categories and margin management (fallback local)
   const { categories: storedCategories, loading: categoriesLoading } = useCategories({ storeId: categoryStoreId });
   const { markups, loading: markupsLoading } = useMarkupTable({ storeId: categoryStoreId });
   const markupCategories = useMemo(
@@ -55,8 +61,10 @@ export default function BatchProductForm({
         .map((markup) => markupToMarginCategory(markup, settings?.businessType || "outro")),
     [markups, settings?.businessType]
   );
-  const categories = markupCategories.length > 0 ? markupCategories : storedCategories;
-  const marginCategoriesLoading = markupsLoading || (markupCategories.length === 0 && categoriesLoading);
+
+  // NOVO (Fase 14): Preferir categorias globais, fallback para local se não houver globais
+  const categories = globalCategories.length > 0 ? globalCategories : (markupCategories.length > 0 ? markupCategories : storedCategories);
+  const marginCategoriesLoading = globalLoading || markupsLoading || (markupCategories.length === 0 && categoriesLoading);
 
   const [items, setItems] = useState<BatchProductItem[]>([createEmptyItem("1")]);
   const [fornecedor, setFornecedor] = useState("");

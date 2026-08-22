@@ -3,7 +3,8 @@ import { Product, BusinessSettings } from "../types";
 import { CATEGORY_PRESETS, formatKz } from "../utils";
 import { calculateProductFields, getPriceHealth } from "../utils/pricing";
 import { calculateProductPricesWithCategoryMargin } from "../utils/categoryUtils";
-import { useCategories } from "../hooks/useCategories"; // NOVO (Fase 2)
+import { useCategories } from "../hooks/useCategories"; // NOVO (Fase 2) - Fallback local
+import { useGlobalCategories } from "../hooks/useGlobalCategories"; // NOVO (Fase 14) - Categorias globais sincronizadas
 import { useMarkupTable } from "../hooks/useMarkupTable"; // NOVO (Fase 13)
 import { useStore } from "../contexts/StoreContext"; // FIX #2: Adicionar contexto de loja
 import { validateMarginCompliance } from "../utils/categoryUtils"; // NOVO (Fase 2)
@@ -64,12 +65,15 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
   const activeModule = businessModuleRegistry.getModuleById(settings?.businessType || "outro");
   const [extraFieldValues, setExtraFieldValues] = useState<Record<string, any>>({});
 
-  // FIX #2: Obter storeId do contexto para carregar categorias
+  // FIX #2: Obter storeId do contexto para fallback
   const { currentStore, userStores } = useStore();
   const categoryStoreId = currentStore?.storeId || userStores[0]?.id || '';
 
-  // NOVO (Fase 2): Categories and margin management
-  // FIX #2: Passar storeId para o hook useCategories para evitar página branca
+  // NOVO (Fase 14): Usar categorias globais sincronizadas entre lojas
+  const { categories: globalCategories, loading: globalLoading } = useGlobalCategories();
+
+  // NOVO (Fase 2): Categories and margin management (fallback local)
+  // FIX #2: Usar para compatibilidade com dados legados
   const { categories: storedCategories, loading: categoriesLoading } = useCategories({ storeId: categoryStoreId });
 
   // NOVO (Fase 13): Markup management
@@ -81,8 +85,10 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
         .map((markup) => markupToMarginCategory(markup, settings?.businessType || "outro")),
     [markups, settings?.businessType]
   );
-  const categories = markupCategories.length > 0 ? markupCategories : storedCategories;
-  const marginCategoriesLoading = markupsLoading || (markupCategories.length === 0 && categoriesLoading);
+
+  // NOVO (Fase 14): Preferir categorias globais, fallback para local se não houver globais
+  const categories = globalCategories.length > 0 ? globalCategories : (markupCategories.length > 0 ? markupCategories : storedCategories);
+  const marginCategoriesLoading = globalLoading || markupsLoading || (markupCategories.length === 0 && categoriesLoading);
   const [markupLevelSelected, setMarkupLevelSelected] = useState<'minimo' | 'medio' | 'alto'>('medio');
   const [selectedMarkupCategory, setSelectedMarkupCategory] = useState<any>(null);
 
