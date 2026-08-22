@@ -205,17 +205,72 @@ class NotificationServiceImpl {
         return false;
       }
 
-      // TODO: Integrar com SendGrid ou Firebase Email
-      // Por enquanto, apenas log
-      console.log('Email a ser enviado para:', preferences.emailAddress);
-      console.log('Assunto:', notification.title);
-      console.log('Mensagem:', notification.message);
+      // Integração com SendGrid
+      const SendGridService = await import('../integrations/sendgrid').then(m => m.SendGridService).catch(() => null);
 
-      return true;
+      if (!SendGridService) {
+        console.warn('⚠️ SendGrid não configurado. Email não enviado.');
+        return false;
+      }
+
+      const htmlContent = this.generateEmailHTML(notification);
+
+      const result = await SendGridService.sendEmail({
+        to: preferences.emailAddress,
+        subject: `🔔 ${notification.title}`,
+        htmlContent,
+        textContent: `${notification.title}\n\n${notification.message}`,
+      });
+
+      return result.success;
     } catch (error) {
       console.error('Erro ao enviar email:', error);
       return false;
     }
+  }
+
+  /**
+   * Gerar HTML para email
+   */
+  private generateEmailHTML(notification: Omit<Notification, 'id' | 'createdAt'>): string {
+    const priorityColors: { [key: string]: string } = {
+      'critical': '#dc3545',
+      'high': '#fd7e14',
+      'normal': '#0d6efd',
+      'low': '#6c757d',
+    };
+
+    const color = priorityColors[notification.priority] || '#0d6efd';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { border-left: 4px solid ${color}; padding: 20px; background: #f8f9fa; margin-bottom: 20px; }
+            .title { font-size: 20px; font-weight: bold; color: ${color}; margin: 0; }
+            .message { font-size: 16px; line-height: 1.6; margin: 15px 0; }
+            .btn { display: inline-block; background: ${color}; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; }
+            .footer { font-size: 12px; color: #999; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1 class="title">${notification.title}</h1>
+            </div>
+            <p class="message">${notification.message}</p>
+            <p><a href="https://precocerto-als.netlify.app/" class="btn">Ver PreçoCerto</a></p>
+            <div class="footer">
+              <p>© 2026 PreçoCerto - Gestão de Lojas Inteligente</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
   }
 
   /**
@@ -236,12 +291,20 @@ class NotificationServiceImpl {
         return false;
       }
 
-      // TODO: Integrar com Twilio WhatsApp
-      // Por enquanto, apenas log
-      console.log('WhatsApp a ser enviado para:', preferences.phoneNumber);
-      console.log('Mensagem:', `${notification.title}\n${notification.message}`);
+      // Integração com Twilio WhatsApp
+      const TwilioService = await import('../integrations/twilio').then(m => m.TwilioService).catch(() => null);
 
-      return true;
+      if (!TwilioService) {
+        console.warn('⚠️ Twilio não configurado. WhatsApp não enviado.');
+        return false;
+      }
+
+      const result = await TwilioService.sendWhatsApp(
+        preferences.phoneNumber,
+        `${notification.title}\n\n${notification.message}`
+      );
+
+      return result.success;
     } catch (error) {
       console.error('Erro ao enviar WhatsApp:', error);
       return false;
@@ -266,12 +329,23 @@ class NotificationServiceImpl {
         return false;
       }
 
-      // TODO: Integrar com Twilio SMS
-      // Por enquanto, apenas log
-      console.log('SMS a ser enviado para:', preferences.phoneNumber);
-      console.log('Mensagem:', notification.message.substring(0, 160));
+      // Integração com Twilio SMS
+      const TwilioService = await import('../integrations/twilio').then(m => m.TwilioService).catch(() => null);
 
-      return true;
+      if (!TwilioService) {
+        console.warn('⚠️ Twilio não configurado. SMS não enviado.');
+        return false;
+      }
+
+      // SMS tem limite de 160 caracteres
+      const messageText = `${notification.title} - ${notification.message}`.substring(0, 160);
+
+      const result = await TwilioService.sendSMS(
+        preferences.phoneNumber,
+        messageText
+      );
+
+      return result.success;
     } catch (error) {
       console.error('Erro ao enviar SMS:', error);
       return false;
