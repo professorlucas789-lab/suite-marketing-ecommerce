@@ -1,11 +1,13 @@
 /**
  * Hook customizado para gerenciar alertas de validade
- * Semana 1: Padrão reutilizável seguindo arquitetura existente
+ * OTIMIZADO: Usa real-time listeners (onSnapshot) em vez de polling
  *
  * Padrão de retorno: [data, loading, error, actions]
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { collection, onSnapshot, query, where, QueryConstraint } from 'firebase/firestore';
+import { db } from '../firebase';
 import { ExpiryAlert, AlertSeverity } from '../types/notifications';
 import { ExpiryAlertService } from '../services/expiryAlertService';
 
@@ -49,9 +51,10 @@ export function useExpiryAlerts(storeId: string): [ExpiryAlertsState, ExpiryAler
   const [filterResolved, setFilterResolved] = useState<boolean | 'ALL'>('ALL');
 
   /**
-   * Carregar alertas quando storeId muda ou filtros mudam
+   * OTIMIZADO: Usar real-time listeners em vez de polling
+   * Reduz queries Firestore e melhora responsividade
    */
-  const loadAlerts = useCallback(async () => {
+  useEffect(() => {
     if (!storeId) {
       setState({
         alerts: [],
@@ -62,32 +65,64 @@ export function useExpiryAlerts(storeId: string): [ExpiryAlertsState, ExpiryAler
       return;
     }
 
+    setState((prev) => ({ ...prev, loading: true, error: null }));
+
     try {
-      setState((prev) => ({ ...prev, loading: true, error: null }));
+      const alertsRef = collection(db, 'stores', storeId, 'expiryAlerts');
+      const constraints: QueryConstraint[] = [];
 
-      // Determinar filtros
-      const filters: any = {};
+      // Aplicar filtros
       if (filterSeverity !== 'ALL') {
-        filters.severity = filterSeverity;
+        constraints.push(where('severity', '==', filterSeverity));
       }
+
       if (filterResolved !== 'ALL') {
-        filters.resolved = filterResolved === true;
+        if (filterResolved === false) {
+          constraints.push(where('resolvedAt', '==', null));
+        } else if (filterResolved === true) {
+          constraints.push(where('resolvedAt', '!=', null));
+        }
       }
 
-      // Buscar alertas
-      const alerts = await ExpiryAlertService.listAlerts(storeId, filters);
+      const q = query(alertsRef, ...constraints);
 
-      // Buscar resumo
-      const summary = await ExpiryAlertService.getAlertsSummary(storeId);
+      // Real-time listener - atualiza automaticamente quando dados mudam
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const alerts: ExpiryAlert[] = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as ExpiryAlert[];
 
-      setState({
-        alerts,
-        summary,
-        loading: false,
-        error: null,
-      });
+          // Calcular resumo
+          const summary = {
+            critical: alerts.filter((a) => a.severity === 'CRITICAL').length,
+            warning: alerts.filter((a) => a.severity === 'WARNING').length,
+            info: alerts.filter((a) => a.severity === 'INFO').length,
+            total: alerts.length,
+          };
+
+          setState({
+            alerts,
+            summary,
+            loading: false,
+            error: null,
+          });
+        },
+        (error) => {
+          console.error('Erro ao escutar alertas:', error);
+          setState((prev) => ({
+            ...prev,
+            loading: false,
+            error: 'Erro ao carregar alertas em tempo real',
+          }));
+        }
+      );
+
+      return () => unsubscribe();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao carregar alertas';
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao configurar listener';
       setState((prev) => ({
         ...prev,
         loading: false,
@@ -97,11 +132,30 @@ export function useExpiryAlerts(storeId: string): [ExpiryAlertsState, ExpiryAler
   }, [storeId, filterSeverity, filterResolved]);
 
   /**
-   * Carregar alertas ao montar componente ou quando storeId/filtros mudam
+   * Recarregar alertas manualmente (fallback para casos edge)
    */
-  useEffect(() => {
-    loadAlerts();
-  }, [loadAlerts]);
+  const loadAlerts = useCallback(async () => {
+    if (!storeId) return;
+
+    try {
+      const alerts = await ExpiryAlertService.listAlerts(storeId);
+      const summary = await ExpiryAlertService.getAlertsSummary(storeId);
+
+      setState({
+        alerts,
+        summary,
+        loading: false,
+        error: null,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao recarregar alertas';
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        error: errorMessage,
+      }));
+    }
+  }, [storeId]);
 
   /**
    * Reconhecer alerta

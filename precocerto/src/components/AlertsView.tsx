@@ -18,8 +18,9 @@ import { useCriticalExpiryAlerts } from "../hooks/useExpiryAlerts";
 import { useLowStockAlerts } from "../hooks/useLowStockAlerts";
 
 export default function AlertsView() {
-  const { products } = useStore();
-  const { criticalAlerts, warningAlerts } = useCriticalExpiryAlerts("default");
+  const { products, currentStore } = useStore();
+  const storeId = currentStore?.storeId || "default";
+  const { criticalAlerts, warningAlerts } = useCriticalExpiryAlerts(storeId);
   const { lowStockProducts } = useLowStockAlerts({ products, defaultMinQuantity: 5 });
 
   const expiryAlerts = [...criticalAlerts, ...warningAlerts];

@@ -15,6 +15,7 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
   addDoc,
   updateDoc,
   doc,
@@ -326,18 +327,18 @@ export class ExpiryAlertService {
 
   /**
    * Obter um alerta específico
+   * OTIMIZADO: Usa getDoc() em vez de getDocs() para melhor performance
    */
   static async getAlert(storeId: string, alertId: string): Promise<ExpiryAlert | null> {
     try {
       const alertRef = doc(db, 'stores', storeId, 'expiryAlerts', alertId);
-      const snapshot = await getDocs(collection(db, 'stores', storeId, 'expiryAlerts'));
+      const snapshot = await getDoc(alertRef);
 
-      const alertDoc = snapshot.docs.find((doc) => doc.id === alertId);
-      if (!alertDoc) return null;
+      if (!snapshot.exists()) return null;
 
       return {
-        id: alertDoc.id,
-        ...alertDoc.data(),
+        id: snapshot.id,
+        ...snapshot.data(),
       } as ExpiryAlert;
     } catch (error) {
       console.error('Erro ao buscar alerta:', error);
