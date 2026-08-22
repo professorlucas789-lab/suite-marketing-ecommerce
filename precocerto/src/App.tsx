@@ -51,6 +51,7 @@ const MultiStoreComparisonDashboard = React.lazy(() => import("./components/Mult
 const AlertMonitorPanel = React.lazy(() => import("./components/AlertMonitorPanel").then(m => ({ default: m.AlertMonitorPanel })));
 const TwilioConfigPanel = React.lazy(() => import("./components/TwilioConfigPanel").then(m => ({ default: m.TwilioConfigPanel })));
 const AlertsView = React.lazy(() => import("./components/AlertsView")); // NOVO (Fase 13 - Expiry & Stock Alerts)
+const StockManagementPanel = React.lazy(() => import("./components/StockManagementPanel")); // NOVO (Fase 2 - Stock Management)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -1189,6 +1190,21 @@ export default function App() {
                   >
                     <Suspense fallback={<LazyComponentLoader />}>
                       <AlertsView />
+                    </Suspense>
+                  </motion.div>
+                )}
+
+                {/* NOVO (Fase 2): Stock Management Panel - Lazy loaded (Fase 12) */}
+                {activeTab === "estoque" && (
+                  <motion.div
+                    key="estoque-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <StockManagementPanel />
                     </Suspense>
                   </motion.div>
                 )}
