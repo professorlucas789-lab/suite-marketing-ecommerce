@@ -15,9 +15,7 @@ import {
   Calendar,
   Package,
   AlertCircle,
-  Trash2,
 } from "lucide-react";
-import { useAuth } from "../contexts/AuthContext";
 
 interface ExpiryAlertPanelProps {
   alerts: ExpiryAlert[];
@@ -30,7 +28,6 @@ export default function ExpiryAlertPanel({
   onResolve,
   loading = false,
 }: ExpiryAlertPanelProps) {
-  const { user } = useAuth();
   const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
   const [resolveMotivo, setResolveMotivo] = useState("");
   const [resolving, setResolving] = useState<string | null>(null);

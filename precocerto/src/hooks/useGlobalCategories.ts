@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { CategoryMarginConfig } from '../types/category';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from './useAuth';
 import {
   getUserGlobalCategories,
   subscribeToUserGlobalCategories,
@@ -32,13 +32,14 @@ interface UseGlobalCategoriesReturn {
 
 export function useGlobalCategories(): UseGlobalCategoriesReturn {
   const { user } = useAuth();
+  const userId = user?.uid;
   const [categories, setCategories] = useState<CategoryMarginConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Carregar categorias globais ao montar
   useEffect(() => {
-    if (!user?.id) {
+    if (!userId) {
       setLoading(false);
       return;
     }
@@ -49,7 +50,7 @@ export function useGlobalCategories(): UseGlobalCategoriesReturn {
     // Tentar carregar categorias globais
     const loadCategories = async () => {
       try {
-        const globalCategories = await getUserGlobalCategories(user.id);
+        const globalCategories = await getUserGlobalCategories(userId);
         setCategories(globalCategories);
       } catch (err) {
         console.error('Erro ao carregar categorias globais:', err);
@@ -63,20 +64,20 @@ export function useGlobalCategories(): UseGlobalCategoriesReturn {
     loadCategories();
 
     // Setup listener real-time para mudanças
-    const unsubscribe = subscribeToUserGlobalCategories(user.id, (updatedCategories) => {
+    const unsubscribe = subscribeToUserGlobalCategories(userId, (updatedCategories) => {
       setCategories(updatedCategories);
     });
 
     return () => unsubscribe();
-  }, [user?.id]);
+  }, [userId]);
 
   // Criar nova categoria global
   const createCategory = useCallback(
     async (categoryData: Omit<CategoryMarginConfig, 'id' | 'storeId' | 'createdAt' | 'updatedAt'>) => {
-      if (!user?.id) throw new Error('Utilizador não autenticado');
+      if (!userId) throw new Error('Utilizador não autenticado');
 
       try {
-        const categoryId = await createGlobalCategory(user.id, categoryData);
+        const categoryId = await createGlobalCategory(userId, categoryData);
         console.log('✅ Categoria global criada:', categoryId);
         return categoryId;
       } catch (err) {
@@ -85,16 +86,16 @@ export function useGlobalCategories(): UseGlobalCategoriesReturn {
         throw err;
       }
     },
-    [user?.id]
+    [userId]
   );
 
   // Atualizar categoria global
   const updateCategory = useCallback(
     async (categoryId: string, updates: Partial<CategoryMarginConfig>) => {
-      if (!user?.id) throw new Error('Utilizador não autenticado');
+      if (!userId) throw new Error('Utilizador não autenticado');
 
       try {
-        await updateGlobalCategory(user.id, categoryId, updates);
+        await updateGlobalCategory(userId, categoryId, updates);
         console.log('✅ Categoria global atualizada:', categoryId);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Erro ao atualizar categoria';
@@ -102,16 +103,16 @@ export function useGlobalCategories(): UseGlobalCategoriesReturn {
         throw err;
       }
     },
-    [user?.id]
+    [userId]
   );
 
   // Atualizar regras de margem da categoria global
   const updateCategoryMarginRules = useCallback(
     async (categoryId: string, marginRules: any) => {
-      if (!user?.id) throw new Error('Utilizador não autenticado');
+      if (!userId) throw new Error('Utilizador não autenticado');
 
       try {
-        await updateGlobalCategoryMarginRules(user.id, categoryId, marginRules);
+        await updateGlobalCategoryMarginRules(userId, categoryId, marginRules);
         console.log('✅ Regras de margem atualizadas:', categoryId);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Erro ao atualizar regras de margem';
@@ -119,16 +120,16 @@ export function useGlobalCategories(): UseGlobalCategoriesReturn {
         throw err;
       }
     },
-    [user?.id]
+    [userId]
   );
 
   // Deletar categoria global
   const deleteCategory = useCallback(
     async (categoryId: string) => {
-      if (!user?.id) throw new Error('Utilizador não autenticado');
+      if (!userId) throw new Error('Utilizador não autenticado');
 
       try {
-        await deleteGlobalCategory(user.id, categoryId);
+        await deleteGlobalCategory(userId, categoryId);
         console.log('✅ Categoria global deletada:', categoryId);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Erro ao deletar categoria';
@@ -136,16 +137,16 @@ export function useGlobalCategories(): UseGlobalCategoriesReturn {
         throw err;
       }
     },
-    [user?.id]
+    [userId]
   );
 
   // Atualizar manualmente as categorias
   const refreshCategories = useCallback(async () => {
-    if (!user?.id) return;
+    if (!userId) return;
 
     try {
       setLoading(true);
-      const freshCategories = await getUserGlobalCategories(user.id);
+      const freshCategories = await getUserGlobalCategories(userId);
       setCategories(freshCategories);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erro ao atualizar categorias';
@@ -153,7 +154,7 @@ export function useGlobalCategories(): UseGlobalCategoriesReturn {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [userId]);
 
   return {
     categories,

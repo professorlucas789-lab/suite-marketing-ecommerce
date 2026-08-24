@@ -10,7 +10,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from './useAuth';
 import {
   migrateUserCategoriesToGlobal,
   validateMigrationIntegrity,
@@ -38,6 +38,7 @@ interface UseMigrationReturn {
 
 export function useMigration(): UseMigrationReturn {
   const { user } = useAuth();
+  const userId = user?.uid;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMigrating, setIsMigrating] = useState(false);
@@ -46,7 +47,7 @@ export function useMigration(): UseMigrationReturn {
 
   // Triggerar migração de categorias
   const migrate = useCallback(async () => {
-    if (!user?.id) {
+    if (!userId) {
       setError('Utilizador não autenticado');
       return;
     }
@@ -58,7 +59,7 @@ export function useMigration(): UseMigrationReturn {
 
       console.log('🔄 Iniciando migração de categorias...');
 
-      const stats = await migrateUserCategoriesToGlobal(user.id);
+      const stats = await migrateUserCategoriesToGlobal(userId);
       const reportText = generateMigrationReport(stats);
 
       setReport({
@@ -75,11 +76,11 @@ export function useMigration(): UseMigrationReturn {
       setLoading(false);
       setIsMigrating(false);
     }
-  }, [user?.id]);
+  }, [userId]);
 
   // Validar integridade dos dados
   const validate = useCallback(async () => {
-    if (!user?.id) {
+    if (!userId) {
       setError('Utilizador não autenticado');
       return;
     }
@@ -90,7 +91,7 @@ export function useMigration(): UseMigrationReturn {
 
       console.log('🔍 Validando integridade dos dados...');
 
-      const result = await validateMigrationIntegrity(user.id);
+      const result = await validateMigrationIntegrity(userId);
       setValidationResult(result);
 
       if (result.isValid) {
@@ -105,7 +106,7 @@ export function useMigration(): UseMigrationReturn {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [userId]);
 
   // Limpar relatório
   const clearReport = useCallback(() => {
