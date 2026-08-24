@@ -2,7 +2,13 @@ import type { Product } from "../types";
 import type { StockAdjustmentType, StockSummary } from "../types/stock";
 
 export function getProductAvailableStock(product: Product): number {
-  return Number(product.quantidadeDisponivel ?? product.totalUnidadesVendaveis ?? product.quantidade ?? 0);
+  return Number(
+    product.quantidadeDisponivel ??
+      product.quantidadeDisponível ??
+      product.totalUnidadesVendaveis ??
+      product.quantidade ??
+      0
+  );
 }
 
 export function getProductStockValue(product: Product): number {

@@ -6,6 +6,7 @@
 
 import { SalesReport, SalesKPIs } from '../types/sales';
 import { Product } from '../types';
+import { getProductAvailableStock } from '../utils/stockUtils';
 
 export interface ConsolidatedReport {
   period: {
@@ -43,12 +44,15 @@ export function prepareConsolidatedReport(
   // Calcular inventário
   const inventory = {
     totalProducts: products.length,
-    inStock: products.filter((p) => (p.quantidadeDisponível || 0) >= 10).length,
+    inStock: products.filter((p) => getProductAvailableStock(p) >= 10).length,
     lowStock: products.filter(
-      (p) => (p.quantidadeDisponível || 0) > 0 && (p.quantidadeDisponível || 0) < 10
+      (p) => getProductAvailableStock(p) > 0 && getProductAvailableStock(p) < 10
     ).length,
-    outOfStock: products.filter((p) => (p.quantidadeDisponível || 0) === 0).length,
-    totalValue: products.reduce((sum, p) => sum + ((p.preco || 0) * (p.quantidadeDisponível || 0)), 0),
+    outOfStock: products.filter((p) => getProductAvailableStock(p) === 0).length,
+    totalValue: products.reduce(
+      (sum, p) => sum + ((p.precoVendaRecomendado || p.preco || 0) * getProductAvailableStock(p)),
+      0
+    ),
   };
 
   return {

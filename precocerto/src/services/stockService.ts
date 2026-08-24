@@ -32,6 +32,7 @@ import {
   StockAnalytics,
 } from '../types/inventory';
 import { Product } from '../types';
+import { getProductAvailableStock } from '../utils/stockUtils';
 
 export class StockService {
   /**
@@ -97,7 +98,10 @@ export class StockService {
         return;
       }
 
-      const currentQuantity = productSnap.data().quantidadeDisponível || 0;
+      const productData = productSnap.data();
+      const currentQuantity = Number(
+        productData.quantidadeDisponivel ?? productData.quantidadeDisponível ?? productData.quantidade ?? 0
+      );
       let newQuantity = currentQuantity;
 
       if (type === 'IN') {
@@ -109,6 +113,7 @@ export class StockService {
       }
 
       await updateDoc(productRef, {
+        quantidadeDisponivel: newQuantity,
         quantidadeDisponível: newQuantity,
         ultimaMovimentacao: serverTimestamp(),
       });
@@ -214,16 +219,16 @@ export class StockService {
       const alerts: StockAlert[] = [];
 
       snapshot.forEach((docSnapshot) => {
-        const product = docSnapshot.data() as Product;
-        const quantity = product.quantidadeDisponível || 0;
-        const minQuantity = 5; // Padrão
+        const product = { id: docSnapshot.id, ...docSnapshot.data() } as Product;
+        const quantity = getProductAvailableStock(product);
+        const minQuantity = product.quantidadeMinima ?? 5;
         const reorderQuantity = 10; // Padrão
 
         if (quantity <= minQuantity) {
           alerts.push({
             id: `stock-${product.id}-${Date.now()}`,
             storeId,
-            productId: product.id,
+            productId: product.id || docSnapshot.id,
             productName: product.nome,
             currentQuantity: quantity,
             minQuantity,
@@ -280,7 +285,7 @@ export class StockService {
         else if (m.type === 'OUT') totalOut += m.quantity;
       });
 
-      const currentQuantity = product.quantidadeDisponível || 0;
+      const currentQuantity = getProductAvailableStock(product);
       const averageDaily = totalOut > 0 ? totalOut / days : 0;
       const daysUntilEmpty =
         averageDaily > 0

@@ -8,6 +8,7 @@ import { db } from '../firebase';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { NotificationService, Notification } from './notificationService';
 import { Product } from '../types';
+import { getProductAvailableStock } from '../utils/stockUtils';
 
 export type AlertEvent =
   | 'stock_critical'
@@ -31,17 +32,19 @@ class AutomatedAlertsServiceImpl {
    * Verificar stock crítico (implementado via Phase 2)
    */
   async checkStockCritical(storeId: string, product: Product): Promise<void> {
-    if (!product.quantidadeDisponível || product.quantidadeDisponível <= 2) {
+    const currentStock = getProductAvailableStock(product);
+
+    if (currentStock <= 2) {
       await this.dispatchAlert({
         storeId,
         type: 'stock_critical',
         title: `⚠️ STOCK CRÍTICO: ${product.nome}`,
-        message: `Produto "${product.nome}" está com stock crítico (${product.quantidadeDisponível || 0} unidades).`,
+        message: `Produto "${product.nome}" está com stock crítico (${currentStock} unidades).`,
         priority: 'critical',
         data: {
           productId: product.id,
           productName: product.nome,
-          currentStock: product.quantidadeDisponível,
+          currentStock,
         },
         channels: ['in-app', 'whatsapp'],
       });
@@ -52,17 +55,19 @@ class AutomatedAlertsServiceImpl {
    * Verificar stock baixo
    */
   async checkStockLow(storeId: string, product: Product): Promise<void> {
-    if (product.quantidadeDisponível && product.quantidadeDisponível > 2 && product.quantidadeDisponível <= 5) {
+    const currentStock = getProductAvailableStock(product);
+
+    if (currentStock > 2 && currentStock <= 5) {
       await this.dispatchAlert({
         storeId,
         type: 'stock_low',
         title: `📦 Stock Baixo: ${product.nome}`,
-        message: `Produto "${product.nome}" está com stock baixo (${product.quantidadeDisponível} unidades).`,
+        message: `Produto "${product.nome}" está com stock baixo (${currentStock} unidades).`,
         priority: 'high',
         data: {
           productId: product.id,
           productName: product.nome,
-          currentStock: product.quantidadeDisponível,
+          currentStock,
         },
         channels: ['in-app', 'email'],
       });

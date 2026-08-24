@@ -118,18 +118,20 @@ export async function checkLowStockAlerts(storeId: string): Promise<string[]> {
 
     for (const doc of productsSnapshot.docs) {
       const product = doc.data();
-      const quantidadeDisponível = product.quantidadeDisponível || 0;
+      const quantidadeDisponivel = Number(
+        product.quantidadeDisponivel ?? product.quantidadeDisponível ?? product.quantidade ?? 0
+      );
       const quantidadeMinima = product.quantidadeMinima || 10;
 
-      if (quantidadeDisponível > 0 && quantidadeDisponível <= quantidadeMinima) {
-        const severity = quantidadeDisponível === 0 ? 'CRITICAL' : 'WARNING';
+      if (quantidadeDisponivel <= quantidadeMinima) {
+        const severity = quantidadeDisponivel === 0 ? 'CRITICAL' : 'WARNING';
 
         // Enviar para admins
         for (const userDoc of usersSnapshot.docs) {
           const user = userDoc.data();
           const notification: NotificationPayload = {
             title: `Stock Baixo: ${product.nome}`,
-            message: `Quantidade disponível: ${quantidadeDisponível} un. (Mínimo: ${quantidadeMinima} un.)`,
+            message: `Quantidade disponível: ${quantidadeDisponivel} un. (Mínimo: ${quantidadeMinima} un.)`,
             severity,
             channels: ['in-app', 'email', 'whatsapp'],
             recipientId: user.uid,
@@ -139,7 +141,7 @@ export async function checkLowStockAlerts(storeId: string): Promise<string[]> {
               productId: doc.id,
               storeId,
               alertType: 'low-stock',
-              currentQuantity: quantidadeDisponível,
+              currentQuantity: quantidadeDisponivel,
               minQuantity: quantidadeMinima,
             },
             timestamp: new Date().toISOString(),

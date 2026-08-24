@@ -15,7 +15,9 @@ import {
 } from 'lucide-react';
 import { useStore } from '../contexts/StoreContext';
 import { useStockMovements } from '../hooks/useStockMovements';
+import { useAuth } from '../hooks/useAuth';
 import { StockMovementType, StockMovementReason } from '../types/inventory';
+import { getProductAvailableStock } from '../utils/stockUtils';
 
 interface StockMovementRecorderProps {
   productId?: string;
@@ -29,7 +31,9 @@ export default function StockMovementRecorder({
   onSuccess,
 }: StockMovementRecorderProps) {
   const { products, currentStore } = useStore();
+  const { user } = useAuth();
   const [, actions] = useStockMovements(currentStore?.storeId || '');
+  const safeProducts = Array.isArray(products) ? products : [];
 
   const [formData, setFormData] = useState({
     productId: defaultProductId || '',
@@ -45,7 +49,7 @@ export default function StockMovementRecorder({
     text: string;
   } | null>(null);
 
-  const selectedProduct = products.find((p) => p.id === formData.productId);
+  const selectedProduct = safeProducts.find((p) => p.id === formData.productId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +59,14 @@ export default function StockMovementRecorder({
       setMessage({
         type: 'error',
         text: 'Produto e loja são obrigatórios',
+      });
+      return;
+    }
+
+    if (!user?.uid) {
+      setMessage({
+        type: 'error',
+        text: 'Sessão inválida. Entra novamente para registar a movimentação.',
       });
       return;
     }
@@ -77,7 +89,7 @@ export default function StockMovementRecorder({
         quantity: formData.quantity,
         reason: formData.reason,
         notes: formData.notes || undefined,
-        userId: 'current-user', // TODO: Obter do contexto de autenticação
+        userId: user.uid,
       });
 
       setMessage({
@@ -135,9 +147,9 @@ export default function StockMovementRecorder({
             disabled={!!defaultProductId}
           >
             <option value="">Selecionar produto</option>
-            {products.map((product) => (
+            {safeProducts.map((product) => (
               <option key={product.id} value={product.id}>
-                {product.nome} (Qty: {product.quantidadeDisponível || 0})
+                {product.nome} (Qty: {getProductAvailableStock(product)})
               </option>
             ))}
           </select>

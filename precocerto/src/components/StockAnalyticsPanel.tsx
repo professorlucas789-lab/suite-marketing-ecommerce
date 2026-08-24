@@ -17,6 +17,7 @@ import {
 import { useStore } from '../contexts/StoreContext';
 import { useStockAlerts, useReorderSuggestions } from '../hooks/useStockAlerts';
 import { useStockAnalytics } from '../hooks/useStockMovements';
+import { getProductAvailableStock } from '../utils/stockUtils';
 
 interface StockAnalyticsPanelProps {
   productId?: string;
@@ -51,8 +52,8 @@ export default function StockAnalyticsPanel({
     );
 
     const totalValue = products.reduce((sum, p) => {
-      const price = p.precoVenda || 0;
-      const qty = p.quantidadeDisponível || 0;
+      const price = p.precoVendaRecomendado || p.preco || 0;
+      const qty = getProductAvailableStock(p);
       return sum + price * qty;
     }, 0);
 
@@ -65,7 +66,7 @@ export default function StockAnalyticsPanel({
         products.length > 0
           ? Math.round(
               products.reduce(
-                (sum, p) => sum + (p.quantidadeDisponível || 0),
+                (sum, p) => sum + getProductAvailableStock(p),
                 0
               ) / products.length
             )

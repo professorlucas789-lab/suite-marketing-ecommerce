@@ -21,6 +21,7 @@ import { useSalesAnalytics } from '../hooks/useSalesAnalytics';
 import { useExpiryAlerts } from '../hooks/useExpiryAlerts';
 import { useLowStockAlerts } from '../hooks/useLowStockAlerts';
 import { useStore } from '../contexts/StoreContext';
+import { getProductAvailableStock } from '../utils/stockUtils';
 
 interface ExecutiveDashboardProps {
   products: Product[];
@@ -56,11 +57,11 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ products
   // Estatísticas de estoque
   const stockStats = {
     total: products.length,
-    outOfStock: products.filter((p) => (p.quantidadeDisponível || 0) === 0).length,
+    outOfStock: products.filter((p) => getProductAvailableStock(p) === 0).length,
     lowStock: products.filter(
-      (p) => (p.quantidadeDisponível || 0) > 0 && (p.quantidadeDisponível || 0) < 10
+      (p) => getProductAvailableStock(p) > 0 && getProductAvailableStock(p) < 10
     ).length,
-    inStock: products.filter((p) => (p.quantidadeDisponível || 0) >= 10).length,
+    inStock: products.filter((p) => getProductAvailableStock(p) >= 10).length,
   };
 
   // Top 3 produtos mais vendidos hoje

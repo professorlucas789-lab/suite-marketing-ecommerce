@@ -18,11 +18,13 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useStore } from '../contexts/StoreContext';
+import { useAuth } from '../hooks/useAuth';
 import { useAutomatedNotifications } from '../hooks/useAutomatedNotifications';
 
 export default function AutomationDashboard() {
   const { currentStore } = useStore();
-  const userId = 'current-user'; // TODO: Obter do contexto de autenticação
+  const { user } = useAuth();
+  const userId = user?.uid || '';
   const storeId = currentStore?.storeId || '';
 
   const [state, actions] = useAutomatedNotifications(storeId, userId);
@@ -48,6 +50,14 @@ export default function AutomationDashboard() {
     return (
       <div className="p-6 text-center text-slate-600 dark:text-slate-400">
         Seleciona uma loja para ver as automações
+      </div>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <div className="p-6 text-center text-slate-600 dark:text-slate-400">
+        Entra novamente para configurar as automações desta loja
       </div>
     );
   }

@@ -34,6 +34,7 @@ const makeProduct = (overrides: Partial<Product>): Product => ({
 describe("stockUtils", () => {
   it("resolve stock disponivel com fallback para quantidade", () => {
     expect(getProductAvailableStock(makeProduct({ quantidadeDisponivel: 8, quantidade: 20 }))).toBe(8);
+    expect(getProductAvailableStock(makeProduct({ quantidadeDisponível: 6, quantidade: 20 }))).toBe(6);
     expect(getProductAvailableStock(makeProduct({ quantidade: 20 }))).toBe(20);
   });
 

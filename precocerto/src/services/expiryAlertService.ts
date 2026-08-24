@@ -31,6 +31,7 @@ import {
 } from '../types/notifications';
 import { Product } from '../types';
 import { getNotificationOrchestrator } from '../integrations/notificationChannels';
+import { getProductAvailableStock } from '../utils/stockUtils';
 
 /**
  * Determinar severidade baseado em dias para expiração
@@ -163,7 +164,7 @@ export class ExpiryAlertService {
             severity,
             createdAt: new Date().toISOString(),
             channels: [],
-            quantity: product.quantidade || product.quantidadeDisponível,
+            quantity: getProductAvailableStock(product),
             batchNumber: (product as any).lote, // Alguns produtos têm lote
           });
         }
