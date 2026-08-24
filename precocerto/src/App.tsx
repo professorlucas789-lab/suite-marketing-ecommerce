@@ -33,6 +33,7 @@ import { ImportCSVModal } from "./components/ImportCSVModal"; // NOVO (Fase 5A)
 import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fase 5A)
 import { ReportBuilder, ReportConfig } from "./components/ReportBuilder"; // NOVO (Fase 5B Item 3)
 import { NotificationSettingsPanel } from "./components/NotificationSettingsPanel"; // NOVO (Fase 10 - Automação de Alertas)
+import SalesModule from "./components/SalesModule"; // NOVO (Módulo de Vendas)
 
 // Lazy-loaded components (Performance Optimization - Fase 12)
 const BatchProductForm = React.lazy(() => import("./components/BatchProductForm"));
@@ -110,7 +111,8 @@ import {
   PackageCheck, // NOVO: Gestão de stock multi-unidade
   Users,
   Truck,
-  WalletCards
+  WalletCards,
+  ShoppingCart // NOVO (Módulo de Vendas)
 } from "lucide-react";
 
 export default function App() {
@@ -874,7 +876,11 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
+<<<<<<< HEAD
     id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "estoque" | "vendas" | "clientes" | "fornecedores" | "financeiro" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
+=======
+    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "sales"; // NOVO: batch-products, sales (Módulo de Vendas)
+>>>>>>> 8fef09c (FEATURE: Implementar Módulo de Vendas (POS) com Busca Inteligente de Produtos)
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -904,6 +910,7 @@ export default function App() {
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "alertas", label: "Alertas", icon: Bell }, // NOVO (Fase 13 - Expiry & Stock Alerts)
     { id: "products", label: "Lista de Produtos", icon: Package, badge: products.length },
+    { id: "sales", label: "Vendas", icon: ShoppingCart }, // NOVO (Módulo de Vendas)
     { id: "batch-products", label: "Cadastro em Lote", icon: Boxes }, // NOVO (Fase 3)
     { id: "categories", label: "Categorias", icon: Folder }, // NOVO (Fase 1)
     { id: "reverse-calculator", label: "Calculadora Reversa", icon: Calculator },
@@ -1300,6 +1307,25 @@ export default function App() {
                         settings={businessSettings}
                       />
                     </Suspense>
+                  </motion.div>
+                )}
+
+                {/* NOVO (Módulo de Vendas): Sales Module Tab */}
+                {activeTab === "sales" && (
+                  <motion.div
+                    key="sales-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <SalesModule
+                      products={products}
+                      onSaleComplete={(items, total) => {
+                        console.log("Venda registada:", { items, total });
+                        // TODO: Save to Firebase and emit audit log
+                      }}
+                    />
                   </motion.div>
                 )}
 
