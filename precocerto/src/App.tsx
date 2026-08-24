@@ -486,8 +486,12 @@ export default function App() {
         const uVendaChanged = (editingProduct.unidadeVenda || "") !== (productData.unidadeVenda || "");
         const modeChanged = (editingProduct.venderEmbalagemInteira ?? true) !== (productData.venderEmbalagemInteira ?? true);
         const margemDesejadaChanged = (editingProduct.margemDesejada || 0) !== (productData.margemDesejada || 0);
+        const categoryChanged =
+          (editingProduct.categoryId || "") !== (productData.categoryId || "") ||
+          (editingProduct.categoria || "").trim().toLocaleLowerCase("pt-PT") !==
+            (productData.categoria || "").trim().toLocaleLowerCase("pt-PT");
 
-        const hasRelevantChanges = priceChanged || costChanged || marginChanged || roiChanged || profitChanged || qtyChanged || unitsChanged || uVendaChanged || modeChanged || margemDesejadaChanged;
+        const hasRelevantChanges = priceChanged || costChanged || marginChanged || roiChanged || profitChanged || qtyChanged || unitsChanged || uVendaChanged || modeChanged || margemDesejadaChanged || categoryChanged;
 
         // Update mode
         try {

@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Product, BusinessSettings } from "../types";
-import { formatKz, CATEGORY_PRESETS, getPriceHealth } from "../utils";
+import { formatKz, getPriceHealth } from "../utils";
+import { getUniqueProductCategories } from "../utils/categorySelection";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
@@ -50,6 +51,13 @@ export default function ProductList({
   
   // State for showing the simulator modal
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const categoryOptions = useMemo(() => getUniqueProductCategories(products), [products]);
+
+  useEffect(() => {
+    if (selectedCategory !== "all" && !categoryOptions.includes(selectedCategory)) {
+      setSelectedCategory("all");
+    }
+  }, [categoryOptions, selectedCategory]);
 
   // Helper to get simple, professional packaging summary
   const getPackagingSummary = (product: Product) => {
@@ -262,7 +270,7 @@ export default function ProductList({
               className="w-full pl-10 pr-8 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-950 transition-all text-slate-800 dark:text-slate-100 appearance-none cursor-pointer"
             >
               <option value="all">Todas as Categorias</option>
-              {CATEGORY_PRESETS.map((cat) => (
+              {categoryOptions.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>

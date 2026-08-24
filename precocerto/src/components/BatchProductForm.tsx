@@ -10,6 +10,7 @@ import { useStore } from "../contexts/StoreContext";
 import { formatKz } from "../utils";
 import type { CategoryMarginConfig } from "../types/category";
 import { markupToMarginCategory } from "../utils/markupCategoryAdapter";
+import { selectMarginCategories } from "../utils/categorySelection";
 
 interface BatchProductItem {
   id: string;
@@ -62,8 +63,11 @@ export default function BatchProductForm({
     [markups, settings?.businessType]
   );
 
-  // NOVO (Fase 14): Preferir categorias globais, fallback para local se não houver globais
-  const categories = globalCategories.length > 0 ? globalCategories : (markupCategories.length > 0 ? markupCategories : storedCategories);
+  // Preferir categorias globais apenas quando pertencem ao tipo de negócio atual.
+  const categories = useMemo(
+    () => selectMarginCategories(globalCategories, markupCategories, storedCategories, settings?.businessType || "outro"),
+    [globalCategories, markupCategories, storedCategories, settings?.businessType]
+  );
   const marginCategoriesLoading = globalLoading || markupsLoading || (markupCategories.length === 0 && categoriesLoading);
 
   const [items, setItems] = useState<BatchProductItem[]>([createEmptyItem("1")]);
@@ -85,7 +89,10 @@ export default function BatchProductForm({
       let changed = false;
       const defaultCategory = categories[0];
       const nextItems = currentItems.map((item) => {
-        if (item.categoryId) return item;
+        if (item.categoryId && categories.some((category) => category.id === item.categoryId)) {
+          return item;
+        }
+
         changed = true;
         return {
           ...item,
@@ -126,8 +133,8 @@ export default function BatchProductForm({
           ? {
               ...item,
               categoryId,
-              categoria: selected?.name || item.categoria,
-              margemDesejada: selected?.marginRules.baseMargin.toString() || item.margemDesejada,
+              categoria: selected?.name || "",
+              margemDesejada: selected?.marginRules.baseMargin.toString() || "",
             }
           : item
       )

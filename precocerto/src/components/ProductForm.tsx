@@ -13,6 +13,7 @@ import { PriceValidationBadge } from "./PriceValidationBadge"; // NOVO (Fase 13 
 import { useRealtimePriceValidation } from "../hooks/usePriceValidation"; // NOVO (Fase 13 - Parte 3)
 import MarginSelector from "./MarginSelector"; // NOVO (Fase 13 - Margin Management)
 import { markupToMarginCategory } from "../utils/markupCategoryAdapter";
+import { normalizeBusinessType, selectMarginCategories } from "../utils/categorySelection";
 import { motion } from "motion/react";
 import { 
   ArrowLeft, 
@@ -63,6 +64,7 @@ const UNIDADES_PRESETS = [
 
 export default function ProductForm({ productToEdit, onSave, onCancel, settings }: ProductFormProps) {
   const activeModule = businessModuleRegistry.getModuleById(settings?.businessType || "outro");
+  const currentBusinessType = settings?.businessType || "outro";
   const [extraFieldValues, setExtraFieldValues] = useState<Record<string, any>>({});
 
   // FIX #2: Obter storeId do contexto para fallback
@@ -82,12 +84,15 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
     () =>
       markups
         .filter((markup) => markup.ativo !== false)
-        .map((markup) => markupToMarginCategory(markup, settings?.businessType || "outro")),
-    [markups, settings?.businessType]
+        .map((markup) => markupToMarginCategory(markup, currentBusinessType)),
+    [markups, currentBusinessType]
   );
 
-  // NOVO (Fase 14): Preferir categorias globais, fallback para local se não houver globais
-  const categories = globalCategories.length > 0 ? globalCategories : (markupCategories.length > 0 ? markupCategories : storedCategories);
+  // Preferir categorias globais apenas quando pertencem ao tipo de negócio atual.
+  const categories = useMemo(
+    () => selectMarginCategories(globalCategories, markupCategories, storedCategories, currentBusinessType),
+    [globalCategories, markupCategories, storedCategories, currentBusinessType]
+  );
   const marginCategoriesLoading = globalLoading || markupsLoading || (markupCategories.length === 0 && categoriesLoading);
   const [markupLevelSelected, setMarkupLevelSelected] = useState<'minimo' | 'medio' | 'alto'>('medio');
   const [selectedMarkupCategory, setSelectedMarkupCategory] = useState<any>(null);
@@ -210,23 +215,52 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
 
   // NOVO (Fase 2): Load category data when product is edited or categories change
   useEffect(() => {
-    if (productToEdit?.categoryId && categories.length > 0) {
-      const cat = categories.find(c => c.id === productToEdit.categoryId);
-      if (cat) {
-        setCategoryId(cat.id);
-        setSelectedCategory(cat);
-        setCategoria(cat.name);
-        setMargemOverride(productToEdit.margemOverride?.toString() || "");
-        setMargemOverrideReason(productToEdit.margemOverrideReason || "");
-      }
-    } else if (categories.length > 0 && !categoryId) {
-      // Auto-select first category if none selected
-      setCategoryId(categories[0].id);
-      setSelectedCategory(categories[0]);
-      setCategoria(categories[0].name);
-      setMargemDesejada(categories[0].marginRules.baseMargin.toString());
+    if (categories.length === 0) {
+      if (categoryId) setCategoryId("");
+      if (selectedCategory) setSelectedCategory(null);
+      return;
     }
-  }, [productToEdit?.categoryId, categories, categoryId]);
+
+    const currentCategory = categoryId
+      ? categories.find((category) => category.id === categoryId)
+      : undefined;
+    const productCategoryById = productToEdit?.categoryId
+      ? categories.find((category) => category.id === productToEdit.categoryId)
+      : undefined;
+    const productCategoryByName = productToEdit?.categoria
+      ? categories.find(
+          (category) =>
+            normalizeBusinessType(category.name) === normalizeBusinessType(productToEdit.categoria)
+        )
+      : undefined;
+    const nextCategory = currentCategory || productCategoryById || productCategoryByName || (!productToEdit ? categories[0] : undefined);
+
+    if (!nextCategory) {
+      if (categoryId) setCategoryId("");
+      if (selectedCategory) setSelectedCategory(null);
+      return;
+    }
+
+    if (categoryId !== nextCategory.id) {
+      setCategoryId(nextCategory.id);
+    }
+    if (selectedCategory?.id !== nextCategory.id) {
+      setSelectedCategory(nextCategory);
+    }
+    if (categoria !== nextCategory.name) {
+      setCategoria(nextCategory.name);
+    }
+    if (!productToEdit && margemDesejada !== nextCategory.marginRules.baseMargin.toString()) {
+      setMargemDesejada(nextCategory.marginRules.baseMargin.toString());
+    }
+  }, [
+    categories,
+    categoryId,
+    selectedCategory,
+    categoria,
+    margemDesejada,
+    productToEdit,
+  ]);
 
   // NOVO (Fase 13): Load markup data when category changes or markups load
   useEffect(() => {
@@ -413,6 +447,9 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
 
     const currentMargemDesejada = parseNum(margemDesejada);
     const marginDesiredChanged = Math.abs((productToEdit.margemDesejada || 0) - currentMargemDesejada) > 0.01;
+    const categoryChanged =
+      (productToEdit.categoryId || "") !== (categoryId || "") ||
+      normalizeBusinessType(productToEdit.categoria) !== normalizeBusinessType(categoria);
 
     // Check additional tracked fields from inputs
     const parsedQuantidade = parseFloat(quantidade) || 1;
@@ -424,7 +461,7 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
     const uVendaChanged = (productToEdit.unidadeVenda || "") !== unidadeVenda;
     const modeChanged = (productToEdit.venderEmbalagemInteira ?? true) !== venderEmbalagemInteira;
 
-    return priceChanged || costChanged || marginChanged || costPurchaseChanged || marginDesiredChanged || qtyChanged || unitsChanged || uVendaChanged || modeChanged;
+    return priceChanged || costChanged || marginChanged || costPurchaseChanged || marginDesiredChanged || categoryChanged || qtyChanged || unitsChanged || uVendaChanged || modeChanged;
   };
 
   const showChangeReason = !!productToEdit && checkHasChanges();
@@ -905,6 +942,15 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
                     categories={categories}
                     selectedCategoryId={categoryId}
                     onCategoryChange={(catId) => {
+                      if (!catId) {
+                        setCategoryId("");
+                        setSelectedCategory(null);
+                        setCategoria("");
+                        setMargemDesejada("");
+                        setMargemOverride("");
+                        return;
+                      }
+
                       const selected = categories.find(c => c.id === catId);
                       if (selected) {
                         setCategoryId(selected.id);
