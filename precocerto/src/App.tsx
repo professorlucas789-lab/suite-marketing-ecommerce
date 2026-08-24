@@ -876,11 +876,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-<<<<<<< HEAD
     id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "estoque" | "vendas" | "clientes" | "fornecedores" | "financeiro" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
-=======
-    id: "dashboard" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "sales"; // NOVO: batch-products, sales (Módulo de Vendas)
->>>>>>> 8fef09c (FEATURE: Implementar Módulo de Vendas (POS) com Busca Inteligente de Produtos)
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
