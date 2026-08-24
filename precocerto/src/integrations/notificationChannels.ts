@@ -50,6 +50,15 @@ export interface INotificationChannel {
   isAvailable(): Promise<boolean>;
 }
 
+function isValidPhoneRecipient(recipient: string): boolean {
+  if (!recipient || !/^\+?[\d\s().-]+$/.test(recipient)) {
+    return false;
+  }
+
+  const digits = recipient.replace(/\D/g, '');
+  return digits.length >= 7 && digits.length <= 15 && !digits.startsWith('0');
+}
+
 /**
  * Implementação: In-App (usando NotificationCenter existente)
  */
@@ -153,8 +162,7 @@ export class SMSChannel implements INotificationChannel {
     // Validar número de telefone format (simples)
     return (
       payload.channel === 'sms' &&
-      !!payload.recipient &&
-      /^\+?[1-9]\d{1,14}$/.test(payload.recipient.replace(/\D/g, ''))
+      isValidPhoneRecipient(payload.recipient)
     );
   }
 
@@ -205,8 +213,7 @@ export class WhatsAppChannel implements INotificationChannel {
     // Número WhatsApp (mesmo que SMS)
     return (
       payload.channel === 'whatsapp' &&
-      !!payload.recipient &&
-      /^\+?[1-9]\d{1,14}$/.test(payload.recipient.replace(/\D/g, ''))
+      isValidPhoneRecipient(payload.recipient)
     );
   }
 

@@ -6,6 +6,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 describe('Multi-Store System - Fase 5: Gráficos e Relatórios', () => {
+  const formatLocalDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   /**
    * Testes de Gráficos de Desempenho (PerformanceChart)
    */
@@ -641,7 +648,7 @@ describe('Multi-Store System - Fase 5: Gráficos e Relatórios', () => {
   describe('Performance de Gráficos e Relatórios', () => {
     it('deve processar grande volume de dados de histórico', () => {
       const largeDataset = Array.from({ length: 12 }, (_, i) => ({
-        date: new Date(2024, i, 1).toISOString().split('T')[0],
+        date: formatLocalDate(new Date(2024, i, 1)),
         totalProdutos: Math.floor(Math.random() * 100) + 40,
         totalUtilizadores: Math.floor(Math.random() * 10) + 3,
         precoMedio: Math.random() * 10 + 15,

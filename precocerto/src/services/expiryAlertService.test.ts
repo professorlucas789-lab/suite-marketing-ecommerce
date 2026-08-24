@@ -36,6 +36,24 @@ vi.mock('../integrations/notificationChannels', () => ({
 }));
 
 describe('ExpiryAlertService', () => {
+  const formatLocalDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const isStrictIsoDate = (dateStr: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    );
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -142,9 +160,10 @@ describe('ExpiryAlertService', () => {
 
       const inTenDays = new Date(today);
       inTenDays.setDate(inTenDays.getDate() + 10);
-      const tenDaysFromNow = inTenDays.toISOString().split('T')[0];
+      const tenDaysFromNow = formatLocalDate(inTenDays);
 
-      const expiryDate = new Date(tenDaysFromNow);
+      const [year, month, day] = tenDaysFromNow.split('-').map(Number);
+      const expiryDate = new Date(year, month - 1, day);
       expiryDate.setHours(0, 0, 0, 0);
 
       const daysUntilExpiry = Math.ceil(
@@ -174,8 +193,7 @@ describe('ExpiryAlertService', () => {
       ];
 
       validDates.forEach((dateStr) => {
-        const date = new Date(dateStr);
-        expect(isNaN(date.getTime())).toBe(false);
+        expect(isStrictIsoDate(dateStr)).toBe(true);
       });
     });
 
@@ -189,8 +207,7 @@ describe('ExpiryAlertService', () => {
       ];
 
       invalidDates.forEach((dateStr) => {
-        const date = new Date(dateStr);
-        expect(isNaN(date.getTime())).toBe(true);
+        expect(isStrictIsoDate(dateStr)).toBe(false);
       });
     });
   });

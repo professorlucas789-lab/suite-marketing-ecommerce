@@ -102,13 +102,16 @@ class LRUCache {
     return size;
   }
 
-  getStats(): { hitRate: number; missRate: number; itemCount: number; size: number } {
+  getStats(): { hitRate: number; missRate: number; itemCount: number; size: number; hits: number; misses: number; totalRequests: number } {
     const total = this.hits + this.misses || 1;
     return {
       hitRate: (this.hits / total) * 100,
       missRate: (this.misses / total) * 100,
       itemCount: this.cache.size,
       size: this.getCurrentSize(),
+      hits: this.hits,
+      misses: this.misses,
+      totalRequests: this.hits + this.misses,
     };
   }
 
@@ -188,9 +191,9 @@ export class PerformanceService {
       cacheName,
       hitRate: Math.round(stats.hitRate * 100) / 100,
       missRate: Math.round(stats.missRate * 100) / 100,
-      totalHits: 0, // Poderia ser rastreado
-      totalMisses: 0,
-      totalRequests: 0,
+      totalHits: stats.hits,
+      totalMisses: stats.misses,
+      totalRequests: stats.totalRequests,
       avgAccessTime: 0.5, // Simulado: <1ms
       currentSize: stats.size,
       maxSize: 10 * 1024 * 1024,
@@ -639,6 +642,16 @@ export class PerformanceService {
     this.lruCache.clear();
   }
 
+  static resetForTesting(): void {
+    this.lruCache.clear();
+    this.metrics = [];
+    this.indexes.clear();
+    this.batchQueue = [];
+    this.queryOptimizations = [];
+    this.compressionConfigs = [];
+    this.resourceLimits = [];
+  }
+
   /**
    * Limpar métricas antigas
    */
@@ -661,12 +674,14 @@ export class PerformanceService {
   } {
     const issues: string[] = [];
     const dashboard = this.generatePerformanceDashboard();
+    const cacheStats = this.getCacheStats('default');
 
     if (dashboard.kpis.p95ResponseTime > 1000) issues.push('Latência P95 alta');
-    if (dashboard.kpis.cacheHitRate < 50) issues.push('Cache hit rate baixo');
+    if (cacheStats.totalRequests > 0 && dashboard.kpis.cacheHitRate < 50) issues.push('Cache hit rate baixo');
     if (dashboard.kpis.batchSuccessRate < 95) issues.push('Taxa de sucesso de batch baixa');
 
-    const score = (100 - Math.min(50, issues.length * 10)) * (dashboard.kpis.cacheHitRate / 100);
+    const cacheFactor = cacheStats.totalRequests > 0 ? dashboard.kpis.cacheHitRate / 100 : 1;
+    const score = (100 - Math.min(50, issues.length * 10)) * cacheFactor;
 
     return {
       healthy: issues.length === 0,

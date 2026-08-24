@@ -64,6 +64,15 @@ export class WhatsAppService {
    */
   async sendMessage(chatId: string, message: string): Promise<NotificationSendResponse> {
     try {
+      if (!WhatsAppService.isValidPhoneNumber(chatId)) {
+        return {
+          success: false,
+          channel: 'whatsapp',
+          error: 'Invalid phone number',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
       // Normalizar número (remover +, adicionar código país se necessário)
       const normalizedChatId = this.normalizePhoneNumber(chatId);
 
@@ -105,6 +114,7 @@ export class WhatsAppService {
         success: !!data.success,
         channel: 'whatsapp',
         messageId: data.result?.message_id,
+        error: data.success ? undefined : data.error || 'Erro ao enviar',
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -126,6 +136,15 @@ export class WhatsAppService {
     caption?: string
   ): Promise<NotificationSendResponse> {
     try {
+      if (!WhatsAppService.isValidPhoneNumber(chatId)) {
+        return {
+          success: false,
+          channel: 'whatsapp',
+          error: 'Invalid phone number',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
       const normalizedChatId = this.normalizePhoneNumber(chatId);
 
       const url = `${this.apiUrl}/${this.instanceId}/messages/image`;
@@ -154,10 +173,20 @@ export class WhatsAppService {
 
       const data: UltramsgApiResponse = await response.json();
 
+      if (!data.success && data.errors) {
+        return {
+          success: false,
+          channel: 'whatsapp',
+          error: data.errors[0]?.message || 'Erro ao enviar imagem',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
       return {
         success: !!data.success,
         channel: 'whatsapp',
         messageId: data.result?.message_id,
+        error: data.success ? undefined : data.error || 'Erro ao enviar imagem',
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -180,6 +209,15 @@ export class WhatsAppService {
     parameters?: Record<string, string>
   ): Promise<NotificationSendResponse> {
     try {
+      if (!WhatsAppService.isValidPhoneNumber(chatId)) {
+        return {
+          success: false,
+          channel: 'whatsapp',
+          error: 'Invalid phone number',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
       const normalizedChatId = this.normalizePhoneNumber(chatId);
 
       const url = `${this.apiUrl}/${this.instanceId}/messages/template`;
@@ -213,10 +251,20 @@ export class WhatsAppService {
 
       const data: UltramsgApiResponse = await response.json();
 
+      if (!data.success && data.errors) {
+        return {
+          success: false,
+          channel: 'whatsapp',
+          error: data.errors[0]?.message || 'Erro ao enviar template',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
       return {
         success: !!data.success,
         channel: 'whatsapp',
         messageId: data.result?.message_id,
+        error: data.success ? undefined : data.error || 'Erro ao enviar template',
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -288,6 +336,10 @@ export class WhatsAppService {
    * Validar número de telefone
    */
   static isValidPhoneNumber(phone: string): boolean {
+    if (!phone || !/^\+?[\d\s().-]+$/.test(phone)) {
+      return false;
+    }
+
     // Remove non-digits
     const cleaned = phone.replace(/\D/g, '');
 
@@ -296,7 +348,7 @@ export class WhatsAppService {
       return false;
     }
 
-    return true;
+    return !cleaned.startsWith('0');
   }
 }
 
