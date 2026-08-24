@@ -8,6 +8,7 @@ import { UserRole } from '../types/store';
 
 export type NavigationItemId =
   | 'dashboard'
+  | 'dashboard-executivo' // NOVO (Fase 17 - Dashboard Executivo)
   | 'products'
   | 'batch-products'
   | 'categories'
@@ -46,6 +47,15 @@ export const navigationConfig: NavigationConfig[] = [
     label: 'Dashboard',
     icon: 'LayoutDashboard',
     roles: ['admin', 'loja-manager', 'funcionario'],
+    section: 'main',
+  },
+
+  // NOVO (Fase 17): Dashboard Executivo - Apenas Admin e Loja Manager
+  {
+    id: 'dashboard-executivo',
+    label: '📊 Dashboard Executivo',
+    icon: 'BarChart3',
+    roles: ['admin', 'loja-manager'],
     section: 'main',
   },
 

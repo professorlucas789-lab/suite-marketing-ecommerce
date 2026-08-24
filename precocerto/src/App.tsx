@@ -52,6 +52,7 @@ const AlertMonitorPanel = React.lazy(() => import("./components/AlertMonitorPane
 const TwilioConfigPanel = React.lazy(() => import("./components/TwilioConfigPanel").then(m => ({ default: m.TwilioConfigPanel })));
 const AlertsView = React.lazy(() => import("./components/AlertsView")); // NOVO (Fase 13 - Expiry & Stock Alerts)
 const StockManagementPanel = React.lazy(() => import("./components/StockManagementPanel")); // NOVO (Fase 2 - Stock Management)
+const ExecutiveDashboard = React.lazy(() => import("./components/ExecutiveDashboard")); // NOVO (Fase 17 - Executive Dashboard)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -1180,6 +1181,21 @@ export default function App() {
                       unitRules={currentUnitRules}
                       onNavigate={(tab) => setActiveTab(tab)}
                     />
+                  </motion.div>
+                )}
+
+                {/* NOVO (Fase 17): Executive Dashboard - Analytics & Metrics - Lazy loaded (Fase 12) */}
+                {activeTab === "dashboard-executivo" && (
+                  <motion.div
+                    key="dashboard-executivo-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <ExecutiveDashboard />
+                    </Suspense>
                   </motion.div>
                 )}
 

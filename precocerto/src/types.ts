@@ -231,7 +231,7 @@ export interface BusinessSettings {
   updatedAt?: string;
 }
 
-export type ActiveTab = "dashboard" | "products" | "add-product" | "batch-products" | "categories" | "edit-product" | "reverse-calculator" | "alertas" | "estoque" | "vendas" | "clientes" | "fornecedores" | "financeiro" | "multi-loja" | "notificacoes" | "automacao" | "twilio-config" | "settings" | "history" | "reports" | "backup" | "users" | "stores" | "user-profile" | "diagnostics"; // NOVO (Fase 4 - Alertas) | NOVO (Fase 5 - Estoque) | NOVO (Fase 6 - Vendas/Clientes) | NOVO (Fase 7 - Fornecedores/Compras) | NOVO (Fase 8 - Financeiro) | NOVO (Fase 9 - Multi-Loja) | NOVO (Fase 10 - Notificações/Automação) | NOVO (Fase 11 - Integração Twilio) | NOVO (Fase 11 - User Profile) | NOVO: diagnostics
+export type ActiveTab = "dashboard" | "dashboard-executivo" | "products" | "add-product" | "batch-products" | "categories" | "edit-product" | "reverse-calculator" | "alertas" | "estoque" | "vendas" | "clientes" | "fornecedores" | "financeiro" | "multi-loja" | "notificacoes" | "automacao" | "twilio-config" | "settings" | "history" | "reports" | "backup" | "users" | "stores" | "user-profile" | "diagnostics"; // NOVO (Fase 17 - Dashboard Executivo) | NOVO (Fase 4 - Alertas) | NOVO (Fase 5 - Estoque) | NOVO (Fase 6 - Vendas/Clientes) | NOVO (Fase 7 - Fornecedores/Compras) | NOVO (Fase 8 - Financeiro) | NOVO (Fase 9 - Multi-Loja) | NOVO (Fase 10 - Notificações/Automação) | NOVO (Fase 11 - Integração Twilio) | NOVO (Fase 11 - User Profile) | NOVO: diagnostics
 
 export interface PriceHistory {
   id?: string;
