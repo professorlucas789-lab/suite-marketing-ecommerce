@@ -46,7 +46,7 @@ export function useMigration(): UseMigrationReturn {
 
   // Triggerar migração de categorias
   const migrate = useCallback(async () => {
-    if (!user?.uid) {
+    if (!user?.id) {
       setError('Utilizador não autenticado');
       return;
     }
@@ -58,7 +58,7 @@ export function useMigration(): UseMigrationReturn {
 
       console.log('🔄 Iniciando migração de categorias...');
 
-      const stats = await migrateUserCategoriesToGlobal(user.uid);
+      const stats = await migrateUserCategoriesToGlobal(user.id);
       const reportText = generateMigrationReport(stats);
 
       setReport({
@@ -75,11 +75,11 @@ export function useMigration(): UseMigrationReturn {
       setLoading(false);
       setIsMigrating(false);
     }
-  }, [user?.uid]);
+  }, [user?.id]);
 
   // Validar integridade dos dados
   const validate = useCallback(async () => {
-    if (!user?.uid) {
+    if (!user?.id) {
       setError('Utilizador não autenticado');
       return;
     }
@@ -90,7 +90,7 @@ export function useMigration(): UseMigrationReturn {
 
       console.log('🔍 Validando integridade dos dados...');
 
-      const result = await validateMigrationIntegrity(user.uid);
+      const result = await validateMigrationIntegrity(user.id);
       setValidationResult(result);
 
       if (result.isValid) {
@@ -105,7 +105,7 @@ export function useMigration(): UseMigrationReturn {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid]);
+  }, [user?.id]);
 
   // Limpar relatório
   const clearReport = useCallback(() => {

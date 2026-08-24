@@ -4,8 +4,6 @@
  * Fase: Integrações Avançadas - WhatsApp & SMS
  */
 
-import axios from 'axios';
-
 interface TwilioMessage {
   to: string; // Número no formato +244XXXXXXXXX
   body: string;
@@ -102,18 +100,27 @@ class TwilioServiceImpl {
       params.append('To', toNumber);
       params.append('Body', body);
 
-      const response = await axios.post(this.apiUrl, params, {
-        auth: {
-          username: this.accountSid,
-          password: this.authToken,
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${btoa(`${this.accountSid}:${this.authToken}`)}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
+        body: params,
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Twilio HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
 
       console.log(`✅ SMS enviado para ${toNumber}`);
 
       return {
         success: true,
-        sid: response.data.sid,
+        sid: data.sid,
       };
     } catch (error) {
       console.error('❌ Erro ao enviar SMS via Twilio:', error);
@@ -150,18 +157,27 @@ class TwilioServiceImpl {
         params.append('MediaUrl', mediaUrl);
       }
 
-      const response = await axios.post(this.whatsappApiUrl, params, {
-        auth: {
-          username: this.accountSid,
-          password: this.authToken,
+      const response = await fetch(this.whatsappApiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${btoa(`${this.accountSid}:${this.authToken}`)}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
+        body: params,
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Twilio HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
 
       console.log(`✅ WhatsApp enviado para ${toNumber}`);
 
       return {
         success: true,
-        sid: response.data.sid,
+        sid: data.sid,
       };
     } catch (error) {
       console.error('❌ Erro ao enviar WhatsApp via Twilio:', error);

@@ -9,8 +9,7 @@ import { motion } from 'motion/react';
 import {
   Bell,
   AlertTriangle,
-  MailBox,
-  MessageCircle,
+  Mailbox,
   Zap,
   CheckCircle2,
   AlertCircle,
@@ -76,7 +75,7 @@ export default function AutomationDashboard() {
       id: 'daily',
       title: '📊 Relatórios Diários',
       description: 'Resumo automático enviado cada manhã às 8h',
-      icon: MailBox,
+      icon: Mailbox,
       enabled: state.status.dailyReports,
       onToggle: state.status.dailyReports ? actions.disableDailyReports : actions.enableDailyReports,
       channels: ['Email', 'WhatsApp'],

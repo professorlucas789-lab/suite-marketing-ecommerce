@@ -4,8 +4,6 @@
  * Fase: Integrações Avançadas - Email
  */
 
-import axios from 'axios';
-
 interface EmailMessage {
   to: string;
   subject: string;
@@ -69,18 +67,25 @@ class SendGridServiceImpl {
         attachments: message.attachments,
       };
 
-      const response = await axios.post(this.apiUrl, payload, {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify(payload),
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`SendGrid HTTP ${response.status}: ${errorText}`);
+      }
 
       console.log(`✅ Email enviado para ${message.to}`);
 
       return {
         success: true,
-        messageId: response.headers['x-message-id'],
+        messageId: response.headers.get('x-message-id') || undefined,
       };
     } catch (error) {
       console.error('❌ Erro ao enviar email via SendGrid:', error);

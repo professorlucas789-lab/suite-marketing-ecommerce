@@ -10,7 +10,6 @@ import {
   Package,
   TrendingUp,
   Clock,
-  Tabs as TabsIcon,
 } from 'lucide-react';
 import StockMovementRecorder from './StockMovementRecorder';
 import StockMovementHistory from './StockMovementHistory';

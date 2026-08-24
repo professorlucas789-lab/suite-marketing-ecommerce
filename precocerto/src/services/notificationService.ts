@@ -8,6 +8,7 @@ import { db } from '../firebase';
 import {
   collection,
   addDoc,
+  deleteDoc,
   query,
   where,
   getDocs,
@@ -21,11 +22,16 @@ export type NotificationType =
   | 'stock_critical'
   | 'stock_low'
   | 'expiry_alert'
+  | 'expiry_soon'
+  | 'expiry_today'
   | 'sale_recorded'
+  | 'sale_completed'
   | 'payment_alert'
   | 'reorder_suggestion'
+  | 'reorder_needed'
   | 'daily_report'
-  | 'anomaly_detected';
+  | 'anomaly_detected'
+  | 'negative_margin';
 
 export interface Notification {
   id?: string;
@@ -50,6 +56,10 @@ export interface Notification {
   updatedAt?: string;
   expiresAt?: string;
 }
+
+type NotificationInput = Omit<Notification, 'id' | 'createdAt' | 'status'> & {
+  status?: Notification['status'];
+};
 
 export interface NotificationPreference {
   userId: string;
@@ -85,7 +95,7 @@ class NotificationServiceImpl {
   /**
    * Criar e enviar notificação
    */
-  async sendNotification(notification: Omit<Notification, 'id' | 'createdAt'>) {
+  async sendNotification(notification: NotificationInput) {
     try {
       const timestamp = new Date().toISOString();
 
@@ -175,7 +185,7 @@ class NotificationServiceImpl {
    */
   private async sendInAppNotification(
     notificationId: string,
-    notification: Omit<Notification, 'id' | 'createdAt'>
+    notification: NotificationInput
   ): Promise<boolean> {
     try {
       // A notificação já está armazenada em Firestore
@@ -192,7 +202,7 @@ class NotificationServiceImpl {
    */
   private async sendEmailNotification(
     notificationId: string,
-    notification: Omit<Notification, 'id' | 'createdAt'>
+    notification: NotificationInput
   ): Promise<boolean> {
     try {
       // Obter preferências do utilizador
@@ -232,7 +242,7 @@ class NotificationServiceImpl {
   /**
    * Gerar HTML para email
    */
-  private generateEmailHTML(notification: Omit<Notification, 'id' | 'createdAt'>): string {
+  private generateEmailHTML(notification: NotificationInput): string {
     const priorityColors: { [key: string]: string } = {
       'critical': '#dc3545',
       'high': '#fd7e14',
@@ -278,7 +288,7 @@ class NotificationServiceImpl {
    */
   private async sendWhatsAppNotification(
     notificationId: string,
-    notification: Omit<Notification, 'id' | 'createdAt'>
+    notification: NotificationInput
   ): Promise<boolean> {
     try {
       // Obter preferências do utilizador
@@ -316,7 +326,7 @@ class NotificationServiceImpl {
    */
   private async sendSmsNotification(
     notificationId: string,
-    notification: Omit<Notification, 'id' | 'createdAt'>
+    notification: NotificationInput
   ): Promise<boolean> {
     try {
       // Obter preferências do utilizador
@@ -513,8 +523,8 @@ class NotificationServiceImpl {
       const snapshot = await getDocs(q);
       let deleted = 0;
 
-      for (const doc of snapshot.docs) {
-        await doc.ref.delete();
+      for (const notificationDoc of snapshot.docs) {
+        await deleteDoc(notificationDoc.ref);
         deleted++;
       }
 

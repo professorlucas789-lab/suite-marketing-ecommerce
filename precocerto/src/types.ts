@@ -190,6 +190,7 @@ export interface Product {
   localizacaoArmazem?: string;
   condicaoConservacao?: string;
   prazoValidadeGeral?: string;
+  migratedToGlobalCategories?: boolean;
 }
 
 export interface BusinessSettings {
