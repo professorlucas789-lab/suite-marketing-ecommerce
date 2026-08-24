@@ -8,9 +8,9 @@ import * as functions from 'firebase-functions/v2/https';
 import * as scheduler from 'firebase-functions/v2/scheduler';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { AutomatedAlertsService } from '../src/services/automatedAlertsService';
-import { DailyReportService } from '../src/services/dailyReportService';
-import { NotificationService } from '../src/services/notificationService';
+import { AutomatedAlertsService } from './services/automatedAlertsService';
+import { DailyReportService } from './services/dailyReportService';
+import { NotificationService } from './services/notificationService';
 
 // Inicializar Firebase Admin
 initializeApp();
