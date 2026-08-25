@@ -1,0 +1,71 @@
+ 
+======================================== 
+ DEPLOYMENT DEBUG - 24/08/2026 22:01:05,55 
+======================================== 
+ 
+
+========================================
+ DEPLOYMENT AUTOMATICO - PrecoCerto
+========================================
+
+Gravando resultado em: deployment-log.txt
+
+[1] Verificando diretorio...
+C:\Users\ENG ' CHIVAS\Documents\ChatGPT\suite-marketing-ecommerce
+
+[2] Verificando Firebase CLI...
+15.28.1
+
+[3] Verificando autenticacao Firebase...
+- Preparing the list of your Firebase projects
+√ Preparing the list of your Firebase projects
+[90m┌──────────────────────[39m[90m┬────────────────────────────[39m[90m┬────────────────[39m[90m┬──────────────────────┐[39m
+[90m│[39m[32m Project Display Name [39m[90m│[39m[32m Project ID                 [39m[90m│[39m[32m Project Number [39m[90m│[39m[32m Resource Location ID [39m[90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m BizPulse ERP         [90m│[39m bizpulse-erp-475ed         [90m│[39m 299303799005   [90m│[39m [33m[Not specified][39m      [90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m Gemini API           [90m│[39m gen-lang-client-0295506574 [90m│[39m 198947878235   [90m│[39m [33m[Not specified][39m      [90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m Gemini Project       [90m│[39m gen-lang-client-0862839570 [90m│[39m 326692751245   [90m│[39m [33m[Not specified][39m      [90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m PrecoCerto           [90m│[39m precocerto-cc04a           [90m│[39m 336447205443   [90m│[39m [33m[Not specified][39m      [90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m SkinMatch            [90m│[39m skinmatch-d61ab            [90m│[39m 571612394854   [90m│[39m [33m[Not specified][39m      [90m│[39m
+[90m├──────────────────────[39m[90m┼────────────────────────────[39m[90m┼────────────────[39m[90m┼──────────────────────┤[39m
+[90m│[39m Firebase app         [90m│[39m studio-9841683685-67c78    [90m│[39m 485864704098   [90m│[39m [33m[Not specified][39m      [90m│[39m
+[90m└──────────────────────[39m[90m┴────────────────────────────[39m[90m┴────────────────[39m[90m┴──────────────────────┘[39m
+
+6 project(s) total.
+
+[4] Verificando build...
+ O volume na unidade C n�o tem nome.
+ O N�mero de S�rie do Volume � 868D-0260
+
+ Pasta de C:\Users\ENG ' CHIVAS\Documents\ChatGPT\suite-marketing-ecommerce\precocerto\dist
+
+20/08/2026  18:50    <DIR>          .
+24/08/2026  21:45    <DIR>          ..
+20/08/2026  18:50    <DIR>          assets
+20/08/2026  18:50             4�338 index.html
+               1 arquivo(s)          4�338 bytes
+               3 pasta(s)   375�989�473�280 bytes dispon�veis
+
+[5] Iniciando deployment...
+
+[1m[31mError:[39m[22m No currently active project.
+To run this command, you need to specify a project. You have two options:
+- Run this command with [1m--project <alias_or_project_id>[22m.
+- Set an active project by running [1mfirebase use --add[22m, then rerun this command.
+To list all the Firebase projects to which you have access, run [1mfirebase projects:list[22m.
+To learn about active projects for the CLI, visit https://firebase.google.com/docs/cli#project_aliases
+
+
+
+========================================
+ DEPLOYMENT COMPLETO
+========================================
+
+Resultados gravados em: deployment-log.txt
+
+Pressione uma tecla para fechar...
+Pressione qualquer tecla para continuar. . . 
