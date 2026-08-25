@@ -156,43 +156,53 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
               />
             </div>
 
-            {/* Products List */}
-            {searchTerm && filteredProducts.length > 0 ? (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {filteredProducts.map((product) => (
+                {/* Autocomplete Dropdown - Busca Inteligente */}
+            {searchTerm && filteredProducts.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mt-2 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden"
+              >
+                {filteredProducts.slice(0, 8).map((product) => (
                   <motion.button
                     key={product.id}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setSelectedProduct(product)}
-                    className={`w-full p-3 rounded-lg text-left transition-all ${
-                      selectedProduct?.id === product.id
-                        ? "bg-emerald-500/20 border border-emerald-500/50"
-                        : "bg-slate-700/30 border border-slate-600/30 hover:border-slate-500/50"
-                    }`}
+                    whileHover={{ backgroundColor: "rgb(51, 65, 85)" }}
+                    onClick={() => {
+                      setSelectedProduct(product);
+                      setSearchTerm("");
+                    }}
+                    className="w-full px-4 py-3 text-left border-b border-slate-700/50 hover:bg-slate-700 transition-colors flex justify-between items-center group"
                   >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium text-white">{product.nome}</p>
-                        <p className="text-sm text-slate-400">{product.categoria}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-emerald-400">
-                          ${product.precoVendaRecomendado?.toFixed(2) || "0.00"}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {product.quantidade || 0} em stock
-                        </p>
-                      </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">{product.nome}</p>
+                      <p className="text-xs text-slate-400">{product.categoria}</p>
+                    </div>
+                    <div className="text-right ml-4 flex-shrink-0">
+                      <p className="font-bold text-emerald-400">
+                        Kz {product.precoVendaRecomendado?.toFixed(2) || "0.00"}
+                      </p>
+                      <p className="text-xs text-slate-500">{product.quantidade || 0} stock</p>
                     </div>
                   </motion.button>
                 ))}
-              </div>
-            ) : searchTerm ? (
-              <div className="p-4 text-center text-slate-400">
-                Nenhum produto encontrado
-              </div>
-            ) : null}
+                {filteredProducts.length > 8 && (
+                  <div className="px-4 py-2 text-center text-xs text-slate-400 bg-slate-700/30">
+                    +{filteredProducts.length - 8} mais produtos
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {searchTerm && filteredProducts.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-center text-red-300 text-sm"
+              >
+                ❌ Nenhum produto encontrado para "{searchTerm}"
+              </motion.div>
+            )}
 
             {/* Selected Product Details */}
             {selectedProduct && (
