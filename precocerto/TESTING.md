@@ -1,6 +1,6 @@
-# PreçoCerto Testing Guide - Phase 4
+# PreçoCerto Testing Guide - Phases 4-6
 
-This document describes the automated testing setup for the PreçoCerto batch product registration system (Fase 4).
+This document describes the automated testing setup for PreçoCerto, covering batch operations (Fase 4), advanced pricing (Fase 5), and service layer testing (Fase 6).
 
 ## Overview
 
@@ -128,7 +128,63 @@ Tests for category-based margin calculations and validation.
 - **Validation**: Margin range checks and regulatory constraints
 - **Warnings**: Alerting on margin differences
 
-### 4. `src/utils/packageConversion.test.ts` (21 tests)
+### 4. `src/services/__tests__/salesService.test.ts` (20 tests) - ⭐ NEW
+Tests for sales transaction recording, profit margin calculations, and stock synchronization.
+
+**Key Test Categories:**
+- **Profit Margin Calculations**: Validate positive/negative margins, multi-product aggregation
+- **Sales Validation**: Quantity/price validation, change calculation, payment validation
+- **Payment Methods**: Support for cash, card, transfer, credit, mobile_money, etc.
+- **Stock Synchronization**: Verify stock updates after sales, insufficient stock handling
+- **Receipt Generation**: Unique receipt number generation in `PC-IR-YYYYMMDD-HHMMSS-XXXX` format
+- **Customer Credit**: Credit limit validation, balance tracking, credit sale processing
+
+**Example Test:**
+```typescript
+it('deve calcular corretamente multi-product sale', () => {
+  const totalRevenue = (100 * 2) + (50 * 1) + (200 * 1);
+  const totalCost = (60 * 2) + (40 * 1) + (100 * 1);
+  const totalProfit = totalRevenue - totalCost;
+  
+  expect(totalRevenue).toBe(450);
+  expect(totalCost).toBe(260);
+  expect(totalProfit).toBe(190);
+});
+```
+
+### 5. `src/services/__tests__/automatedAlertsService.test.ts` (16 tests) - ⭐ NEW
+Tests for automatic alert detection (stock, expiry, margins, reorder).
+
+**Key Test Categories:**
+- **Stock Alerts**: Critical (≤2), Low (2-5) stock level detection
+- **Expiry Alerts**: Soon (<7 days), Today detection with priority escalation
+- **Margin Alerts**: Negative margin detection on sales
+- **Reorder Alerts**: Minimum stock threshold-based reorder suggestions
+
+### 6. `src/services/__tests__/notificationService.test.ts` (26 tests) - ⭐ NEW
+Tests for multi-channel notification orchestration (in-app, email, WhatsApp, SMS).
+
+**Key Test Categories:**
+- **Notification Types**: Support for stock_critical, expiry_soon, expiry_today, daily_report, sale_completed
+- **Notification Channels**: in-app, email, whatsapp, sms with simultaneous multi-channel delivery
+- **Priority Levels**: low, normal, high, critical with appropriate routing
+- **Notification Status**: unread → read → archived lifecycle
+- **User Preferences**: Per-channel and per-alert-type preference management
+- **Unread Counting**: Accurate count of unread notifications
+- **Cleanup**: Automatic removal of notifications >30 days old
+
+### 8. `src/services/__tests__/dailyReportService.test.ts` (19 tests) - ⭐ NEW
+Tests for automatic daily report generation with KPIs and business insights.
+
+**Key Test Categories:**
+- **KPI Calculations**: Total revenue, profit, margin, units sold aggregation
+- **Top Product Identification**: Highest revenue product ranking
+- **Alert Counting**: Daily stock critical, expiry, negative margin counts
+- **Report Insights**: Highlight generation, recommendation generation
+- **Formatting**: Text formatting with emojis for email/WhatsApp distribution
+- **Date Handling**: Yesterday calculation, date format validation (YYYY-MM-DD)
+
+### 9. `src/utils/packageConversion.test.ts` (21 tests)
 Tests for Fase 4 package/unit conversion calculations.
 
 **Covered Functions:**
@@ -166,16 +222,22 @@ it('should calculate correctly when selling individual units', () => {
 ## Test Coverage
 
 Current coverage statistics:
-- **Total Tests**: 84
+- **Total Tests**: 165 (84 + 81 NEW)
 - **All Passing**: ✅
 
 Test breakdown by file:
-| File | Tests | Status |
-|------|-------|--------|
-| pricing.test.ts | 26 | ✅ Pass |
-| batchCalculations.test.ts | 27 | ✅ Pass |
-| marginCalculation.test.ts | 22 | ✅ Pass |
-| packageConversion.test.ts | 21 | ✅ Pass |
+| File | Tests | Status | Phase |
+|------|-------|--------|-------|
+| pricing.test.ts | 26 | ✅ Pass | Fase 4 |
+| batchCalculations.test.ts | 27 | ✅ Pass | Fase 4 |
+| marginCalculation.test.ts | 22 | ✅ Pass | Fase 5 |
+| packageConversion.test.ts | 21 | ✅ Pass | Fase 4 |
+| **salesService.test.ts** | **20** | **✅ Pass** | **Fase 6** |
+| **automatedAlertsService.test.ts** | **16** | **✅ Pass** | **Fase 6** |
+| **notificationService.test.ts** | **26** | **✅ Pass** | **Fase 6** |
+| **dailyReportService.test.ts** | **19** | **✅ Pass** | **Fase 6** |
+
+**NEW (Fase 6: Testes & QA)**: 81 tests for critical business services
 
 ## Key Testing Scenarios
 

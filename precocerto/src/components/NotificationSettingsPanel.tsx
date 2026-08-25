@@ -36,7 +36,7 @@ interface NotificationSettingsPanelProps {
 export const NotificationSettingsPanel: React.FC<NotificationSettingsPanelProps> = ({ onSave }) => {
   const { user } = useUserAuth();
   const [preferences, setPreferences] = useState<NotificationPreferences>({
-    userId: user?.uid || '',
+    userId: user?.id || '',
     channels: {
       inApp: true,
       email: true,
@@ -60,7 +60,7 @@ export const NotificationSettingsPanel: React.FC<NotificationSettingsPanelProps>
 
   // Carregar preferências do localStorage
   useEffect(() => {
-    const saved = localStorage.getItem(`notificationPreferences-${user?.uid}`);
+      const saved = localStorage.getItem(`notificationPreferences-${user?.id}`);
     if (saved) {
       try {
         setPreferences(JSON.parse(saved));
@@ -68,7 +68,7 @@ export const NotificationSettingsPanel: React.FC<NotificationSettingsPanelProps>
         console.error('Erro ao carregar preferências:', error);
       }
     }
-  }, [user?.uid]);
+  }, [user?.id]);
 
   const handleChannelToggle = (channel: keyof typeof preferences.channels) => {
     setPreferences((prev) => ({
@@ -99,7 +99,7 @@ export const NotificationSettingsPanel: React.FC<NotificationSettingsPanelProps>
       };
 
       // Guardar localmente
-      localStorage.setItem(`notificationPreferences-${user?.uid}`, JSON.stringify(updated));
+    localStorage.setItem(`notificationPreferences-${user?.id}`, JSON.stringify(updated));
 
       // Callback opcional
       if (onSave) {
@@ -116,9 +116,9 @@ export const NotificationSettingsPanel: React.FC<NotificationSettingsPanelProps>
   };
 
   const handleReset = () => {
-    localStorage.removeItem(`notificationPreferences-${user?.uid}`);
+    localStorage.removeItem(`notificationPreferences-${user?.id}`);
     setPreferences({
-      userId: user?.uid || '',
+      userId: user?.id || '',
       channels: {
         inApp: true,
         email: true,

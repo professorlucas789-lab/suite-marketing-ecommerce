@@ -25,6 +25,11 @@ import { useUserAuth } from '../hooks/useUserAuth';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Store, StoreStats } from '../types/store';
+import {
+  getStoreBusinessSegmentLabel,
+  getStoreOperationalUnitLabel,
+  getStoreOperationalRules,
+} from '../utils/businessUnitMapping';
 
 interface StoreCardData extends Store {
   stats?: {
@@ -82,7 +87,7 @@ export function UserStoresDashboard() {
 
         setStoresData(enrichedStores);
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Erro ao carregar lojas';
+        const errorMsg = err instanceof Error ? err.message : 'Erro ao carregar unidades';
         setError(errorMsg);
         console.error('Erro ao carregar dados das lojas:', err);
       } finally {
@@ -100,8 +105,8 @@ export function UserStoresDashboard() {
       setSelectedStore(storeId);
       await switchStore(storeId);
     } catch (err) {
-      console.error('Erro ao mudar de loja:', err);
-      setError('Erro ao selecionar loja');
+      console.error('Erro ao mudar de unidade:', err);
+      setError('Erro ao selecionar unidade');
     }
   };
 
@@ -111,16 +116,6 @@ export function UserStoresDashboard() {
       totalUtilizadores: storesData.reduce((sum, s) => sum + (s.stats?.utilizadoresAtivos || 0), 0),
       totalLojas: storesData.length,
     };
-  };
-
-  const getStoreTypeLabel = (tipo: string) => {
-    const labels: Record<string, string> = {
-      farmacia: 'Farmácia',
-      informatica: 'Informática',
-      ortopedico: 'Ortopédico',
-      generico: 'Genérico',
-    };
-    return labels[tipo] || tipo;
   };
 
   const getStoreTypeColor = (tipo: string) => {
@@ -137,7 +132,7 @@ export function UserStoresDashboard() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 size={24} className="animate-spin text-emerald-600" />
-        <span className="ml-3 text-slate-600 dark:text-slate-400">Carregando suas lojas...</span>
+        <span className="ml-3 text-slate-600 dark:text-slate-400">Carregando suas unidades...</span>
       </div>
     );
   }
@@ -161,10 +156,10 @@ export function UserStoresDashboard() {
       <div className="bg-white dark:bg-slate-900 rounded-xl p-12 border border-slate-200 dark:border-slate-700 text-center">
         <Building2 size={48} className="text-slate-400 dark:text-slate-600 mx-auto mb-4" />
         <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">
-          Nenhuma loja atribuída
+          Nenhuma unidade atribuída
         </h3>
         <p className="text-slate-600 dark:text-slate-400">
-          Você ainda não tem acesso a nenhuma loja. Contacte o administrador.
+          Você ainda não tem acesso a nenhuma unidade. Contacte o administrador.
         </p>
       </div>
     );
@@ -183,15 +178,15 @@ export function UserStoresDashboard() {
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Building2 size={32} className="text-emerald-600" />
-            Suas Lojas
+            Suas Unidades
           </h1>
           <p className="text-slate-600 dark:text-slate-400 mt-1">
-            Gerenecie suas lojas e veja o desempenho de cada uma
+            Gerir as unidades a que tem acesso e ver o desempenho de cada uma
           </p>
         </div>
         <div className="text-right">
           <div className="text-3xl font-bold text-emerald-600">{totalStats.totalLojas}</div>
-          <div className="text-sm text-slate-600 dark:text-slate-400">Total de lojas</div>
+          <div className="text-sm text-slate-600 dark:text-slate-400">Total de unidades</div>
         </div>
       </motion.div>
 
@@ -235,7 +230,7 @@ export function UserStoresDashboard() {
           <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/10 rounded-xl p-6 border border-purple-200 dark:border-purple-800">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-purple-900 dark:text-purple-200">Loja Atual</p>
+                <p className="text-sm font-medium text-purple-900 dark:text-purple-200">Unidade Atual</p>
                 <p className="text-lg font-bold text-purple-600 dark:text-purple-400 mt-2 truncate">
                   {currentStore?.storeName || 'Não selecionada'}
                 </p>
@@ -248,19 +243,22 @@ export function UserStoresDashboard() {
 
       {/* Grid de Lojas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {storesData.map((store, index) => (
-          <motion.div
-            key={store.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            onClick={() => handleSelectStore(store.id)}
-            className={`rounded-xl border-2 overflow-hidden cursor-pointer transition-all ${
-              selectedStore === store.id
-                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 shadow-lg shadow-emerald-500/20'
-                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md'
-            }`}
-          >
+        {storesData.map((store, index) => {
+            const rules = getStoreOperationalRules(store);
+
+            return (
+              <motion.div
+                key={store.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                onClick={() => handleSelectStore(store.id)}
+                className={`rounded-xl border-2 overflow-hidden cursor-pointer transition-all ${
+                  selectedStore === store.id
+                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 shadow-lg shadow-emerald-500/20'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md'
+                }`}
+              >
             {/* Header da Loja */}
             <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 p-4 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-start justify-between">
@@ -271,8 +269,11 @@ export function UserStoresDashboard() {
                   <div className={`inline-block px-2 py-1 rounded text-xs font-semibold mt-2 ${getStoreTypeColor(
                     store.tipo
                   )}`}>
-                    {getStoreTypeLabel(store.tipo)}
+                    {getStoreOperationalUnitLabel(store)}
                   </div>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    {getStoreBusinessSegmentLabel(store)}
+                  </p>
                 </div>
                 {selectedStore === store.id && <CheckCircle size={24} className="text-emerald-600" />}
               </div>
@@ -340,6 +341,10 @@ export function UserStoresDashboard() {
                   </div>
                 </div>
               )}
+
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{rules.summary}</p>
+              </div>
             </div>
 
             {/* Footer */}
@@ -359,7 +364,8 @@ export function UserStoresDashboard() {
               />
             </div>
           </motion.div>
-        ))}
+            );
+          })}
       </div>
 
       {/* Info */}
@@ -370,8 +376,8 @@ export function UserStoresDashboard() {
         className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4"
       >
         <p className="text-sm text-blue-900 dark:text-blue-200">
-          <span className="font-semibold">💡 Dica:</span> Clique numa loja para selecioná-la como sua loja de trabalho atual.
-          Todos os seus dados (produtos, categorias, etc) serão da loja selecionada.
+          <span className="font-semibold">Dica:</span> Clique numa unidade para selecioná-la como sua unidade de trabalho atual.
+          Produtos, categorias e configurações passam a seguir a unidade selecionada.
         </p>
       </motion.div>
     </div>

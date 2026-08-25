@@ -1,0 +1,35 @@
+{
+  "name": "precocerto-functions",
+  "version": "1.0.0",
+  "description": "Google Cloud Functions para automações PreçoCerto",
+  "engines": {
+    "node": "18"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && firebase emulators:start",
+    "test": "vitest",
+    "deploy": "firebase deploy --only functions",
+    "deploy:staging": "firebase deploy --only functions --project precocerto-staging",
+    "logs": "firebase functions:log",
+    "logs:staging": "firebase functions:log --project precocerto-staging",
+    "shell": "firebase functions:shell",
+    "health-check": "curl https://us-central1-precocerto.cloudfunctions.net/healthCheck"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/professorlucas789-lab/suite-marketing-ecommerce.git"
+  },
+  "author": "Claude",
+  "license": "MIT"
+}

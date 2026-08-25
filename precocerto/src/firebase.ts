@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage"; // NOVO (Fase 11 - User Avatar)
+import { FirebaseStorage, getStorage } from "firebase/storage"; // NOVO (Fase 11 - User Avatar)
 
 const firebaseConfig = {
   apiKey: "AIzaSyC0VIZYQvNPbwWb4QrX33OV0yL180HA-08",
@@ -19,7 +19,15 @@ export const auth = getAuth(app);
 
 export const db = getFirestore(app);
 
-export const storage = getStorage(app); // NOVO (Fase 11 - User Avatar)
+let storageInstance: FirebaseStorage | null = null;
+
+try {
+  storageInstance = getStorage(app);
+} catch (error) {
+  console.warn('Firebase Storage indisponivel nesta sessao:', error);
+}
+
+export const storage = storageInstance; // NOVO (Fase 11 - User Avatar)
 
 export enum OperationType {
   CREATE = 'create',

@@ -1,0 +1,258 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================================
+    // HELPER FUNCTIONS
+    // ============================================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAuthenticatedUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function userHasStoreAccess(storeId) {
+      // Verificar se utilizador tem acesso à loja
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/lojas/$(storeId)/staff/$(request.auth.uid));
+    }
+
+    function isStoreOwner(storeId) {
+      // Verificar se utilizador é proprietário da loja
+      return isSignedIn() &&
+             get(/databases/$(database)/documents/lojas/$(storeId)).data.ownerId == request.auth.uid;
+    }
+
+    function isStoreManager(storeId) {
+      // Verificar se utilizador é gerente da loja
+      let staff = get(/databases/$(database)/documents/lojas/$(storeId)/staff/$(request.auth.uid)).data;
+      return isSignedIn() && staff != null && staff.role in ['owner', 'manager'];
+    }
+
+    function hasRole(storeId, requiredRole) {
+      // Verificar se utilizador tem um papel específico
+      let staff = get(/databases/$(database)/documents/lojas/$(storeId)/staff/$(request.auth.uid)).data;
+      return staff != null && staff.role == requiredRole;
+    }
+
+    // ============================================================================
+    // USER DOCUMENT (Perfil)
+    // ============================================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticatedUser(userId);
+      allow write: if isAuthenticatedUser(userId);
+
+      // Sub-collections do utilizador
+      match /{document=**} {
+        allow read: if isAuthenticatedUser(userId);
+        allow write: if isAuthenticatedUser(userId);
+      }
+    }
+
+    // ============================================================================
+    // GLOBAL CATEGORIES (Fase 14 - Novas)
+    // ============================================================================
+
+    match /users/{userId}/globalCategories/{categoryId} {
+      // Leitura: Utilizador pode ver suas próprias categorias globais
+      allow read: if isAuthenticatedUser(userId);
+
+      // Criação: Utilizador autenticado pode criar categorias globais
+      allow create: if isAuthenticatedUser(userId) &&
+                       request.resource.data.storeId == 'global' &&
+                       request.resource.data.keys().hasAll(['name', 'marginRules']);
+
+      // Atualização: Utilizador pode atualizar suas categorias
+      allow update: if isAuthenticatedUser(userId) &&
+                       resource.data.storeId == 'global';
+
+      // Deleção: Utilizador pode deletar suas categorias
+      allow delete: if isAuthenticatedUser(userId) &&
+                       resource.data.storeId == 'global';
+    }
+
+    // ============================================================================
+    // LOJAS (Stores)
+    // ============================================================================
+
+    match /lojas/{storeId} {
+      // Leitura: Staff da loja pode ver informações da loja
+      allow read: if userHasStoreAccess(storeId);
+
+      // Escrita: Apenas proprietário pode alterar
+      allow write: if isStoreOwner(storeId);
+
+      // ========================================================================
+      // STAFF (Acesso por Utilizador)
+      // ========================================================================
+
+      match /staff/{userId} {
+        allow read: if userHasStoreAccess(storeId) || isAuthenticatedUser(userId);
+        allow write: if isStoreOwner(storeId);
+      }
+
+      // ========================================================================
+      // PRODUTOS (Product Listing)
+      // ========================================================================
+
+      match /produtos/{productId} {
+        // Leitura: Staff pode ver produtos
+        allow read: if userHasStoreAccess(storeId);
+
+        // Criação: Staff pode criar produtos (gerente+)
+        allow create: if isStoreManager(storeId) &&
+                        request.resource.data.keys().hasAll(['nome', 'custoCompra']);
+
+        // Atualização: Staff gerente+ pode atualizar
+        allow update: if isStoreManager(storeId);
+
+        // Deleção: Apenas proprietário pode deletar
+        allow delete: if isStoreOwner(storeId);
+      }
+
+      // ========================================================================
+      // CATEGORIAS LOCAIS (Legado - Fase 2)
+      // ========================================================================
+
+      match /categories/{categoryId} {
+        // Leitura: Staff pode ver categorias locais
+        allow read: if userHasStoreAccess(storeId);
+
+        // Criação: Gerente+ pode criar categorias locais
+        allow create: if isStoreManager(storeId) &&
+                        request.resource.data.storeId == storeId;
+
+        // Atualização: Gerente+ pode atualizar
+        allow update: if isStoreManager(storeId) &&
+                        resource.data.storeId == storeId;
+
+        // Deleção: Apenas proprietário pode deletar
+        allow delete: if isStoreOwner(storeId) &&
+                        resource.data.storeId == storeId;
+      }
+
+      // ========================================================================
+      // VENDAS (Sales Records)
+      // ========================================================================
+
+      match /sales/{saleId} {
+        // Leitura: Staff pode ver vendas
+        allow read: if userHasStoreAccess(storeId);
+
+        // Criação: Funcionário+ pode registar vendas
+        allow create: if userHasStoreAccess(storeId) &&
+                        request.resource.data.keys().hasAll(['quantity', 'unitPrice']);
+
+        // Atualização: Gerente+ pode alterar (auditoria)
+        allow update: if isStoreManager(storeId) &&
+                        resource.data.storeId == storeId;
+
+        // Deleção: Apenas proprietário pode deletar
+        allow delete: if isStoreOwner(storeId);
+      }
+
+      // ========================================================================
+      // NOTIFICAÇÕES
+      // ========================================================================
+
+      match /notifications/{notificationId} {
+        // Leitura: Staff pode ver notificações da loja
+        allow read: if userHasStoreAccess(storeId);
+
+        // Criação: Sistema pode criar (Cloud Functions)
+        allow create: if isStoreManager(storeId) ||
+                        request.auth.token.firebase.sign_in_provider == 'custom';
+
+        // Atualização: Utilizador pode marcar como lida
+        allow update: if userHasStoreAccess(storeId) &&
+                        (request.resource.data.status == 'read' ||
+                         request.resource.data.keys().hasOnly(['status', 'readAt']));
+
+        // Deleção: Gerente+ pode deletar (limpeza)
+        allow delete: if isStoreManager(storeId);
+      }
+
+      match /notificationPreferences/{userId} {
+        // Utilizador pode ver/editar suas próprias preferências
+        allow read: if isAuthenticatedUser(userId) && userHasStoreAccess(storeId);
+        allow write: if isAuthenticatedUser(userId) && userHasStoreAccess(storeId);
+      }
+
+      // ========================================================================
+      // TABELAS DE MARKUP (Fase 13)
+      // ========================================================================
+
+      match /markupTable/{markupId} {
+        // Leitura: Staff pode ver tabelas de markup
+        allow read: if userHasStoreAccess(storeId);
+
+        // Criação: Gerente+ pode criar
+        allow create: if isStoreManager(storeId) &&
+                        request.resource.data.keys().hasAll(['name', 'markupPadrao']);
+
+        // Atualização: Gerente+ pode atualizar
+        allow update: if isStoreManager(storeId);
+
+        // Deleção: Proprietário pode deletar
+        allow delete: if isStoreOwner(storeId);
+      }
+
+      // ========================================================================
+      // ALERTAS AUTOMÁTICOS
+      // ========================================================================
+
+      match /alerts/{alertId} {
+        // Leitura: Staff pode ver alertas
+        allow read: if userHasStoreAccess(storeId);
+
+        // Criação: Sistema (Cloud Functions)
+        allow create: if request.auth.token.firebase.sign_in_provider == 'custom';
+
+        // Atualização: Gerente+ pode marcar como resolvido
+        allow update: if isStoreManager(storeId) &&
+                        request.resource.data.resolved != null;
+
+        // Deleção: Proprietário
+        allow delete: if isStoreOwner(storeId);
+      }
+
+      // ========================================================================
+      // LOGS DE AUTOMAÇÃO
+      // ========================================================================
+
+      match /automationLogs/{logId} {
+        // Leitura: Gerente+ pode ver logs
+        allow read: if isStoreManager(storeId);
+
+        // Escrita: Apenas sistema (Cloud Functions)
+        allow write: if request.auth.token.firebase.sign_in_provider == 'custom';
+      }
+
+      // ========================================================================
+      // RELATÓRIOS
+      // ========================================================================
+
+      match /reports/{reportId} {
+        // Leitura: Staff pode ver relatórios
+        allow read: if userHasStoreAccess(storeId);
+
+        // Criação: Sistema (Cloud Functions)
+        allow create: if request.auth.token.firebase.sign_in_provider == 'custom';
+      }
+    }
+
+    // ============================================================================
+    // DADOS PÚBLICOS / GLOBAIS
+    // ============================================================================
+
+    // Configurações da aplicação (somente leitura)
+    match /appConfig/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if false; // Apenas admin pode atualizar via CLI
+    }
+  }
+}

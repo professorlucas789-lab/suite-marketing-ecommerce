@@ -13,7 +13,7 @@
 
 5. **COPIE o token que aparecer** (parece isto):
    ```
-   123456789:ABCdefGHIjklmnoPQRstuvwxyz12345678
+   <telegram-bot-token>
    ```
 
 ---
@@ -24,7 +24,7 @@
 2. Clicar em: **Settings → Build & deploy → Environment**
 3. Clicar em: **Add an environment variable**
 4. Preencher:
-   - **Key**: `VITE_TELEGRAM_BOT_TOKEN`
+   - **Key**: `TELEGRAM_BOT_TOKEN`
    - **Value**: `[colar o token do passo 1]`
 5. Clicar: **Save**
 6. **Aguardar 3-5 minutos** para Netlify fazer rebuild

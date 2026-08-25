@@ -7,6 +7,26 @@ import { CategoryMarginConfig } from '../types/category';
 import { Product } from '../types';
 import { calculateProductFields, CalculationInput } from './pricing';
 
+type CategoryPricingMode = CategoryMarginConfig & {
+  calculationMode?: 'margin' | 'markup';
+};
+
+function markupToMarginPercent(markupPercent: number): number {
+  if (markupPercent <= 0) {
+    return 0;
+  }
+
+  return (markupPercent / (100 + markupPercent)) * 100;
+}
+
+function getCalculationMargin(category: CategoryPricingMode | undefined, value: number): number {
+  if (category?.calculationMode === 'markup') {
+    return markupToMarginPercent(value);
+  }
+
+  return value;
+}
+
 /**
  * NOVO (Fase 2): Validar se margem está dentro dos limites regulatórios
  * Aceita ambos os formatos de argumentos para compatibilidade
@@ -233,7 +253,7 @@ export function validateCategoryData(data: any): {
  */
 export function calculateProductPricesWithCategoryMargin(
   calculationInput: Omit<CalculationInput, 'margemDesejada'>,
-  category?: CategoryMarginConfig,
+  category?: CategoryPricingMode,
   overrideMargin?: number
 ) {
   // Determinar margem a usar
@@ -259,6 +279,6 @@ export function calculateProductPricesWithCategoryMargin(
   // Executar cálculo com margem efetiva
   return calculateProductFields({
     ...calculationInput,
-    margemDesejada: effectiveMargin,
+    margemDesejada: getCalculationMargin(category, effectiveMargin),
   });
 }

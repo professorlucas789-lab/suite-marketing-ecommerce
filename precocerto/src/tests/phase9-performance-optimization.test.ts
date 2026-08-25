@@ -8,7 +8,7 @@ import type { CacheConfig, DataIndex } from '../types/performance';
 
 describe('Fase 9: Performance e Otimização', () => {
   beforeEach(() => {
-    PerformanceService.clearCache();
+    PerformanceService.resetForTesting();
   });
 
   describe('Cache LRU', () => {
@@ -24,14 +24,13 @@ describe('Fase 9: Performance e Otimização', () => {
       expect(result).toBeNull();
     });
 
-    it('deve respeitar TTL', (done) => {
+    it('deve respeitar TTL', async () => {
       PerformanceService.cacheSet('key1', 'value1', 0.001); // TTL muito curto
 
-      setTimeout(() => {
-        const result = PerformanceService.cacheGet('key1');
-        expect(result).toBeNull();
-        done();
-      }, 10);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const result = PerformanceService.cacheGet('key1');
+      expect(result).toBeNull();
     });
 
     it('deve calcular estatísticas de cache', () => {

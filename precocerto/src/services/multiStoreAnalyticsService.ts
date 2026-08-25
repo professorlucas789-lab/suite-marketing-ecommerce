@@ -5,10 +5,13 @@
  */
 
 import { SalesKPIs, SalesReport } from '../types/sales';
+import type { OperationalUnitType } from '../types/store';
 
 export interface StorePerformance {
   storeId: string;
   storeName: string;
+  businessSegmentName?: string;
+  unitType?: OperationalUnitType;
   rank: number;
   metrics: {
     totalRevenue: number;
@@ -20,6 +23,13 @@ export interface StorePerformance {
     totalUnits: number;
     productCount: number;
     inventoryValue: number;
+    cashIn: number;
+    cashOut: number;
+    netCashFlow: number;
+    receivables: number;
+    payables: number;
+    operationalBalance: number;
+    pendingReconciliation: number;
   };
   trends: {
     revenueGrowth: number; // %
@@ -38,6 +48,13 @@ export interface MultiStoreComparison {
     totalTransactions: number;
     totalUnits: number;
     avgMargin: number;
+    cashIn: number;
+    cashOut: number;
+    netCashFlow: number;
+    receivables: number;
+    payables: number;
+    operationalBalance: number;
+    pendingReconciliation: number;
     storeCount: number;
   };
   insights: {
@@ -60,7 +77,12 @@ export function calculateStorePerformance(
   kpis: SalesKPIs,
   productCount: number,
   inventoryValue: number,
-  previousKpis?: SalesKPIs
+  previousKpis?: SalesKPIs,
+  financialMetrics: Partial<Pick<
+    StorePerformance['metrics'],
+    'cashIn' | 'cashOut' | 'netCashFlow' | 'receivables' | 'payables' | 'operationalBalance' | 'pendingReconciliation'
+  >> = {},
+  storeScope?: Pick<StorePerformance, 'businessSegmentName' | 'unitType'>
 ): StorePerformance {
   const totalRevenue = kpis.totalRevenue || 0;
   const totalProfit = kpis.totalProfit || 0;
@@ -86,6 +108,8 @@ export function calculateStorePerformance(
   return {
     storeId,
     storeName,
+    businessSegmentName: storeScope?.businessSegmentName,
+    unitType: storeScope?.unitType,
     rank: 0, // Será atualizado após ranking
     metrics: {
       totalRevenue,
@@ -97,6 +121,13 @@ export function calculateStorePerformance(
       totalUnits: kpis.totalUnits,
       productCount,
       inventoryValue,
+      cashIn: financialMetrics.cashIn || 0,
+      cashOut: financialMetrics.cashOut || 0,
+      netCashFlow: financialMetrics.netCashFlow || 0,
+      receivables: financialMetrics.receivables || 0,
+      payables: financialMetrics.payables || 0,
+      operationalBalance: financialMetrics.operationalBalance || 0,
+      pendingReconciliation: financialMetrics.pendingReconciliation || 0,
     },
     trends: {
       revenueGrowth,
@@ -127,6 +158,13 @@ export function prepareMultiStoreComparison(
     avgMargin: ranked.length > 0
       ? ranked.reduce((sum, s) => sum + s.metrics.avgMargin, 0) / ranked.length
       : 0,
+    cashIn: ranked.reduce((sum, s) => sum + s.metrics.cashIn, 0),
+    cashOut: ranked.reduce((sum, s) => sum + s.metrics.cashOut, 0),
+    netCashFlow: ranked.reduce((sum, s) => sum + s.metrics.netCashFlow, 0),
+    receivables: ranked.reduce((sum, s) => sum + s.metrics.receivables, 0),
+    payables: ranked.reduce((sum, s) => sum + s.metrics.payables, 0),
+    operationalBalance: ranked.reduce((sum, s) => sum + s.metrics.operationalBalance, 0),
+    pendingReconciliation: ranked.reduce((sum, s) => sum + s.metrics.pendingReconciliation, 0),
     storeCount: ranked.length,
   };
 
@@ -206,7 +244,7 @@ export function generateStoreRecommendations(
   }
 
   if (store.metrics.inventoryValue > store.metrics.totalRevenue * 2) {
-    recommendations.push('Estoque muito elevado - considerare promoções');
+    recommendations.push('Stock muito elevado - considere promoções ou redução de compras');
   }
 
   if (store.metrics.avgTransactionValue < 5000) {
@@ -215,6 +253,14 @@ export function generateStoreRecommendations(
 
   if (store.trends.revenueGrowth < -10) {
     recommendations.push('Queda de receita detectada - investigar causas');
+  }
+
+  if (store.metrics.pendingReconciliation > 0) {
+    recommendations.push('Existem movimentos financeiros pendentes de conciliação');
+  }
+
+  if (store.metrics.payables > store.metrics.receivables + store.metrics.netCashFlow) {
+    recommendations.push('Contas a pagar acima da folga financeira - rever pagamentos e cobranças');
   }
 
   return recommendations;

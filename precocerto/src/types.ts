@@ -3,6 +3,24 @@
  */
 import type { CategoryMarginConfig } from './types/category';
 
+export type CategoryScope = "segment" | "unit" | "global";
+export type PricingPolicy = "regulated" | "cost_plus" | "service" | "admin";
+export type StockPolicy = "expiry_controlled" | "serialized" | "standard" | "service" | "none";
+export type SalesDocumentMode = "invoice_receipt" | "receipt" | "internal" | "none";
+
+export interface BusinessSegmentConfig {
+  categoryScope: CategoryScope;
+  pricingPolicy: PricingPolicy;
+  stockPolicy: StockPolicy;
+  salesDocumentMode: SalesDocumentMode;
+  defaultMargin: number;
+  defaultTaxRate: number;
+  allowNegativeStock: boolean;
+  requiresExpiryControl: boolean;
+  requiresSerialNumber: boolean;
+  notes?: string;
+}
+
 export interface Product {
   id?: string;
   nome: string;
@@ -28,6 +46,7 @@ export interface Product {
   modoCalculo?: "manual" | "lote";
   quantidade?: number; // Qtd comprada do lote
   quantidadeDisponivel?: number;
+  quantidadeDisponível?: number; // Alias legado com acento usado por módulos antigos
   quantidadeVendida?: number;
 
   // Tipos de cálculo de custos adicionais ("unidade" | "lote")
@@ -98,6 +117,7 @@ export interface Product {
   };
 
   precoVendaRecomendado: number;
+  preco?: number; // Alias legado para relatórios antigos
   lucroEstimado: number;
   margemReal: number; // in %
   roi?: number; // in %
@@ -105,6 +125,7 @@ export interface Product {
   userId: string;
   createdAt: string; // ISO String
   updatedAt: string; // ISO String
+  dataCriacao?: string; // Alias legado usado em exportações
 
   // Novas propriedades da Fase 4: Conversão de Embalagem / Retalho
   tipoProduto?: string; // "produto comum" | "medicamento/farmácia" | "cosmético" | "alimentar" | "material escolar/escritório" | "outro"
@@ -169,11 +190,24 @@ export interface Product {
   localizacaoArmazem?: string;
   condicaoConservacao?: string;
   prazoValidadeGeral?: string;
+  migratedToGlobalCategories?: boolean;
+
+  // NOVO (IVA - Imposto sobre Valor Acrescentado)
+  temIVA?: boolean; // Se este produto tem IVA
+  ivaPercentage?: number; // Percentagem de IVA (ex: 23, 13, 6)
+  ivaType?: "standard" | "reduced" | "super_reduced"; // Tipo de IVA
 }
 
 export interface BusinessSettings {
   id?: string;
   userId: string;
+  storeId?: string;
+  storeName?: string;
+  businessGroupId?: string;
+  businessGroupName?: string;
+  businessSegmentId?: string;
+  businessSegmentName?: string;
+  unitType?: string;
   companyName: string;
   businessType: string; // One of the options e.g. "farmacia", "supermercado", "outro"
   currency: string;
@@ -184,9 +218,11 @@ export interface BusinessSettings {
   dateFormat: string;
   numberFormat: string;
   customCategories?: string[]; // user custom categories (Fase 12)
+  segmentConfig?: BusinessSegmentConfig;
 
   // NOVO: Margem padrão da empresa
   defaultMargin?: number; // Margem padrão para novos produtos (%)
+  taxRate?: number; // Alias legado para taxa/imposto padrão
 
   // NOVO (Fase 1): Framework regulatório (referência global)
   regulatoryFramework?: {
@@ -200,7 +236,11 @@ export interface BusinessSettings {
   updatedAt?: string;
 }
 
-export type ActiveTab = "dashboard" | "products" | "add-product" | "batch-products" | "categories" | "edit-product" | "reverse-calculator" | "alertas" | "estoque" | "vendas" | "multi-loja" | "notificacoes" | "automacao" | "twilio-config" | "settings" | "history" | "reports" | "backup" | "users" | "stores" | "user-profile" | "diagnostics"; // NOVO (Fase 4 - Alertas) | NOVO (Fase 5 - Estoque) | NOVO (Fase 6 - Vendas) | NOVO (Fase 9 - Multi-Loja) | NOVO (Fase 10 - Notificações/Automação) | NOVO (Fase 11 - Integração Twilio) | NOVO (Fase 11 - User Profile) | NOVO: diagnostics
+<<<<<<< HEAD
+export type ActiveTab = "dashboard" | "dashboard-executivo" | "products" | "add-product" | "batch-products" | "categories" | "edit-product" | "reverse-calculator" | "alertas" | "estoque" | "vendas" | "clientes" | "fornecedores" | "financeiro" | "multi-loja" | "notificacoes" | "automacao" | "twilio-config" | "settings" | "history" | "reports" | "backup" | "users" | "stores" | "user-profile" | "diagnostics"; // NOVO (Fase 17 - Dashboard Executivo) | NOVO (Fase 4 - Alertas) | NOVO (Fase 5 - Estoque) | NOVO (Fase 6 - Vendas/Clientes) | NOVO (Fase 7 - Fornecedores/Compras) | NOVO (Fase 8 - Financeiro) | NOVO (Fase 9 - Multi-Loja) | NOVO (Fase 10 - Notificações/Automação) | NOVO (Fase 11 - Integração Twilio) | NOVO (Fase 11 - User Profile) | NOVO: diagnostics
+=======
+export type ActiveTab = "dashboard" | "products" | "add-product" | "batch-products" | "categories" | "edit-product" | "reverse-calculator" | "settings" | "history" | "reports" | "backup" | "sales"; // NOVO (Módulo de Vendas)
+>>>>>>> 8fef09c (FEATURE: Implementar Módulo de Vendas (POS) com Busca Inteligente de Produtos)
 
 export interface PriceHistory {
   id?: string;

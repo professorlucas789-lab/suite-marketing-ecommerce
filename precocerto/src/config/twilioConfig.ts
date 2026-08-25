@@ -13,21 +13,22 @@ export interface TwilioConfig {
 }
 
 /**
- * Carregar configuração Twilio do ambiente
- * Em produção, usar variáveis de ambiente seguras
+ * Carregar configuração Twilio pública.
+ *
+ * Tokens Twilio não podem ser lidos no frontend: variáveis VITE_* são
+ * embutidas no bundle público e a Netlify bloqueia esse vazamento.
  */
 export function getTwilioConfig(): TwilioConfig {
   const accountSid = import.meta.env.VITE_TWILIO_ACCOUNT_SID || '';
-  const authToken = import.meta.env.VITE_TWILIO_AUTH_TOKEN || '';
   const whatsappNumber = import.meta.env.VITE_TWILIO_WHATSAPP_NUMBER || 'whatsapp:+1415555100';
   const smsNumber = import.meta.env.VITE_TWILIO_SMS_NUMBER || '+1415555100';
 
   return {
     accountSid,
-    authToken,
+    authToken: '',
     whatsappNumber,
     smsNumber,
-    enabled: !!accountSid && !!authToken,
+    enabled: false,
   };
 }
 
@@ -42,9 +43,7 @@ export function validateTwilioConfig(): { valid: boolean; errors: string[] } {
     errors.push('VITE_TWILIO_ACCOUNT_SID não configurado');
   }
 
-  if (!config.authToken) {
-    errors.push('VITE_TWILIO_AUTH_TOKEN não configurado');
-  }
+  errors.push('Twilio requer uma função backend segura; o auth token não pode ser exposto no frontend');
 
   if (!config.whatsappNumber) {
     errors.push('VITE_TWILIO_WHATSAPP_NUMBER não configurado');

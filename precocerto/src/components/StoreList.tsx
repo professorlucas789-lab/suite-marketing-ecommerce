@@ -7,6 +7,12 @@ import React, { useState, useEffect } from 'react';
 import { Store } from '../types/store';
 import { getAllStores, deleteStore } from '../utils/storeUtils';
 import {
+  getStoreBusinessSegmentLabel,
+  getStoreOperationalUnitLabel,
+  getStoreOperationalRules,
+  getStoreTypeLabel,
+} from '../utils/businessUnitMapping';
+import {
   Plus,
   Edit2,
   Trash2,
@@ -27,13 +33,6 @@ export function StoreList() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const storeTypeLabels: Record<string, string> = {
-    farmacia: 'Farmácia',
-    informatica: 'Informática',
-    ortopedico: 'Ortopédico',
-    generico: 'Genérico',
-  };
-
   useEffect(() => {
     loadStores();
   }, []);
@@ -45,7 +44,7 @@ export function StoreList() {
       const data = await getAllStores();
       setStores(data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar lojas';
+      const message = err instanceof Error ? err.message : 'Erro ao carregar unidades';
       setError(message);
     } finally {
       setLoading(false);
@@ -59,7 +58,7 @@ export function StoreList() {
       setStores((prev) => prev.filter((s) => s.id !== storeId));
       setDeleteConfirm(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao deletar loja';
+      const message = err instanceof Error ? err.message : 'Erro ao desativar unidade';
       setError(message);
     } finally {
       setDeleting(false);
@@ -76,7 +75,7 @@ export function StoreList() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 size={24} className="animate-spin text-emerald-600" />
-        <span className="ml-2 text-slate-600 dark:text-slate-400">A carregar lojas...</span>
+        <span className="ml-2 text-slate-600 dark:text-slate-400">A carregar unidades...</span>
       </div>
     );
   }
@@ -86,9 +85,9 @@ export function StoreList() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Lojas</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Unidades de Negócio</h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Gerencie todas as suas lojas e configurações
+            Gerir lojas, farmácias, armazéns, postos de venda e escritórios por negócio
           </p>
         </div>
         <button
@@ -99,7 +98,7 @@ export function StoreList() {
           className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors"
         >
           <Plus size={18} />
-          Criar Loja
+          Criar Unidade
         </button>
       </div>
 
@@ -119,7 +118,7 @@ export function StoreList() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-md w-full max-h-screen overflow-y-auto p-6">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
-              {selectedStore ? 'Editar Loja' : 'Criar Nova Loja'}
+              {selectedStore ? 'Editar Unidade' : 'Criar Nova Unidade'}
             </h2>
             <StoreForm
               store={selectedStore || undefined}
@@ -138,20 +137,23 @@ export function StoreList() {
         {stores.length === 0 ? (
           <div className="col-span-full text-center py-12">
             <Building2 size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-4" />
-            <p className="text-slate-600 dark:text-slate-400">Nenhuma loja criada ainda</p>
+            <p className="text-slate-600 dark:text-slate-400">Nenhuma unidade criada ainda</p>
           </div>
         ) : (
-          stores.map((store) => (
-            <div
-              key={store.id}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-lg dark:hover:shadow-slate-800 transition-shadow"
-            >
+          stores.map((store) => {
+            const rules = getStoreOperationalRules(store);
+
+            return (
+              <div
+                key={store.id}
+                className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-lg dark:hover:shadow-slate-800 transition-shadow"
+              >
               {/* Delete Confirmation */}
               {deleteConfirm === store.id && (
                 <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center z-40 p-2">
                   <div className="bg-white dark:bg-slate-800 rounded p-4 text-center">
                     <p className="text-sm font-medium text-slate-900 dark:text-white mb-3">
-                      Tem certeza que deseja deletar {store.nome}?
+                      Tem certeza que deseja desativar {store.nome}?
                     </p>
                     <div className="flex gap-2">
                       <button
@@ -167,7 +169,7 @@ export function StoreList() {
                         className="flex-1 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1"
                       >
                         {deleting && <Loader2 size={14} className="animate-spin" />}
-                        Deletar
+                        Desativar
                       </button>
                     </div>
                   </div>
@@ -183,7 +185,7 @@ export function StoreList() {
                   <div>
                     <h3 className="font-semibold text-slate-900 dark:text-white">{store.nome}</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {storeTypeLabels[store.tipo] || store.tipo}
+                      {getStoreOperationalUnitLabel(store)} · {getStoreBusinessSegmentLabel(store)}
                     </p>
                   </div>
                 </div>
@@ -201,7 +203,7 @@ export function StoreList() {
                   <button
                     onClick={() => setDeleteConfirm(store.id)}
                     className="p-2 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 rounded transition-colors"
-                    title="Deletar"
+                    title="Desativar"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -210,6 +212,14 @@ export function StoreList() {
 
               {/* Store Info */}
               <div className="space-y-2 text-sm mb-4">
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                  <span className="font-medium">Grupo:</span>
+                  <span>{store.businessGroupName || 'Grupo não definido'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                  <span className="font-medium">Módulo:</span>
+                  <span>{getStoreTypeLabel(store.tipo)}</span>
+                </div>
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                   <span className="font-medium">Endereço:</span>
                   <span>{store.endereco}</span>
@@ -221,6 +231,23 @@ export function StoreList() {
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                   <span className="font-medium">Email:</span>
                   <span className="truncate">{store.email}</span>
+                </div>
+              </div>
+
+              <div className="mb-4 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-3">
+                <p className="text-xs text-slate-600 dark:text-slate-300">{rules.summary}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${rules.canSell ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                    {rules.canSell ? 'Vende' : 'Não vende'}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${rules.canManageStock ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                    {rules.canManageStock ? 'Stock' : 'Sem stock'}
+                  </span>
+                  {rules.requiresParentUnit && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                      Requer unidade principal
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -245,7 +272,8 @@ export function StoreList() {
                 </button>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

@@ -27,7 +27,7 @@ Este documento explica como configurar Twilio para enviar notificações via Wha
 ### Exemplo:
 ```
 Account SID: ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-Auth Token: abc1234567890def1234567890abcdef
+Auth Token: <twilio-auth-token>
 ```
 
 ⚠️ **NUNCA compartilhe Auth Token!**
@@ -68,7 +68,7 @@ Crie `.env.local` na raiz do projeto:
 
 ```bash
 VITE_TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-VITE_TWILIO_AUTH_TOKEN=abc1234567890def1234567890abcdef
+TWILIO_AUTH_TOKEN=<twilio-auth-token>
 VITE_TWILIO_WHATSAPP_NUMBER=whatsapp:+244923456789
 VITE_TWILIO_SMS_NUMBER=+244923456789
 ```

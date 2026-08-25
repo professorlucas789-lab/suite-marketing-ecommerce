@@ -4,6 +4,11 @@
  * Fase 13: Gestão de Margens de Lucro por Categoria e Loja
  */
 
+import type { StoreType } from './store';
+
+export type MarkupCategoryScope = 'store' | 'businessType';
+export type MarkupCategorySource = 'local' | 'pharmacy-template';
+
 /**
  * MarkupCategory
  * Configuração de markup (margem de lucro) para uma categoria de produtos
@@ -12,6 +17,12 @@
 export interface MarkupCategory {
   id: string;
   storeId: string; // ID da loja (Zango ou Viana)
+  businessType?: StoreType;
+  scope?: MarkupCategoryScope;
+  source?: MarkupCategorySource;
+  templateKey?: string;
+  propagatedFromStoreId?: string;
+  propagatedAt?: string;
 
   // Identificação
   name: string; // ex: "Paracetamol português", "Antibióticos"

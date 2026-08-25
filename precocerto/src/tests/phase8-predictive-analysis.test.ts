@@ -362,7 +362,7 @@ describe('Fase 8: Análise Preditiva', () => {
         metric: 'vendas',
       });
 
-      expect(errors).toContain(expect.stringContaining('Nome'));
+      expect(errors).toEqual(expect.arrayContaining([expect.stringContaining('Nome')]));
     });
 
     it('deve validar tipo válido', () => {
@@ -373,7 +373,7 @@ describe('Fase 8: Análise Preditiva', () => {
         metric: 'vendas',
       });
 
-      expect(errors).toContain(expect.stringContaining('tipo'));
+      expect(errors).toEqual(expect.arrayContaining([expect.stringContaining('Tipo')]));
     });
 
     it('deve validar seleção de loja', () => {
@@ -383,7 +383,7 @@ describe('Fase 8: Análise Preditiva', () => {
         metric: 'vendas',
       });
 
-      expect(errors).toContain(expect.stringContaining('Loja'));
+      expect(errors).toEqual(expect.arrayContaining([expect.stringContaining('Loja')]));
     });
 
     it('deve validar métrica obrigatória', () => {
@@ -393,7 +393,7 @@ describe('Fase 8: Análise Preditiva', () => {
         storeId: 'store-1',
       });
 
-      expect(errors).toContain(expect.stringContaining('Métrica'));
+      expect(errors).toEqual(expect.arrayContaining([expect.stringContaining('Métrica')]));
     });
 
     it('deve aceitar configuração válida', () => {

@@ -19,6 +19,20 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { MarkupCategory, MarkupCategoryDTO, calcularMargemReal, CATEGORIAS_PADRAO } from '../types/markup';
+import type { Store } from '../types/store';
+import { PHARMACY_BUSINESS_TYPE } from '../utils/pharmacyMarkupScope';
+
+export type MarkupPropagationResult = {
+  storeId: string;
+  storeName: string;
+  markupId?: string;
+  action: 'created' | 'updated' | 'failed';
+  error?: string;
+};
+
+function normalizeMarkupName(name: string): string {
+  return name.trim().toLocaleLowerCase('pt-PT');
+}
 
 /**
  * ============================================================================
@@ -50,6 +64,10 @@ export async function createMarkupCategory(
     const newMarkup: MarkupCategory = {
       id: markupId,
       storeId,
+      businessType: markupData.businessType || PHARMACY_BUSINESS_TYPE,
+      scope: markupData.scope || 'store',
+      source: markupData.source || 'local',
+      templateKey: markupData.templateKey || normalizeMarkupName(markupData.name),
       ...markupData,
       margemRealPadrao,
       criadoEm: now,
@@ -125,22 +143,102 @@ export async function getMarkupCategoryByName(
   name: string
 ): Promise<MarkupCategory | null> {
   try {
-    const q = query(
-      collection(db, 'lojas', storeId, 'markups'),
-      where('name', '==', name)
-    );
-
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) {
-      return null;
-    }
-
-    return querySnapshot.docs[0].data() as MarkupCategory;
+    const categories = await getStoreMarkupCategories(storeId);
+    return categories.find((category) => normalizeMarkupName(category.name) === normalizeMarkupName(name)) || null;
   } catch (error) {
     console.error('❌ Erro ao obter markup por nome:', error);
     return null;
   }
+}
+
+/**
+ * Obter todas as lojas/farmácias ativas.
+ * As lojas ficam em `stores`; os markups continuam em `lojas/{storeId}/markups`.
+ */
+export async function getActivePharmacyStores(): Promise<Store[]> {
+  try {
+    const snapshot = await getDocs(collection(db, 'stores'));
+    return snapshot.docs
+      .map((storeDoc) => ({ id: storeDoc.id, ...storeDoc.data() } as Store))
+      .filter((store) => store.tipo === PHARMACY_BUSINESS_TYPE && store.ativo !== false);
+  } catch (error) {
+    console.error('❌ Erro ao obter farmácias ativas:', error);
+    handleFirestoreError(error, OperationType.GET, 'stores/pharmacies');
+    return [];
+  }
+}
+
+/**
+ * Criar ou atualizar a categoria numa loja, usando o nome como chave operacional.
+ * Evita duplicatas quando a mesma categoria é aplicada em várias farmácias.
+ */
+export async function upsertMarkupCategory(
+  storeId: string,
+  markupData: MarkupCategoryDTO
+): Promise<{ markupId: string; action: 'created' | 'updated' }> {
+  const existing = await getMarkupCategoryByName(storeId, markupData.name);
+
+  if (existing) {
+    await updateMarkupCategory(storeId, existing.id, markupData);
+    return { markupId: existing.id, action: 'updated' };
+  }
+
+  const markupId = await createMarkupCategory(storeId, markupData);
+  return { markupId, action: 'created' };
+}
+
+/**
+ * Aplicar uma categoria de markup a todas as farmácias ativas.
+ */
+export async function upsertMarkupCategoryForPharmacies(
+  sourceStoreId: string,
+  markupData: MarkupCategoryDTO
+): Promise<MarkupPropagationResult[]> {
+  const pharmacies = await getActivePharmacyStores();
+
+  if (pharmacies.length === 0) {
+    throw new Error('Nenhuma farmácia ativa encontrada para aplicar a categoria.');
+  }
+
+  const now = new Date().toISOString();
+  const templateKey = markupData.templateKey || normalizeMarkupName(markupData.name);
+
+  const results: MarkupPropagationResult[] = [];
+
+  for (const pharmacy of pharmacies) {
+    try {
+      const result = await upsertMarkupCategory(pharmacy.id, {
+        ...markupData,
+        businessType: PHARMACY_BUSINESS_TYPE,
+        scope: 'businessType',
+        source: 'pharmacy-template',
+        templateKey,
+        propagatedFromStoreId: sourceStoreId,
+        propagatedAt: now,
+      });
+
+      results.push({
+        storeId: pharmacy.id,
+        storeName: pharmacy.nome,
+        markupId: result.markupId,
+        action: result.action,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      results.push({
+        storeId: pharmacy.id,
+        storeName: pharmacy.nome,
+        action: 'failed',
+        error: message,
+      });
+    }
+  }
+
+  if (results.every((result) => result.action === 'failed')) {
+    throw new Error('Não foi possível aplicar a categoria em nenhuma farmácia.');
+  }
+
+  return results;
 }
 
 /**

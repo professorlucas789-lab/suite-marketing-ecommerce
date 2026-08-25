@@ -452,10 +452,11 @@ function ReportBuilderComponent({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            <label htmlFor="report-sort-by" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               Ordenar por:
             </label>
             <select
+              id="report-sort-by"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as keyof Product)}
               className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
@@ -470,10 +471,11 @@ function ReportBuilderComponent({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            <label htmlFor="report-sort-order" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               Direção:
             </label>
             <select
+              id="report-sort-order"
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
               className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500"
@@ -503,7 +505,7 @@ function ReportBuilderComponent({
             className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             <Download size={18} />
-            Gerar
+            Gerar Relatório
           </button>
 
           {onExport && (

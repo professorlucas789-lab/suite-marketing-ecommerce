@@ -27,6 +27,8 @@ describe('ReportBuilder', () => {
   } as Product);
 
   const mockOnGenerateReport = vi.fn();
+  const getSortBySelect = () => screen.getByLabelText('Ordenar por:') as HTMLSelectElement;
+  const getSortDirectionSelect = () => screen.getByLabelText('Direção:') as HTMLSelectElement;
 
   describe('Rendering', () => {
     it('should render report builder component', () => {
@@ -300,8 +302,7 @@ describe('ReportBuilder', () => {
       render(
         <ReportBuilder products={[]} onGenerateReport={mockOnGenerateReport} />
       );
-      const selects = screen.getAllByRole('combobox');
-      const sortBySelect = selects[0];
+      const sortBySelect = getSortBySelect();
 
       fireEvent.change(sortBySelect, { target: { value: 'categoria' } });
       expect((sortBySelect as HTMLSelectElement).value).toBe('categoria');
@@ -311,8 +312,7 @@ describe('ReportBuilder', () => {
       render(
         <ReportBuilder products={[]} onGenerateReport={mockOnGenerateReport} />
       );
-      const selects = screen.getAllByRole('combobox');
-      const sortDirectionSelect = selects[1];
+      const sortDirectionSelect = getSortDirectionSelect();
 
       fireEvent.change(sortDirectionSelect, { target: { value: 'desc' } });
       expect((sortDirectionSelect as HTMLSelectElement).value).toBe('desc');
@@ -322,8 +322,7 @@ describe('ReportBuilder', () => {
       render(
         <ReportBuilder products={[]} onGenerateReport={mockOnGenerateReport} />
       );
-      const selects = screen.getAllByRole('combobox');
-      const sortBySelect = selects[0] as HTMLSelectElement;
+      const sortBySelect = getSortBySelect();
       expect(sortBySelect.value).toBe('nome');
     });
 
@@ -331,8 +330,7 @@ describe('ReportBuilder', () => {
       render(
         <ReportBuilder products={[]} onGenerateReport={mockOnGenerateReport} />
       );
-      const selects = screen.getAllByRole('combobox');
-      const sortDirectionSelect = selects[1] as HTMLSelectElement;
+      const sortDirectionSelect = getSortDirectionSelect();
       expect(sortDirectionSelect.value).toBe('asc');
     });
 
@@ -340,8 +338,7 @@ describe('ReportBuilder', () => {
       const { container } = render(
         <ReportBuilder products={[]} onGenerateReport={mockOnGenerateReport} />
       );
-      const selects = container.querySelectorAll('select');
-      const sortBySelect = selects[0];
+      const sortBySelect = getSortBySelect();
       const options = sortBySelect?.querySelectorAll('option');
       expect((options?.length || 0) > 1).toBe(true);
     });
@@ -516,9 +513,8 @@ describe('ReportBuilder', () => {
       render(
         <ReportBuilder products={[]} onGenerateReport={mockOnGenerateReport} />
       );
-      const selects = screen.getAllByRole('combobox');
-      fireEvent.change(selects[0], { target: { value: 'margemReal' } });
-      fireEvent.change(selects[1], { target: { value: 'desc' } });
+      fireEvent.change(getSortBySelect(), { target: { value: 'margemReal' } });
+      fireEvent.change(getSortDirectionSelect(), { target: { value: 'desc' } });
 
       const button = screen.getByText('Gerar Relatório');
       fireEvent.click(button);
@@ -627,8 +623,7 @@ describe('ReportBuilder', () => {
       render(
         <ReportBuilder products={[]} onGenerateReport={mockOnGenerateReport} />
       );
-      const selects = screen.getAllByRole('combobox');
-      const sortBySelect = selects[0];
+      const sortBySelect = getSortBySelect();
 
       fireEvent.change(sortBySelect, { target: { value: 'categoria' } });
       fireEvent.change(sortBySelect, { target: { value: 'roi' } });
@@ -662,13 +657,13 @@ describe('ReportBuilder', () => {
       fireEvent.click(checkboxes[0]);
 
       // Change sort
-      const selects = screen.getAllByRole('combobox');
-      fireEvent.change(selects[0], { target: { value: 'categoria' } });
+      const sortBySelect = getSortBySelect();
+      fireEvent.change(sortBySelect, { target: { value: 'categoria' } });
 
       // Verify all changes persist
       expect(input.value).toBe('Test Title');
       expect(checkboxes[0]).not.toBeChecked();
-      expect((selects[0] as HTMLSelectElement).value).toBe('categoria');
+      expect(sortBySelect.value).toBe('categoria');
     });
   });
 

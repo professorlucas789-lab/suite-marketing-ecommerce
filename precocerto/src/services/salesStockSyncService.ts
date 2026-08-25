@@ -4,10 +4,16 @@
  * Fase 7: Sincronização de Vendas & Estoque
  */
 
-import { doc, updateDoc, getDoc, increment } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Sale } from '../types/sales';
 import { Product } from '../types';
+
+const getAvailableStock = (product: Product) =>
+  Number(product.quantidadeDisponivel ?? product.quantidade ?? 0);
+
+const getStockValue = (product: Product) =>
+  Number(product.precoVendaRecomendado ?? product.precoRecomendadoUnidadeVenda ?? 0);
 
 /**
  * Reduzir estoque quando uma venda é registada
@@ -19,7 +25,7 @@ export async function reduceStockOnSale(sale: Sale): Promise<void> {
     }
 
     // Buscar produto atual para verificar stock disponível
-    const productRef = doc(db, `lojas/${sale.storeId}/produtos/${sale.productId}`);
+    const productRef = doc(db, 'products', sale.productId);
     const productSnap = await getDoc(productRef);
 
     if (!productSnap.exists()) {
@@ -27,7 +33,7 @@ export async function reduceStockOnSale(sale: Sale): Promise<void> {
     }
 
     const currentProduct = productSnap.data() as Product;
-    const currentStock = currentProduct.quantidadeDisponivel || 0;
+    const currentStock = getAvailableStock(currentProduct);
 
     if (currentStock < sale.quantity) {
       throw new Error(
@@ -63,7 +69,7 @@ export async function validateStockAvailability(
   quantity: number
 ): Promise<{ available: boolean; currentStock: number; message: string }> {
   try {
-    const productRef = doc(db, `lojas/${storeId}/produtos/${productId}`);
+    const productRef = doc(db, 'products', productId);
     const productSnap = await getDoc(productRef);
 
     if (!productSnap.exists()) {
@@ -75,7 +81,15 @@ export async function validateStockAvailability(
     }
 
     const product = productSnap.data() as Product;
-    const currentStock = product.quantidadeDisponível || 0;
+    if (product.storeId && product.storeId !== storeId) {
+      return {
+        available: false,
+        currentStock: 0,
+        message: 'Produto não pertence à loja atual',
+      };
+    }
+
+    const currentStock = getAvailableStock(product);
 
     if (currentStock < quantity) {
       return {
@@ -109,7 +123,7 @@ export async function reverseSaleStock(sale: Sale): Promise<void> {
       throw new Error('ProductId e StoreId são obrigatórios');
     }
 
-    const productRef = doc(db, `lojas/${sale.storeId}/produtos/${sale.productId}`);
+    const productRef = doc(db, 'products', sale.productId);
     const productSnap = await getDoc(productRef);
 
     if (!productSnap.exists()) {
@@ -119,11 +133,11 @@ export async function reverseSaleStock(sale: Sale): Promise<void> {
     const currentProduct = productSnap.data() as Product;
 
     // Restaurar estoque
-    const newStock = (currentProduct.quantidadeDisponível || 0) + sale.quantity;
+    const newStock = getAvailableStock(currentProduct) + sale.quantity;
     const newQuantityVendida = Math.max(0, (currentProduct.quantidadeVendida || 0) - sale.quantity);
 
     await updateDoc(productRef, {
-      quantidadeDisponível: newStock,
+      quantidadeDisponivel: newStock,
       quantidadeVendida: newQuantityVendida,
       dataAtualizacao: new Date().toISOString(),
     });
@@ -197,7 +211,7 @@ export async function getStockByCategoryReport(
       const cat = categoryMap.get(category)!;
       cat.totalProducts++;
 
-      const stock = product.quantidadeDisponível || 0;
+      const stock = getAvailableStock(product);
       if (stock === 0) {
         cat.outOfStock++;
       } else if (stock < 10) {
@@ -206,7 +220,7 @@ export async function getStockByCategoryReport(
         cat.inStock++;
       }
 
-      cat.totalValue += (product.preco || 0) * stock;
+      cat.totalValue += getStockValue(product) * stock;
     });
 
     return Array.from(categoryMap.values());

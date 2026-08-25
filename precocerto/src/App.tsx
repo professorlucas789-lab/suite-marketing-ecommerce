@@ -33,6 +33,7 @@ import { ImportCSVModal } from "./components/ImportCSVModal"; // NOVO (Fase 5A)
 import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fase 5A)
 import { ReportBuilder, ReportConfig } from "./components/ReportBuilder"; // NOVO (Fase 5B Item 3)
 import { NotificationSettingsPanel } from "./components/NotificationSettingsPanel"; // NOVO (Fase 10 - Automação de Alertas)
+import SalesModule from "./components/SalesModule"; // NOVO (Módulo de Vendas)
 
 // Lazy-loaded components (Performance Optimization - Fase 12)
 const BatchProductForm = React.lazy(() => import("./components/BatchProductForm"));
@@ -43,10 +44,16 @@ const UserStoresDashboard = React.lazy(() => import("./components/UserStoresDash
 const UserProfileView = React.lazy(() => import("./components/UserProfileView").then(m => ({ default: m.UserProfileView })));
 const AdminDiagnostics = React.lazy(() => import("./components/AdminDiagnostics").then(m => ({ default: m.AdminDiagnostics })));
 const SalesTab = React.lazy(() => import("./components/SalesTab").then(m => ({ default: m.SalesTab })));
+const CustomersView = React.lazy(() => import("./components/CustomersView"));
+const PurchasingView = React.lazy(() => import("./components/PurchasingView"));
+const FinancialView = React.lazy(() => import("./components/FinancialView"));
+const StockManagementView = React.lazy(() => import("./components/StockManagementView"));
 const MultiStoreComparisonDashboard = React.lazy(() => import("./components/MultiStoreComparisonDashboard").then(m => ({ default: m.MultiStoreComparisonDashboard })));
 const AlertMonitorPanel = React.lazy(() => import("./components/AlertMonitorPanel").then(m => ({ default: m.AlertMonitorPanel })));
 const TwilioConfigPanel = React.lazy(() => import("./components/TwilioConfigPanel").then(m => ({ default: m.TwilioConfigPanel })));
 const AlertsView = React.lazy(() => import("./components/AlertsView")); // NOVO (Fase 13 - Expiry & Stock Alerts)
+const StockManagementPanel = React.lazy(() => import("./components/StockManagementPanel")); // NOVO (Fase 2 - Stock Management)
+const ExecutiveDashboard = React.lazy(() => import("./components/ExecutiveDashboard")); // NOVO (Fase 17 - Executive Dashboard)
 import { useUserAuth } from "./hooks/useUserAuth"; // NOVO (Fase 10 - RBAC)
 import { getNavItemsForRole } from "./config/navigationConfig"; // NOVO (Fase 10 - RBAC)
 import {
@@ -56,6 +63,13 @@ import {
   prepareProductsForExport
 } from "./utils/reportExporter"; // NOVO (Fase 5B Item 3 - Export)
 import { getTailwindColorHex, injectPrimaryColorCSS } from "./utils/colorUtils"; // NOVO: Sistema de cores dinâmicas
+import { useStore } from "./contexts/StoreContext";
+import {
+  getOperationalUnitRules,
+  getStoreModuleId,
+  isNavigationAllowedForUnit,
+  mergeBusinessSegmentConfig,
+} from "./utils/businessUnitMapping";
 
 // Loading component for lazy-loaded sections (Fase 12 - Performance Optimization)
 const LazyComponentLoader = () => (
@@ -93,7 +107,12 @@ import {
   BarChart3, // NOVO (Fase 5B Item 3 - Custom Reports)
   Building2, // NOVO (Fase 6 - Multi-Store)
   Bell, // NOVO (Fase 4 - Alertas de Validade)
-  DollarSign // NOVO (Fase 6 - Módulo de Vendas)
+  DollarSign, // NOVO (Fase 6 - Módulo de Vendas)
+  PackageCheck, // NOVO: Gestão de stock multi-unidade
+  Users,
+  Truck,
+  WalletCards,
+  ShoppingCart // NOVO (Módulo de Vendas)
 } from "lucide-react";
 
 export default function App() {
@@ -106,6 +125,8 @@ export default function App() {
 
   // NOVO (Fase 10 - RBAC): Obter dados do utilizador com papel
   const { papel, isAdmin, isLojaManager, isFuncionario } = useUserAuth();
+  const { currentStore, userStores } = useStore();
+  const currentUnitRules = getOperationalUnitRules(currentStore?.unitType);
 
   // Theme state
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -157,6 +178,12 @@ export default function App() {
     setNotification({ message, type });
   };
 
+  useEffect(() => {
+    if (!isNavigationAllowedForUnit(activeTab, currentStore?.unitType)) {
+      setActiveTab("dashboard");
+    }
+  }, [activeTab, currentStore?.unitType]);
+
   // Auth listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -186,40 +213,51 @@ export default function App() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const docSnap = snapshot.docs[0];
-        const data = docSnap.data();
-        setBusinessSettings({
-          id: docSnap.id,
-          userId: data.userId,
-          companyName: data.companyName || "PreçoCerto Lda",
-          businessType: data.businessType || "farmacia",
-          currency: data.currency || "Kz",
-          country: data.country || "Angola",
-          language: data.language || "Português",
-          logoUrl: data.logoUrl || "",
-          primaryColor: data.primaryColor || "emerald-600",
-          dateFormat: data.dateFormat || "DD/MM/YYYY",
-          numberFormat: data.numberFormat || "1.234,56",
-          customCategories: data.customCategories || [],
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt
-        });
-      } else {
-        setBusinessSettings({
-          userId: user.uid,
-          companyName: "PreçoCerto Lda",
-          businessType: "farmacia",
-          currency: "Kz",
-          country: "Angola",
-          language: "Português",
-          logoUrl: "",
-          primaryColor: "emerald-600",
-          dateFormat: "DD/MM/YYYY",
-          numberFormat: "1.234,56",
-          customCategories: []
-        });
-      }
+      const selectedStore = userStores.find((store) => store.id === currentStore?.storeId);
+      const defaultBusinessType = getStoreModuleId(selectedStore || (currentStore ? {
+        tipo: currentStore.storeType,
+        moduleId: currentStore.moduleId,
+      } : null));
+
+      const storeSettingsDoc = currentStore
+        ? snapshot.docs.find((item) => item.data().storeId === currentStore.storeId)
+        : undefined;
+      const legacySettingsDoc = snapshot.docs.find((item) => !item.data().storeId);
+      const docSnap = storeSettingsDoc || legacySettingsDoc;
+      const data = docSnap?.data() || {};
+      const hasStoreSettings = !!storeSettingsDoc;
+      const segmentConfig = mergeBusinessSegmentConfig(
+        currentStore?.businessSegmentId,
+        data.segmentConfig
+      );
+
+      setBusinessSettings({
+        id: hasStoreSettings || !currentStore ? docSnap?.id : undefined,
+        userId: data.userId || user.uid,
+        storeId: currentStore?.storeId,
+        storeName: currentStore?.storeName,
+        businessGroupId: currentStore?.businessGroupId,
+        businessGroupName: currentStore?.businessGroupName,
+        businessSegmentId: currentStore?.businessSegmentId,
+        businessSegmentName: currentStore?.businessSegmentName,
+        unitType: currentStore?.unitType,
+        companyName: data.companyName || currentStore?.storeName || "PreçoCerto Lda",
+        businessType: hasStoreSettings
+          ? data.businessType || defaultBusinessType
+          : defaultBusinessType || data.businessType || "outro",
+        currency: data.currency || "Kz",
+        country: data.country || "Angola",
+        language: data.language || "Português",
+        logoUrl: data.logoUrl || "",
+        primaryColor: data.primaryColor || "emerald-600",
+        dateFormat: data.dateFormat || "DD/MM/YYYY",
+        numberFormat: data.numberFormat || "1.234,56",
+        customCategories: data.customCategories || [],
+        segmentConfig,
+        defaultMargin: data.defaultMargin ?? segmentConfig.defaultMargin,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt
+      });
       setSettingsLoading(false);
     }, (error) => {
       setSettingsLoading(false);
@@ -227,7 +265,19 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [
+    user,
+    currentStore?.storeId,
+    currentStore?.storeName,
+    currentStore?.storeType,
+    currentStore?.moduleId,
+    currentStore?.businessGroupId,
+    currentStore?.businessGroupName,
+    currentStore?.businessSegmentId,
+    currentStore?.businessSegmentName,
+    currentStore?.unitType,
+    userStores,
+  ]);
 
   // NOVO: Injetar cores CSS dinâmicas quando a cor primária mudar
   useEffect(() => {
@@ -241,12 +291,25 @@ export default function App() {
   const handleSaveBusinessSettings = async (settingsData: Omit<BusinessSettings, "userId" | "id">) => {
     if (!user) return;
     const timestamp = new Date().toISOString();
+    const scopedSettingsData = currentStore
+      ? {
+          ...settingsData,
+          storeId: currentStore.storeId,
+          storeName: currentStore.storeName,
+          businessGroupId: currentStore.businessGroupId,
+          businessGroupName: currentStore.businessGroupName,
+          businessSegmentId: currentStore.businessSegmentId,
+          businessSegmentName: currentStore.businessSegmentName,
+          unitType: currentStore.unitType,
+        }
+      : settingsData;
+
     try {
       if (businessSettings && businessSettings.id) {
         try {
           const docRef = doc(db, "businessSettings", businessSettings.id);
           await updateDoc(docRef, {
-            ...settingsData,
+            ...scopedSettingsData,
             updatedAt: timestamp
           });
         } catch (error) {
@@ -255,7 +318,7 @@ export default function App() {
       } else {
         try {
           await addDoc(collection(db, "businessSettings"), {
-            ...settingsData,
+            ...scopedSettingsData,
             userId: user.uid,
             createdAt: timestamp,
             updatedAt: timestamp
@@ -285,12 +348,25 @@ export default function App() {
       const productsData: Product[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
+        const productStoreId = data.storeId || "";
+
+        if (currentStore && productStoreId && productStoreId !== currentStore.storeId) {
+          return;
+        }
+
+        if (currentStore && !productStoreId && userStores.length > 1) {
+          return;
+        }
+
         productsData.push({
           ...data,
           id: docSnap.id,
           nome: data.nome,
           categoria: data.categoria,
           fornecedor: data.fornecedor,
+          numeroFatura: data.numeroFatura || "",
+          dataEmissaoFatura: data.dataEmissaoFatura || "",
+          storeId: productStoreId,
           custoCompra: data.custoCompra || 0,
           custoTransporte: data.custoTransporte || 0,
           custoEmbalagem: data.custoEmbalagem || 0,
@@ -339,7 +415,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, currentStore?.storeId, userStores.length]);
 
   // Logout handler
   const handleLogout = async () => {
@@ -360,6 +436,13 @@ export default function App() {
     if (!user) return;
 
     const timestamp = new Date().toISOString();
+    const productDataWithStore = currentStore
+      ? {
+          ...productData,
+          storeId: productData.storeId || currentStore.storeId,
+          storeName: productData.storeName || currentStore.storeName,
+        }
+      : productData;
 
     try {
       if (editingProduct && editingProduct.id) {
@@ -406,14 +489,18 @@ export default function App() {
         const uVendaChanged = (editingProduct.unidadeVenda || "") !== (productData.unidadeVenda || "");
         const modeChanged = (editingProduct.venderEmbalagemInteira ?? true) !== (productData.venderEmbalagemInteira ?? true);
         const margemDesejadaChanged = (editingProduct.margemDesejada || 0) !== (productData.margemDesejada || 0);
+        const categoryChanged =
+          (editingProduct.categoryId || "") !== (productData.categoryId || "") ||
+          (editingProduct.categoria || "").trim().toLocaleLowerCase("pt-PT") !==
+            (productData.categoria || "").trim().toLocaleLowerCase("pt-PT");
 
-        const hasRelevantChanges = priceChanged || costChanged || marginChanged || roiChanged || profitChanged || qtyChanged || unitsChanged || uVendaChanged || modeChanged || margemDesejadaChanged;
+        const hasRelevantChanges = priceChanged || costChanged || marginChanged || roiChanged || profitChanged || qtyChanged || unitsChanged || uVendaChanged || modeChanged || margemDesejadaChanged || categoryChanged;
 
         // Update mode
         try {
           const productRef = doc(db, "products", editingProduct.id);
           await updateDoc(productRef, {
-            ...productData,
+            ...productDataWithStore,
             updatedAt: timestamp
           });
 
@@ -446,7 +533,7 @@ export default function App() {
         // Create mode
         try {
           const docRef = await addDoc(collection(db, "products"), {
-            ...productData,
+            ...productDataWithStore,
             userId: user.uid,
             createdAt: timestamp,
             updatedAt: timestamp
@@ -520,6 +607,12 @@ export default function App() {
       const duplicatedProduct = {
         ...originalProductWithoutId,
         nome: `${originalProductWithoutId.nome} Cópia`,
+        ...(currentStore
+          ? {
+              storeId: originalProductWithoutId.storeId || currentStore.storeId,
+              storeName: originalProductWithoutId.storeName || currentStore.storeName,
+            }
+          : {}),
         createdAt: timestamp,
         updatedAt: timestamp,
         userId: user.uid,
@@ -660,9 +753,17 @@ export default function App() {
     try {
       for (const productData of productsData) {
         try {
+          const productDataWithStore = currentStore
+            ? {
+                ...productData,
+                storeId: productData.storeId || currentStore.storeId,
+                storeName: productData.storeName || currentStore.storeName,
+              }
+            : productData;
+
           // Create product document
           const docRef = await addDoc(collection(db, "products"), {
-            ...productData,
+            ...productDataWithStore,
             userId: user.uid,
             createdAt: timestamp,
             updatedAt: timestamp
@@ -775,7 +876,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
+    id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "estoque" | "vendas" | "clientes" | "fornecedores" | "financeiro" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;
@@ -794,6 +895,10 @@ export default function App() {
     User: UserIcon,
     Settings,
     Database,
+    PackageCheck,
+    Users,
+    Truck,
+    WalletCards,
   };
 
   // NOVO (Fase 10 - RBAC): Gerar navigationItems dinamicamente baseado no papel
@@ -801,12 +906,18 @@ export default function App() {
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "alertas", label: "Alertas", icon: Bell }, // NOVO (Fase 13 - Expiry & Stock Alerts)
     { id: "products", label: "Lista de Produtos", icon: Package, badge: products.length },
+    { id: "sales", label: "Vendas", icon: ShoppingCart }, // NOVO (Módulo de Vendas)
     { id: "batch-products", label: "Cadastro em Lote", icon: Boxes }, // NOVO (Fase 3)
     { id: "categories", label: "Categorias", icon: Folder }, // NOVO (Fase 1)
     { id: "reverse-calculator", label: "Calculadora Reversa", icon: Calculator },
-    { id: "stores", label: "Lojas", icon: Building2 }, // NOVO (Fase 6 - Multi-Store)
+    { id: "estoque", label: "Stock", icon: PackageCheck },
+    { id: "stores", label: "Unidades", icon: Building2 }, // Base multi-negócio
     { id: "history", label: "Histórico", icon: History },
     { id: "reports", label: "Relatórios", icon: FileText },
+    { id: "vendas", label: "Vendas", icon: DollarSign }, // NOVO (Fase 6 - Módulo de Vendas)
+    { id: "clientes", label: "Clientes", icon: Users },
+    { id: "fornecedores", label: "Fornecedores", icon: Truck },
+    { id: "financeiro", label: "Financeiro", icon: WalletCards },
     { id: "users", label: "Utilizadores", icon: UserIcon }, // NOVO (Fase 10)
     { id: "user-profile", label: "Meu Perfil", icon: UserIcon }, // NOVO (Fase 11 - User Profile)
     { id: "settings", label: "Configurações", icon: Settings },
@@ -816,7 +927,8 @@ export default function App() {
   // Filtrar itens baseado no papel do utilizador (NOVO Fase 10 - RBAC)
   const configItems = getNavItemsForRole(papel);
   const navigationItems = allNavigationItems.filter((item) =>
-    configItems.some((cfgItem) => cfgItem.id === item.id)
+    configItems.some((cfgItem) => cfgItem.id === item.id) &&
+    isNavigationAllowedForUnit(item.id, currentStore?.unitType)
   );
 
   const isTabActive = (tabId: string) => {
@@ -1069,8 +1181,24 @@ export default function App() {
                     <Dashboard
                       products={products}
                       settings={businessSettings}
+                      unitRules={currentUnitRules}
                       onNavigate={(tab) => setActiveTab(tab)}
                     />
+                  </motion.div>
+                )}
+
+                {/* NOVO (Fase 17): Executive Dashboard - Analytics & Metrics - Lazy loaded (Fase 12) */}
+                {activeTab === "dashboard-executivo" && (
+                  <motion.div
+                    key="dashboard-executivo-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <ExecutiveDashboard />
+                    </Suspense>
                   </motion.div>
                 )}
 
@@ -1089,6 +1217,21 @@ export default function App() {
                   </motion.div>
                 )}
 
+                {/* NOVO (Fase 2): Stock Management Panel - Lazy loaded (Fase 12) */}
+                {activeTab === "estoque" && (
+                  <motion.div
+                    key="estoque-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <StockManagementPanel />
+                    </Suspense>
+                  </motion.div>
+                )}
+
                 {activeTab === "products" && (
                   <motion.div
                     key="products-view"
@@ -1099,20 +1242,24 @@ export default function App() {
                   >
                     {/* NOVO (Fase 5A): Action buttons header */}
                     <div className="mb-6 flex gap-3 flex-wrap">
-                      <button
-                        onClick={handleAddNewTrigger}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
-                      >
-                        <Package size={18} />
-                        Novo Produto
-                      </button>
-                      <button
-                        onClick={() => setIsImportModalOpen(true)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                      >
-                        <Upload size={18} />
-                        Importar CSV
-                      </button>
+                      {currentUnitRules.canManageProducts && (
+                        <>
+                          <button
+                            onClick={handleAddNewTrigger}
+                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+                          >
+                            <Package size={18} />
+                            Novo Produto
+                          </button>
+                          <button
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                          >
+                            <Upload size={18} />
+                            Importar CSV
+                          </button>
+                        </>
+                      )}
                       <button
                         onClick={() => setIsReportBuilderOpen(true)}
                         className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
@@ -1129,6 +1276,7 @@ export default function App() {
                     <ProductList
                       products={products}
                       settings={businessSettings}
+                      canManageProducts={currentUnitRules.canManageProducts}
                       onAddProduct={handleAddNewTrigger}
                       onEditProduct={handleEditTrigger}
                       onDeleteProduct={handleDeleteProduct}
@@ -1155,6 +1303,25 @@ export default function App() {
                         settings={businessSettings}
                       />
                     </Suspense>
+                  </motion.div>
+                )}
+
+                {/* NOVO (Módulo de Vendas): Sales Module Tab */}
+                {activeTab === "sales" && (
+                  <motion.div
+                    key="sales-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <SalesModule
+                      products={products}
+                      onSaleComplete={(items, total) => {
+                        console.log("Venda registada:", { items, total });
+                        // TODO: Save to Firebase and emit audit log
+                      }}
+                    />
                   </motion.div>
                 )}
 
@@ -1222,6 +1389,25 @@ export default function App() {
                   </motion.div>
                 )}
 
+                {activeTab === "estoque" && user && (
+                  <motion.div
+                    key="estoque-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <StockManagementView
+                        products={products}
+                        userId={user.uid}
+                        userName={user.displayName || user.email || ""}
+                        onNotification={triggerNotification}
+                      />
+                    </Suspense>
+                  </motion.div>
+                )}
+
                 {activeTab === "vendas" && user && (
                   <motion.div
                     key="vendas-view"
@@ -1233,8 +1419,54 @@ export default function App() {
                     <Suspense fallback={<LazyComponentLoader />}>
                       <SalesTab
                         products={products}
+                        settings={businessSettings}
                         onNotification={triggerNotification}
                       />
+                    </Suspense>
+                  </motion.div>
+                )}
+
+                {activeTab === "clientes" && user && (
+                  <motion.div
+                    key="clientes-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <CustomersView onNotification={triggerNotification} />
+                    </Suspense>
+                  </motion.div>
+                )}
+
+                {activeTab === "fornecedores" && user && (
+                  <motion.div
+                    key="fornecedores-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <PurchasingView
+                        products={products}
+                        onNotification={triggerNotification}
+                      />
+                    </Suspense>
+                  </motion.div>
+                )}
+
+                {activeTab === "financeiro" && user && (
+                  <motion.div
+                    key="financeiro-view"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Suspense fallback={<LazyComponentLoader />}>
+                      <FinancialView onNotification={triggerNotification} />
                     </Suspense>
                   </motion.div>
                 )}

@@ -8,6 +8,7 @@ import { UserRole } from '../types/store';
 
 export type NavigationItemId =
   | 'dashboard'
+  | 'dashboard-executivo' // NOVO (Fase 17 - Dashboard Executivo)
   | 'products'
   | 'batch-products'
   | 'categories'
@@ -15,6 +16,9 @@ export type NavigationItemId =
   | 'alertas' // NOVO (Fase 4 - Alertas de Validade)
   | 'estoque' // NOVO (Fase 5 - Gestão de Estoque)
   | 'vendas' // NOVO (Fase 6 - Módulo de Vendas)
+  | 'clientes' // NOVO (Fase 6 - Clientes e contas correntes)
+  | 'fornecedores' // NOVO (Fase 7 - Fornecedores e compras)
+  | 'financeiro' // NOVO (Fase 8 - Financeiro operacional)
   | 'multi-loja' // NOVO (Fase 9 - Dashboard Multi-Loja)
   | 'notificacoes' // NOVO (Fase 10 - Configurações de Notificações)
   | 'automacao' // NOVO (Fase 10 - Monitoramento de Automação)
@@ -43,6 +47,15 @@ export const navigationConfig: NavigationConfig[] = [
     label: 'Dashboard',
     icon: 'LayoutDashboard',
     roles: ['admin', 'loja-manager', 'funcionario'],
+    section: 'main',
+  },
+
+  // NOVO (Fase 17): Dashboard Executivo - Apenas Admin e Loja Manager
+  {
+    id: 'dashboard-executivo',
+    label: '📊 Dashboard Executivo',
+    icon: 'BarChart3',
+    roles: ['admin', 'loja-manager'],
     section: 'main',
   },
 
@@ -87,12 +100,20 @@ export const navigationConfig: NavigationConfig[] = [
     section: 'main',
   },
 
+  {
+    id: 'estoque',
+    label: 'Stock',
+    icon: 'PackageCheck',
+    roles: ['admin', 'loja-manager'],
+    section: 'main',
+  },
+
   // SECÇÃO DE GESTÃO - Apenas Admins
   {
     id: 'stores',
-    label: 'Lojas',
+    label: 'Unidades',
     icon: 'Building2',
-    roles: ['admin'], // EXCLUSIVO: Apenas admin pode criar/editar lojas
+    roles: ['admin'], // EXCLUSIVO: Apenas admin pode criar/editar unidades
     section: 'management',
   },
 
@@ -125,6 +146,30 @@ export const navigationConfig: NavigationConfig[] = [
     label: '💰 Módulo de Vendas',
     icon: 'DollarSign',
     roles: ['admin', 'loja-manager', 'funcionario'], // NOVO (Fase 6): Todos podem registar vendas
+    section: 'management',
+  },
+
+  {
+    id: 'clientes',
+    label: 'Clientes',
+    icon: 'Users',
+    roles: ['admin', 'loja-manager', 'funcionario'],
+    section: 'management',
+  },
+
+  {
+    id: 'fornecedores',
+    label: 'Fornecedores',
+    icon: 'Truck',
+    roles: ['admin', 'loja-manager'],
+    section: 'management',
+  },
+
+  {
+    id: 'financeiro',
+    label: 'Financeiro',
+    icon: 'WalletCards',
+    roles: ['admin', 'loja-manager'],
     section: 'management',
   },
 

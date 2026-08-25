@@ -115,7 +115,7 @@ export default function QuickSaleRecorder({
                   <option value="">Selecione um produto...</option>
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.nome} ({(p.quantidadeDisponível || 0)} disponível)
+                      {p.nome} ({(p.quantidadeDisponivel ?? p.quantidade ?? 0)} disponível)
                     </option>
                   ))}
                 </select>
@@ -193,7 +193,7 @@ export default function QuickSaleRecorder({
                         <p className="font-bold text-slate-800 dark:text-slate-100">
                           {Math.max(
                             0,
-                            (selectedProduct.quantidadeDisponível || 0) -
+                            (selectedProduct.quantidadeDisponivel ?? selectedProduct.quantidade ?? 0) -
                               parseFloat(quantity || 0)
                           )}
                         </p>

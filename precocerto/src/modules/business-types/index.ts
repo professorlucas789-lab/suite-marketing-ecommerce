@@ -107,6 +107,133 @@ const informaticaModule: BusinessModuleConfig = {
   validationRules: { name: "Validação Informática", description: "Marca e modelo são obrigatórios." }
 };
 
+const papelariaInformaticaModule: BusinessModuleConfig = {
+  id: "papelaria_informatica",
+  name: "Papelaria & Informática",
+  icon: "Laptop",
+  color: "cyan-700",
+  description: "Módulo híbrido para papelaria, material escolar, consumíveis, periféricos e equipamentos informáticos.",
+  categories: [
+    "Material Escolar",
+    "Papel & Resmas",
+    "Canetas & Lápis",
+    "Pastas & Organização",
+    "Consumíveis de Impressão",
+    "Computadores",
+    "Periféricos",
+    "Acessórios",
+    "Serviços de Impressão",
+  ],
+  purchaseUnits: ["unidade", "resma", "caixa", "pacote", "kit", "licença"],
+  saleUnits: ["unidade", "resma", "pacote", "kit", "licença"],
+  requiredFields: ["nome", "custoCompra", "quantidade", "margemDesejada"],
+  optionalFields: ["fornecedor", "observacoes", "marca", "modelo", "numSerie", "prazoGarantia", "gramagem"],
+  advancedFields: ["custoTransporte", "custoEmbalagem", "outrosCustos"],
+  productExtraFields: [
+    { key: "marca", label: "Marca", type: "text", placeholder: "Ex: HP, Dell, Chamex" },
+    { key: "modelo", label: "Modelo / Referência", type: "text", placeholder: "Ex: DeskJet 2710, A4 80g" },
+    { key: "numSerie", label: "Número de Série", type: "text", placeholder: "Quando aplicável" },
+    { key: "prazoGarantia", label: "Garantia (Meses)", type: "number", placeholder: "Ex: 12" },
+    { key: "gramagem", label: "Gramagem / Especificação", type: "text", placeholder: "Ex: 80g, USB-C, 500GB" },
+  ],
+  dashboardCards: [],
+  alerts: [],
+  calculationRules: { name: "Cálculo Papelaria & Informática", description: "Separa artigos de rotação rápida, consumíveis e equipamentos com garantia." },
+  validationRules: { name: "Validação Papelaria & Informática", description: "Marca, referência e garantia são recomendadas para equipamentos." }
+};
+
+const colegioModule: BusinessModuleConfig = {
+  id: "colegio",
+  name: "Escola / Colégio Privado",
+  icon: "GraduationCap",
+  color: "indigo-600",
+  description: "Módulo para gestão comercial de escola privada, serviços escolares, material, uniformes e cobranças.",
+  categories: ["Mensalidades", "Matrículas", "Propinas", "Uniformes", "Material Escolar", "Transporte Escolar", "Alimentação", "Serviços Extras"],
+  purchaseUnits: ["serviço", "unidade", "kit", "mensalidade", "trimestre", "ano"],
+  saleUnits: ["serviço", "unidade", "kit", "mensalidade", "trimestre", "ano"],
+  requiredFields: ["nome", "custoCompra", "quantidade", "margemDesejada"],
+  optionalFields: ["fornecedor", "observacoes", "classeEscolar", "anoLetivo"],
+  advancedFields: ["custoTransporte", "custoEmbalagem", "outrosCustos"],
+  productExtraFields: [
+    { key: "classeEscolar", label: "Classe / Nível", type: "text", placeholder: "Ex: 6.ª Classe, Ensino Médio" },
+    { key: "anoLetivo", label: "Ano Letivo", type: "text", placeholder: "Ex: 2026/2027" },
+  ],
+  dashboardCards: [],
+  alerts: [],
+  calculationRules: { name: "Cálculo Escolar", description: "Suporta serviços recorrentes, materiais e receitas escolares." },
+  validationRules: { name: "Validação Escolar", description: "Classe e ano letivo são recomendados para serviços escolares." }
+};
+
+const ortopedicoHospitalarModule: BusinessModuleConfig = {
+  id: "ortopedico_hospitalar",
+  name: "Ortopédicos & Equip. Hospitalares",
+  icon: "HeartPulse",
+  color: "violet-600",
+  description: "Módulo para consumíveis ortopédicos, equipamentos hospitalares, dispositivos médicos e assistência técnica.",
+  categories: ["Consumíveis Ortopédicos", "Equipamentos Hospitalares", "Dispositivos Médicos", "Cadeiras de Rodas", "Muletas & Apoios", "Material de Fisioterapia", "Peças & Acessórios"],
+  purchaseUnits: ["unidade", "par", "caixa", "kit", "pacote"],
+  saleUnits: ["unidade", "par", "caixa", "kit"],
+  requiredFields: ["nome", "custoCompra", "quantidade", "margemDesejada"],
+  optionalFields: ["fornecedor", "observacoes", "marca", "modelo", "numSerie", "prazoGarantia", "registroSanitario"],
+  advancedFields: ["custoTransporte", "custoEmbalagem", "outrosCustos"],
+  productExtraFields: [
+    { key: "marca", label: "Marca / Fabricante", type: "text", placeholder: "Ex: Ortobras, Hospitech" },
+    { key: "modelo", label: "Modelo / Medida", type: "text", placeholder: "Ex: Tam. M, Adulto, 45cm" },
+    { key: "numSerie", label: "Número de Série", type: "text", placeholder: "Para equipamentos" },
+    { key: "prazoGarantia", label: "Garantia (Meses)", type: "number", placeholder: "Ex: 12" },
+    { key: "registroSanitario", label: "Registo Sanitário", type: "text", placeholder: "Quando aplicável" },
+  ],
+  dashboardCards: [],
+  alerts: [],
+  calculationRules: { name: "Cálculo Ortopédico-Hospitalar", description: "Considera garantias, assistência e custos de importação em equipamentos." },
+  validationRules: { name: "Validação Ortopédico-Hospitalar", description: "Registo sanitário e garantia são recomendados para equipamentos regulados." }
+};
+
+const mobiliarioEscolarEscritorioModule: BusinessModuleConfig = {
+  id: "mobiliario_escolar_escritorio",
+  name: "Mobiliário Escolar & Escritório",
+  icon: "BriefcaseBusiness",
+  color: "stone-700",
+  description: "Módulo para mobiliário escolar, escritório, cadeiras, mesas, armários e projetos por encomenda.",
+  categories: ["Carteiras Escolares", "Cadeiras", "Mesas", "Armários", "Estantes", "Secretárias", "Quadros", "Projetos Sob Encomenda"],
+  purchaseUnits: ["unidade", "conjunto", "kit", "lote"],
+  saleUnits: ["unidade", "conjunto", "kit", "lote"],
+  requiredFields: ["nome", "custoCompra", "quantidade", "margemDesejada"],
+  optionalFields: ["fornecedor", "observacoes", "marca", "modelo", "material", "prazoEntrega"],
+  advancedFields: ["custoTransporte", "custoEmbalagem", "outrosCustos"],
+  productExtraFields: [
+    { key: "marca", label: "Marca / Fabricante", type: "text", placeholder: "Ex: Local, Importado" },
+    { key: "modelo", label: "Modelo / Medidas", type: "text", placeholder: "Ex: 120x60cm, 4 lugares" },
+    { key: "material", label: "Material", type: "text", placeholder: "Ex: MDF, metal, madeira" },
+    { key: "prazoEntrega", label: "Prazo de Entrega", type: "text", placeholder: "Ex: 15 dias" },
+  ],
+  dashboardCards: [],
+  alerts: [],
+  calculationRules: { name: "Cálculo Mobiliário", description: "Considera logística, montagem, volume e encomendas por lote." },
+  validationRules: { name: "Validação Mobiliário", description: "Medidas, material e prazo são recomendados." }
+};
+
+const escritorioCentralModule: BusinessModuleConfig = {
+  id: "escritorio_central",
+  name: "Escritório Central",
+  icon: "Building2",
+  color: "slate-800",
+  description: "Módulo administrativo para visão consolidada, controlo financeiro, relatórios e gestão das unidades do grupo.",
+  categories: ["Administração", "Serviços Partilhados", "Compras", "Finanças", "Recursos Humanos", "Marketing", "Operações"],
+  purchaseUnits: ["serviço", "unidade", "mês", "ano"],
+  saleUnits: ["serviço", "unidade", "mês", "ano"],
+  requiredFields: ["nome", "custoCompra", "quantidade", "margemDesejada"],
+  optionalFields: ["fornecedor", "observacoes", "centroCusto"],
+  advancedFields: ["outrosCustos"],
+  productExtraFields: [
+    { key: "centroCusto", label: "Centro de Custo", type: "text", placeholder: "Ex: Farmácias, Escola, Administração" },
+  ],
+  dashboardCards: [],
+  alerts: [],
+  calculationRules: { name: "Cálculo Administrativo", description: "Focado em custos internos, serviços partilhados e análise consolidada." },
+  validationRules: { name: "Validação Administrativa", description: "Centro de custo é recomendado." }
+};
+
 const ferragensModule: BusinessModuleConfig = {
   id: "ferragens",
   name: "Ferragens",
@@ -274,9 +401,14 @@ const ALL_MODULES_RECORD: Record<string, BusinessModuleConfig> = {
   boutique: boutiqueModule,
   restaurante: restaurantModule,
   "material-escolar": schoolSuppliesModule,
+  colegio: colegioModule,
   mercearia: merceariaModule,
   papelaria: papelariaModule,
   informatica: informaticaModule,
+  papelaria_informatica: papelariaInformaticaModule,
+  ortopedico_hospitalar: ortopedicoHospitalarModule,
+  mobiliario_escolar_escritorio: mobiliarioEscolarEscritorioModule,
+  escritorio_central: escritorioCentralModule,
   ferragens: ferragensModule,
   padaria: padariaModule,
   cosmeticos: cosmeticosModule,
