@@ -29,11 +29,11 @@ import {
   ShieldAlert
 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
-import * as XLSX from "xlsx";
 import HealthCheckPanel from "./HealthCheckPanel"; // NOVO (Fase 13 - Health Check)
 import { useCriticalExpiryAlerts } from "../hooks/useExpiryAlerts"; // NOVO (Fase 13)
 import { useLowStockAlerts } from "../hooks/useLowStockAlerts"; // NOVO (Fase 13)
 import type { OperationalUnitRules } from "../utils/businessUnitMapping";
+import { exportSheetsToXlsx } from "../utils/excelExport";
 
 interface DashboardProps {
   products?: Product[];
@@ -123,7 +123,7 @@ export default function Dashboard({ products = [], settings, onNavigate, unitRul
   const canRegisterSales = unitRules?.canSell ?? true;
 
   // Dynamic Excel Export of filtered products
-  const handleExportProductsExcel = () => {
+  const handleExportProductsExcel = async () => {
     const headers = [
       "Produto",
       "Categoria",
@@ -154,16 +154,27 @@ export default function Dashboard({ products = [], settings, onNavigate, unitRul
       p.roi || 0
     ]);
 
-    const ws = XLSX.utils.aoa_to_sheet([
-      ["RELATÓRIO RESUMIDO DE PRODUTOS - PREÇOCERTO"],
-      [`Exportado em: ${new Date().toLocaleString()}`],
-      [],
-      headers,
-      ...rows
-    ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Produtos");
-    XLSX.writeFile(wb, "PrecoCerto_Produtos_Dashboard.xlsx");
+    try {
+      await exportSheetsToXlsx(
+        [
+          {
+            name: "Produtos",
+            rows: [
+              ["RELATÓRIO RESUMIDO DE PRODUTOS - PREÇOCERTO"],
+              [`Exportado em: ${new Date().toLocaleString()}`],
+              [],
+              headers,
+              ...rows,
+            ],
+            headerRow: 4,
+          },
+        ],
+        "PrecoCerto_Produtos_Dashboard.xlsx"
+      );
+    } catch (error) {
+      console.error("Erro ao exportar produtos do dashboard:", error);
+      alert("Erro ao exportar produtos para Excel. Tente novamente.");
+    }
   };
 
   // 1. Filter products by time-period

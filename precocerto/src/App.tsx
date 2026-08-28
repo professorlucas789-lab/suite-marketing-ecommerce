@@ -686,7 +686,7 @@ export default function App() {
   };
 
   // Export Report Handler (Fase 5B Item 3)
-  const handleExportReport = (reportConfig: ReportConfig, format: 'excel' | 'pdf') => {
+  const handleExportReport = async (reportConfig: ReportConfig, format: 'excel' | 'pdf') => {
     try {
       const enabledColumns = reportConfig.columns.filter(c => c.enabled);
 
@@ -713,7 +713,7 @@ export default function App() {
 
       // Export based on format
       if (format === 'excel') {
-        exportReportToExcel({
+        await exportReportToExcel({
           title: reportConfig.title,
           columns: exportColumns,
           data: exportData,
@@ -876,7 +876,7 @@ export default function App() {
   const primaryHex = getPrimaryColorHex(businessSettings?.primaryColor || "emerald-600");
 
   interface SidebarNavItem {
-    id: "dashboard" | "alertas" | "products" | "batch-products" | "categories" | "reverse-calculator" | "estoque" | "vendas" | "clientes" | "fornecedores" | "financeiro" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
+    id: "dashboard" | "alertas" | "products" | "sales" | "batch-products" | "categories" | "reverse-calculator" | "estoque" | "vendas" | "clientes" | "fornecedores" | "financeiro" | "history" | "reports" | "settings" | "backup" | "users" | "stores" | "user-profile"; // NOVO (Fase 13): alertas
     label: string;
     icon: React.ComponentType<any>;
     badge?: number;

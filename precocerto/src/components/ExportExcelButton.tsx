@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { Product, BusinessSettings } from '../types';
+import { exportSheetsToXlsx } from '../utils/excelExport';
 
 interface ExportExcelButtonProps {
   products: Product[];
@@ -175,52 +175,40 @@ export function ExportExcelButton({
     try {
       setIsExporting(true);
 
-      // Criar workbook com múltiplas abas
-      const wb = XLSX.utils.book_new();
-
-      // Aba 1: Produtos
       const productsData = formatProductsForExport();
-      const wsProducts = XLSX.utils.json_to_sheet(productsData);
-      XLSX.utils.book_append_sheet(wb, wsProducts, 'Produtos');
+      const productHeaders = Object.keys(productsData[0] || {});
+      const productRows = productsData.map((row) => productHeaders.map((header) => row[header]));
 
-      // Aba 2: Histórico (se houver dados)
+      const sheets = [
+        {
+          name: 'Produtos',
+          rows: [productHeaders, ...productRows],
+          headerRow: 1,
+        },
+      ];
+
       if (priceHistory.length > 0) {
         const historyData = formatHistoryForExport();
-        const wsHistory = XLSX.utils.json_to_sheet(historyData);
-        XLSX.utils.book_append_sheet(wb, wsHistory, 'Histórico de Preços');
+        const historyHeaders = Object.keys(historyData[0] || {});
+        const historyRows = historyData.map((row) => historyHeaders.map((header) => row[header]));
+
+        sheets.push({
+          name: 'Histórico de Preços',
+          rows: [historyHeaders, ...historyRows],
+          headerRow: 1,
+        });
       }
 
-      // Aba 3: Sumário
       const summaryData = createSummary();
-      const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(wb, wsSummary, 'Sumário');
+      const summaryHeaders = Object.keys(summaryData[0] || {});
+      const summaryRows = summaryData.map((row) => summaryHeaders.map((header) => row[header]));
 
-      // Ajustar largura das colunas automaticamente
-      Object.keys(wb.Sheets).forEach((sheetName) => {
-        const sheet = wb.Sheets[sheetName];
-        const maxWidth: Record<string, number> = {};
-
-        Object.keys(sheet).forEach((cell) => {
-          if (cell !== '!ref' && cell !== '!merges') {
-            const colName = cell.replace(/\d/g, '');
-            const cellValue = sheet[cell]?.v ? String(sheet[cell].v) : '';
-            maxWidth[colName] = Math.max(
-              maxWidth[colName] || 10,
-              cellValue.length + 2
-            );
-          }
-        });
-
-        const wscols = Object.entries(maxWidth).map(([, width]) => ({
-          wch: Math.min(width, 50), // Máximo de 50
-        }));
-
-        if (wscols.length > 0) {
-          sheet['!cols'] = wscols;
-        }
+      sheets.push({
+        name: 'Sumário',
+        rows: [summaryHeaders, ...summaryRows],
+        headerRow: 1,
       });
 
-      // Gerar nome do arquivo com data
       const now = new Date();
       const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
         2,
@@ -228,10 +216,8 @@ export function ExportExcelButton({
       )}-${String(now.getDate()).padStart(2, '0')}`;
       const filename = `PreçoCerto_Produtos_${dateStr}.xlsx`;
 
-      // Salvar arquivo
-      XLSX.writeFile(wb, filename);
+      await exportSheetsToXlsx(sheets, filename);
 
-      // Sucesso
       console.log('✅ Arquivo exportado com sucesso:', filename);
     } catch (error) {
       console.error('❌ Erro ao exportar:', error);

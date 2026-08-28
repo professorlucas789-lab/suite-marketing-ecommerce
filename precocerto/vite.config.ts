@@ -15,7 +15,7 @@ const commitRef =
  * Fase 5C: Performance Optimization
  *
  * Includes:
- * - Code splitting for large dependencies (xlsx, jsPDF)
+ * - Code splitting for large dependencies (Excel export, jsPDF)
  * - Dynamic imports for heavy components
  * - Chunk size optimization
  * - Asset optimization
@@ -52,7 +52,7 @@ export default defineConfig(() => {
             // Separate vendor libraries by category
             if (id.includes('node_modules')) {
               // Export libraries (heavy)
-              if (id.includes('xlsx') || id.includes('jspdf')) {
+              if (id.includes('write-excel-file') || id.includes('jspdf')) {
                 return 'export-libs';
               }
               // Firebase (large)

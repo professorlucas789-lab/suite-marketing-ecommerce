@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import {
   exportReportToExcel,
@@ -10,8 +9,14 @@ import {
 import { Product } from '../types';
 import { ReportConfig } from '../components/ReportBuilder';
 
+const { mockExportSheetsToXlsx } = vi.hoisted(() => ({
+  mockExportSheetsToXlsx: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock modules
-vi.mock('xlsx');
+vi.mock('./excelExport', () => ({
+  exportSheetsToXlsx: mockExportSheetsToXlsx,
+}));
 vi.mock('jspdf');
 vi.mock('jspdf-autotable');
 
@@ -284,7 +289,7 @@ describe('reportExporter', () => {
       vi.clearAllMocks();
     });
 
-    it('should prepare Excel export with correct structure', () => {
+    it('should prepare Excel export with correct structure', async () => {
       const data = [
         { nome: 'Produto A', preco: 100 },
         { nome: 'Produto B', preco: 200 }
@@ -301,10 +306,13 @@ describe('reportExporter', () => {
         companyName: 'Test Company'
       };
 
-      // Verify the options are properly formatted
-      expect(options.data).toHaveLength(2);
-      expect(options.columns).toHaveLength(2);
-      expect(options.title).toBe('Test Report');
+      await exportReportToExcel(options);
+
+      expect(mockExportSheetsToXlsx).toHaveBeenCalledTimes(1);
+      const [sheets, filename] = mockExportSheetsToXlsx.mock.calls[0];
+      expect(filename).toContain('Test_Report');
+      expect(sheets[0].name).toBe('Relatório');
+      expect(sheets[0].rows).toContainEqual(['Nome', 'Preço']);
     });
 
     it('should handle export with multiple products', () => {

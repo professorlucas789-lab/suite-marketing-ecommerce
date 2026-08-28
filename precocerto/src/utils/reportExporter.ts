@@ -1,9 +1,8 @@
-import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Product } from '../types';
 import { ReportConfig } from '../components/ReportBuilder';
-import { formatKz, formatDate } from '../utils';
+import { exportSheetsToXlsx } from './excelExport';
 
 /**
  * Utilitários para exportar relatórios gerados
@@ -21,49 +20,54 @@ interface ReportExportOptions {
 /**
  * Exporta relatório para Excel (.xlsx)
  */
-export function exportReportToExcel(options: ReportExportOptions): void {
+export async function exportReportToExcel(options: ReportExportOptions): Promise<void> {
   try {
     const { title, columns, data, generatedAt, companyName } = options;
 
-    // Preparar dados para exportação
-    const exportData = data.map((row) => {
-      const exportRow: Record<string, any> = {};
-      columns.forEach((col) => {
+    const metadataRows = [
+      [title],
+      companyName ? [`Empresa: ${companyName}`] : null,
+      generatedAt ? [`Gerado em: ${generatedAt}`] : null,
+      [],
+    ].filter(Boolean) as string[][];
+    const headerRow = metadataRows.length + 1;
+
+    const rows = data.map((row) =>
+      columns.map((col) => {
         const value = row[col.key];
 
-        // Formatar valores específicos
         if (typeof value === 'number') {
           if (col.key.includes('preco') || col.key.includes('custo') || col.key.includes('lucro')) {
-            exportRow[col.label] = typeof value === 'number' ? value.toFixed(2) : value;
-          } else if (col.key.includes('margem') || col.key.includes('roi')) {
-            exportRow[col.label] = typeof value === 'number' ? value.toFixed(2) + '%' : value;
-          } else {
-            exportRow[col.label] = value;
+            return value.toFixed(2);
           }
-        } else {
-          exportRow[col.label] = value || '-';
+
+          if (col.key.includes('margem') || col.key.includes('roi')) {
+            return `${value.toFixed(2)}%`;
+          }
         }
-      });
-      return exportRow;
-    });
 
-    // Criar workbook
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Relatório');
+        return value || '-';
+      })
+    );
 
-    // Ajustar largura das colunas
-    const columnWidths = columns.map((col) => ({
-      wch: Math.min(col.label.length + 2, 50)
-    }));
-    ws['!cols'] = columnWidths;
-
-    // Gerar filename
     const timestamp = new Date().toISOString().split('T')[0];
     const filename = `${title.replace(/[^a-z0-9]/gi, '_')}_${timestamp}.xlsx`;
 
-    // Salvar
-    XLSX.writeFile(wb, filename);
+    await exportSheetsToXlsx(
+      [
+        {
+          name: 'Relatório',
+          rows: [
+            ...metadataRows,
+            columns.map((col) => col.label),
+            ...rows,
+          ],
+          headerRow,
+          columnWidths: columns.map((col) => Math.min(col.label.length + 4, 50)),
+        },
+      ],
+      filename
+    );
   } catch (error) {
     console.error('Erro ao exportar relatório para Excel:', error);
     throw new Error('Falha ao exportar relatório para Excel');

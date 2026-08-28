@@ -323,14 +323,14 @@ describe('Performance Optimization - Fase 12', () => {
 
   it('should separate vendor chunks by category', () => {
     const chunks = {
-      'export-libs': ['xlsx', 'jsPDF'],
+      'export-libs': ['write-excel-file', 'jsPDF'],
       'firebase': ['firebase/app', 'firebase/firestore', 'firebase/storage'],
       'animations': ['motion/react'],
       'react': ['react', 'react-dom'],
       'vendor': ['other-deps']
     };
 
-    expect(chunks['export-libs']).toContain('xlsx');
+    expect(chunks['export-libs']).toContain('write-excel-file');
     expect(chunks['firebase']).toContain('firebase/firestore');
     expect(chunks['animations']).toContain('motion/react');
   });

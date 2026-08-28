@@ -4,9 +4,9 @@ import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../firebase";
 import { formatKz, getPriceHealth, formatDate } from "../utils";
 import { motion } from "motion/react";
-import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { exportSheetsToXlsx } from "../utils/excelExport";
 import {
   FileText,
   Filter,
@@ -999,7 +999,7 @@ export default function ReportsView({ products, settings, userId }: ReportsViewP
   };
 
   // EXCEL EXPORT IMPLEMENTATION
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     let headers: string[] = [];
     let rows: any[][] = [];
     let fileName = "";
@@ -1217,13 +1217,21 @@ export default function ReportsView({ products, settings, userId }: ReportsViewP
     // Combine metadata with headers and body data
     const finalAOA = [...metaRows, headers, ...rows];
 
-    // Create Sheet
-    const ws = XLSX.utils.aoa_to_sheet(finalAOA);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Relatório");
-
-    // Write spreadsheet file
-    XLSX.writeFile(wb, `${fileName}.xlsx`);
+    try {
+      await exportSheetsToXlsx(
+        [
+          {
+            name: "Relatório",
+            rows: finalAOA,
+            headerRow: metaRows.length + 1,
+          },
+        ],
+        `${fileName}.xlsx`
+      );
+    } catch (error) {
+      console.error("Erro ao exportar relatório para Excel:", error);
+      alert("Erro ao exportar relatório para Excel. Tente novamente.");
+    }
   };
 
   return (

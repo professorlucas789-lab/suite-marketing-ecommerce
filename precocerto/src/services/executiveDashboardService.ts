@@ -212,7 +212,7 @@ export class ExecutiveDashboardService {
         label: 'Margem Média',
         value: Math.round(currentSales.avgMargin * 100),
         unit: '%',
-        trend: currentSales.avgMargin >= 20 ? 'up' : 'warning',
+        trend: currentSales.avgMargin >= 20 ? 'up' : 'stable',
         percentageChange: 0,
         icon: '📊',
       });
@@ -362,7 +362,7 @@ export class ExecutiveDashboardService {
             revenue: 0,
             units: 0,
             margin: sale.margemReal || 0,
-            status: 'good',
+            status: 'good' as const,
           };
         }
 
@@ -374,7 +374,7 @@ export class ExecutiveDashboardService {
       return Object.values(products)
         .map((p) => ({
           ...p,
-          status: p.margin >= 30 ? 'good' : p.margin >= 15 ? 'warning' : 'critical',
+          status: (p.margin >= 30 ? 'good' : p.margin >= 15 ? 'warning' : 'critical') as TopProduct['status'],
         }))
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 5);

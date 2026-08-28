@@ -10,7 +10,7 @@ import { lazy } from 'react';
  * Lazy load heavy export libraries only when needed
  * This reduces the initial bundle size significantly
  */
-export const lazyLoadXLSX = () => import('xlsx');
+export const lazyLoadExcelExport = () => import('./excelExport');
 export const lazyLoadJsPDF = () => import('jspdf');
 export const lazyLoadAutoTable = () => import('jspdf-autotable');
 

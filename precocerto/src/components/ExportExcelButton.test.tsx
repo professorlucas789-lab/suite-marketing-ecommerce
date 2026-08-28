@@ -3,14 +3,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ExportExcelButton } from './ExportExcelButton';
 import { Product, BusinessSettings } from '../types';
 
-// Mock xlsx library
-vi.mock('xlsx', () => ({
-  utils: {
-    book_new: vi.fn(() => ({ Sheets: {} })),
-    json_to_sheet: vi.fn(() => ({})),
-    book_append_sheet: vi.fn(),
-  },
-  writeFile: vi.fn(),
+const { mockExportSheetsToXlsx } = vi.hoisted(() => ({
+  mockExportSheetsToXlsx: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../utils/excelExport', () => ({
+  exportSheetsToXlsx: mockExportSheetsToXlsx,
 }));
 
 /**
@@ -85,6 +83,10 @@ describe('ExportExcelButton', () => {
     },
   ];
 
+  beforeEach(() => {
+    mockExportSheetsToXlsx.mockClear();
+  });
+
   describe('Rendering', () => {
     it('should render export button', () => {
       render(<ExportExcelButton products={mockProducts} settings={mockSettings} />);
@@ -123,7 +125,7 @@ describe('ExportExcelButton', () => {
   });
 
   describe('Data Formatting', () => {
-    it('should format product data correctly', () => {
+    it('should format product data correctly', async () => {
       const { container } = render(
         <ExportExcelButton products={mockProducts} settings={mockSettings} />
       );
@@ -131,11 +133,12 @@ describe('ExportExcelButton', () => {
 
       fireEvent.click(button);
 
-      // Component should handle data formatting internally
-      expect(button).toBeInTheDocument();
+      await waitFor(() => {
+        expect(mockExportSheetsToXlsx).toHaveBeenCalledTimes(1);
+      });
     });
 
-    it('should handle price history formatting', () => {
+    it('should handle price history formatting', async () => {
       const { container } = render(
         <ExportExcelButton
           products={mockProducts}
@@ -147,8 +150,10 @@ describe('ExportExcelButton', () => {
 
       fireEvent.click(button);
 
-      // Should not crash with price history data
-      expect(button).toBeInTheDocument();
+      await waitFor(() => {
+        const sheets = mockExportSheetsToXlsx.mock.calls[0][0];
+        expect(sheets.map((sheet: { name: string }) => sheet.name)).toContain('Histórico de Preços');
+      });
     });
 
     it('should handle empty price history', () => {
