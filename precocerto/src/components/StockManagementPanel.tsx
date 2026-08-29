@@ -22,21 +22,24 @@ interface StockManagementPanelProps {
   products?: Product[];
 }
 
-export default function StockManagementPanel({ products = [] }: StockManagementPanelProps) {
+export default function StockManagementPanel({ products }: StockManagementPanelProps) {
+  // Garantir que products é sempre um array válido
+  const validProducts = Array.isArray(products) ? products : [];
+
   const [activeTab, setActiveTab] = useState<TabType>('analytics');
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>(undefined);
 
   // Atualizar produto selecionado quando produtos mudam
   useEffect(() => {
-    if (products && products.length > 0 && !selectedProductId) {
-      setSelectedProductId(products[0].id);
+    if (validProducts && validProducts.length > 0 && !selectedProductId) {
+      setSelectedProductId(validProducts[0].id);
     }
-  }, [products, selectedProductId]);
+  }, [validProducts, selectedProductId]);
 
   // Procurar o produto selecionado com segurança
   const selectedProduct = useMemo(
-    () => products?.find((p) => p.id === selectedProductId),
-    [products, selectedProductId]
+    () => validProducts?.find((p) => p?.id === selectedProductId),
+    [validProducts, selectedProductId]
   );
 
   const tabs: Array<{ id: TabType; label: string; icon: React.ReactNode }> = [
@@ -75,7 +78,7 @@ export default function StockManagementPanel({ products = [] }: StockManagementP
       </motion.div>
 
       {/* Seletor de Produto */}
-      {products.length > 0 && (
+      {validProducts.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 5 }}
           animate={{ opacity: 1, y: 0 }}
@@ -90,7 +93,7 @@ export default function StockManagementPanel({ products = [] }: StockManagementP
             className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
             <option value="">-- Selecione um produto --</option>
-            {products.map((product) => (
+            {validProducts.map((product) => (
               <option key={product.id} value={product.id || ''}>
                 {product.nome} (Stock: {product.quantidadeDisponível || 0})
               </option>
@@ -99,7 +102,7 @@ export default function StockManagementPanel({ products = [] }: StockManagementP
         </motion.div>
       )}
 
-      {products.length === 0 && (
+      {validProducts.length === 0 && (
         <motion.div
           initial={{ opacity: 0, y: 5 }}
           animate={{ opacity: 1, y: 0 }}
