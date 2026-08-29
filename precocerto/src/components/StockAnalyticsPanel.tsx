@@ -20,24 +20,24 @@ export function StockAnalyticsPanel({ productId, product }: StockAnalyticsPanelP
   const [analytics, setAnalytics] = useState<StockAnalytics | null>(null);
 
   // Se não houver product, mostrar mensagem
-  if (!productId && !product) {
+  if (!product) {
     return (
       <div className="p-8 text-center">
         <AlertCircle className="w-12 h-12 text-slate-400 mx-auto mb-2" />
-        <p className="text-slate-600 dark:text-slate-400">Selecione um produto para ver a análise</p>
+        <p className="text-slate-600 dark:text-slate-400">Selecione um produto para ver a análise de stock</p>
       </div>
     );
   }
 
   useEffect(() => {
-    if (product) {
+    if (product?.id) {
       loadAnalytics();
     }
   }, [product?.id]);
 
   const loadAnalytics = async () => {
     try {
-      if (!product) return;
+      if (!product?.id) return;
       const data = await getStockAnalytics(product.id, product);
       setAnalytics(data);
     } catch (err) {
