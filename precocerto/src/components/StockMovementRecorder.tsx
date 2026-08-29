@@ -11,6 +11,7 @@ import { useStore } from '../contexts/StoreContext';
 import { useAuth } from '../hooks/useAuth';
 import { StockMovementType, StockMovementReason } from '../types/inventory';
 import { Product } from '../types';
+import { getProductAvailableStock } from '../utils/stockUtils';
 
 interface StockMovementRecorderProps {
   product?: Product;
@@ -49,18 +50,6 @@ export function StockMovementRecorder({ product, productId, onSuccess }: StockMo
   const { recordMovement, isLoading, error, clearError } = useStockMovements();
   const { currentStore } = useStore();
   const { user } = useAuth();
-
-  // Se não houver product, mostrar mensagem
-  // Requer product object, não apenas productId
-  if (!product) {
-    return (
-      <div className="p-8 text-center">
-        <ArrowUp className="w-12 h-12 text-slate-400 mx-auto mb-2" />
-        <p className="text-slate-600 dark:text-slate-400">Selecione um produto para registar uma movimentação</p>
-      </div>
-    );
-  }
-
   const [movementType, setMovementType] = useState<StockMovementType>('IN');
   const [reason, setReason] = useState<StockMovementReason>('purchase');
   const [quantity, setQuantity] = useState<string>('1');
@@ -69,8 +58,19 @@ export function StockMovementRecorder({ product, productId, onSuccess }: StockMo
   const [unitCost, setUnitCost] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
-  const currentTypeConfig = MOVEMENT_TYPES.find((t) => t.type === movementType)!;
   const availableReasons = REASONS[movementType];
+  const currentStock = getProductAvailableStock(product);
+  const parsedQuantity = Math.max(1, parseInt(quantity, 10) || 1);
+
+  // Requer product object, não apenas productId
+  if (!product?.id) {
+    return (
+      <div className="p-8 text-center">
+        <ArrowUp className="w-12 h-12 text-slate-400 mx-auto mb-2" />
+        <p className="text-slate-600 dark:text-slate-400">Selecione um produto para registar uma movimentação</p>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,7 +84,7 @@ export function StockMovementRecorder({ product, productId, onSuccess }: StockMo
         product.id,
         product,
         movementType,
-        parseInt(quantity),
+        parsedQuantity,
         reason,
         user.uid,
         {
@@ -114,7 +114,7 @@ export function StockMovementRecorder({ product, productId, onSuccess }: StockMo
         <h2 className="text-lg font-semibold">Registar Movimentação</h2>
         <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg">
           <span className="text-sm font-medium text-gray-600">{product.nome}</span>
-          <span className="text-sm text-gray-500">Stock: {product.quantidadeDisponível}</span>
+          <span className="text-sm text-gray-500">Stock: {currentStock}</span>
         </div>
       </div>
 
@@ -181,7 +181,7 @@ export function StockMovementRecorder({ product, productId, onSuccess }: StockMo
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               min="1"
-              max={movementType === 'OUT' ? product.quantidadeDisponível : 999999}
+              max={movementType === 'OUT' ? currentStock : 999999}
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -238,14 +238,14 @@ export function StockMovementRecorder({ product, productId, onSuccess }: StockMo
         {/* Preview */}
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm text-gray-700">
-            Stock atual: <strong>{product.quantidadeDisponível}</strong>
+            Stock atual: <strong>{currentStock}</strong>
             {' → '}
             <strong>
               {movementType === 'IN'
-                ? product.quantidadeDisponível + parseInt(quantity)
+                ? currentStock + parsedQuantity
                 : movementType === 'OUT'
-                ? product.quantidadeDisponível - parseInt(quantity)
-                : parseInt(quantity)}
+                ? currentStock - parsedQuantity
+                : parsedQuantity}
             </strong>
           </p>
         </div>

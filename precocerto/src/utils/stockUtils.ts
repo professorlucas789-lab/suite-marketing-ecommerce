@@ -1,36 +1,81 @@
 import type { Product } from "../types";
 import type { StockAdjustmentType, StockSummary } from "../types/stock";
 
-export function getProductAvailableStock(product: Product): number {
-  return Number(
+export type StockProductWithId = Product & { id: string; nome: string };
+
+export function isStockProduct(product: Product | null | undefined): product is Product {
+  return Boolean(product && typeof product === "object");
+}
+
+export function isStockProductWithId(
+  product: Product | null | undefined
+): product is StockProductWithId {
+  return (
+    isStockProduct(product) &&
+    typeof product.id === "string" &&
+    product.id.trim().length > 0 &&
+    typeof product.nome === "string" &&
+    product.nome.trim().length > 0
+  );
+}
+
+export function normalizeStockProducts(
+  products: Array<Product | null | undefined> | null | undefined
+): Product[] {
+  return Array.isArray(products) ? products.filter(isStockProduct) : [];
+}
+
+export function normalizeStockProductsWithId(
+  products: Array<Product | null | undefined> | null | undefined
+): StockProductWithId[] {
+  return Array.isArray(products) ? products.filter(isStockProductWithId) : [];
+}
+
+export function getProductAvailableStock(product: Product | null | undefined): number {
+  if (!isStockProduct(product)) {
+    return 0;
+  }
+
+  const value = Number(
     product.quantidadeDisponivel ??
       product.quantidadeDisponível ??
       product.totalUnidadesVendaveis ??
       product.quantidade ??
       0
   );
+
+  return Number.isFinite(value) ? value : 0;
 }
 
-export function getProductStockValue(product: Product): number {
+export function getProductStockValue(product: Product | null | undefined): number {
+  if (!isStockProduct(product)) {
+    return 0;
+  }
+
   const unitValue = Number(product.custoRealUnidadeVenda ?? product.custoTotalReal ?? product.custoCompra ?? 0);
   return Math.max(0, getProductAvailableStock(product)) * Math.max(0, unitValue);
 }
 
-export function getProductMinimumStock(product: Product): number {
-  return Number(product.quantidadeMinima ?? 5);
+export function getProductMinimumStock(product: Product | null | undefined): number {
+  if (!isStockProduct(product)) {
+    return 5;
+  }
+
+  const value = Number(product.quantidadeMinima ?? 5);
+  return Number.isFinite(value) ? value : 5;
 }
 
-export function isLowStockProduct(product: Product): boolean {
+export function isLowStockProduct(product: Product | null | undefined): boolean {
   const stock = getProductAvailableStock(product);
   return stock > 0 && stock <= getProductMinimumStock(product);
 }
 
-export function isOutOfStockProduct(product: Product): boolean {
+export function isOutOfStockProduct(product: Product | null | undefined): boolean {
   return getProductAvailableStock(product) <= 0;
 }
 
-export function buildStockSummary(products: Product[]): StockSummary {
-  return products.reduce(
+export function buildStockSummary(products: Array<Product | null | undefined>): StockSummary {
+  return normalizeStockProducts(products).reduce(
     (summary, product) => ({
       totalProducts: summary.totalProducts + 1,
       totalUnits: summary.totalUnits + getProductAvailableStock(product),

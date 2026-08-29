@@ -9,6 +9,31 @@ import { StockAlert, ReorderReport } from '../types/inventory';
 import { StockService } from '../services/stockService';
 import { useStore } from '../contexts/StoreContext';
 
+const normalizeStockAlerts = (alerts: StockAlert[] | null | undefined): StockAlert[] =>
+  Array.isArray(alerts)
+    ? alerts.filter((alert): alert is StockAlert =>
+        Boolean(alert && typeof alert === 'object' && alert.productId)
+      )
+    : [];
+
+const normalizeReorderReport = (report: ReorderReport | null | undefined): ReorderReport | null => {
+  if (!report) return null;
+
+  const itemsToReorder = Array.isArray(report.itemsToReorder)
+    ? report.itemsToReorder.filter((item) => Boolean(item && typeof item === 'object' && item.productId))
+    : [];
+
+  return {
+    ...report,
+    itemsToReorder,
+    totalItems: itemsToReorder.length,
+    totalSuggestedCost: itemsToReorder.reduce(
+      (sum, item) => sum + (Number(item.estimatedCost) || 0),
+      0
+    ),
+  };
+};
+
 export interface UseStockAlertsReturn {
   // Estado
   alerts: StockAlert[];
@@ -50,7 +75,7 @@ export function useStockAlerts(): UseStockAlertsReturn {
           filters
         );
 
-        setAlerts(loadedAlerts);
+        setAlerts(normalizeStockAlerts(loadedAlerts));
 
         console.log(`✅ ${loadedAlerts.length} alertas de stock carregados`);
       } catch (err) {
@@ -82,7 +107,7 @@ export function useStockAlerts(): UseStockAlertsReturn {
 
         // Atualizar lista local
         setAlerts((prev) =>
-          prev.map((alert) =>
+          normalizeStockAlerts(prev).map((alert) =>
             alert.id === alertId
               ? { ...alert, acknowledgedAt: new Date().toISOString() }
               : alert
@@ -115,9 +140,10 @@ export function useStockAlerts(): UseStockAlertsReturn {
       setError(null);
 
       const report = await StockService.generateReorderReport(currentStore.storeId);
-      setReorderReport(report);
+      const safeReport = normalizeReorderReport(report);
+      setReorderReport(safeReport);
 
-      console.log(`✅ Relatório de reabastecimento gerado: ${report.totalItems} itens`);
+      console.log(`✅ Relatório de reabastecimento gerado: ${safeReport?.totalItems || 0} itens`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao gerar relatório';
       setError(errorMessage);

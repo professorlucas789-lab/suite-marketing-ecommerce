@@ -34,6 +34,39 @@ import {
   ReorderReport,
 } from '../types/inventory';
 import { Product } from '../types';
+import { getProductAvailableStock, getProductMinimumStock } from '../utils/stockUtils';
+
+const toIsoDateString = (value: unknown): string => {
+  if (!value) return new Date().toISOString();
+  if (typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
+    return value.toDate().toISOString();
+  }
+
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+};
+
+const normalizeMovement = (movement: Partial<StockMovement>): StockMovement | null => {
+  if (!movement || typeof movement !== 'object') return null;
+
+  const productId = typeof movement.productId === 'string' ? movement.productId : '';
+  if (!productId) return null;
+
+  return {
+    ...movement,
+    id: typeof movement.id === 'string' ? movement.id : productId,
+    storeId: typeof movement.storeId === 'string' ? movement.storeId : '',
+    productId,
+    productName: typeof movement.productName === 'string' ? movement.productName : 'Produto sem nome',
+    type: movement.type || 'ADJUSTMENT',
+    reason: movement.reason || 'other',
+    quantity: Number(movement.quantity) || 0,
+    previousQuantity: Number(movement.previousQuantity) || 0,
+    newQuantity: Number(movement.newQuantity) || 0,
+    timestamp: toIsoDateString(movement.timestamp),
+    createdBy: typeof movement.createdBy === 'string' ? movement.createdBy : 'Sistema',
+  } as StockMovement;
+};
 
 /**
  * Registar uma movimentação de stock
@@ -61,7 +94,7 @@ export class StockService {
       }
 
       // Obter quantidade anterior
-      const currentQuantity = product.quantidadeDisponível || 0;
+      const currentQuantity = getProductAvailableStock(product);
 
       // Calcular nova quantidade
       let newQuantity = currentQuantity;
@@ -80,7 +113,7 @@ export class StockService {
       const movement: Omit<StockMovement, 'id'> = {
         storeId,
         productId,
-        productName: product.nome,
+        productName: product.nome || 'Produto sem nome',
         type,
         reason,
         quantity,
@@ -105,6 +138,7 @@ export class StockService {
       // Atualizar produto com nova quantidade
       const productRef = doc(db, 'stores', storeId, 'products', productId);
       await updateDoc(productRef, {
+        quantidadeDisponivel: newQuantity,
         quantidadeDisponível: newQuantity,
       });
 
@@ -123,7 +157,7 @@ export class StockService {
         id: docRef.id,
       };
 
-      console.log(`✅ Movimento registado: ${type} de ${quantity} unidades - ${product.nome}`);
+      console.log(`✅ Movimento registado: ${type} de ${quantity} unidades - ${product.nome || 'Produto sem nome'}`);
 
       return createdMovement;
     } catch (error) {
@@ -165,15 +199,17 @@ export class StockService {
       const q = query(movementsRef, ...constraints);
       const snapshot = await getDocs(q);
 
-      let movements: StockMovement[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as StockMovement[];
+      let movements: StockMovement[] = snapshot.docs
+        .map((docSnapshot) => normalizeMovement({
+          id: docSnapshot.id,
+          ...docSnapshot.data(),
+        }))
+        .filter((movement): movement is StockMovement => Boolean(movement));
 
       // Filtrar por data se especificado
       if (filters?.startDate || filters?.endDate) {
         movements = movements.filter((m) => {
-          const movDate = new Date(m.timestamp).getTime();
+          const movDate = new Date(toIsoDateString(m.timestamp)).getTime();
           const startTime = filters.startDate ? new Date(filters.startDate).getTime() : 0;
           const endTime = filters.endDate ? new Date(filters.endDate).getTime() : Infinity;
           return movDate >= startTime && movDate <= endTime;
@@ -282,7 +318,7 @@ export class StockService {
         return 0;
       }
 
-      const totalQuantity = movements.reduce((sum, m) => sum + m.quantity, 0);
+      const totalQuantity = movements.reduce((sum, m) => sum + (Number(m.quantity) || 0), 0);
       return totalQuantity / days;
     } catch (error) {
       console.error('Erro ao calcular uso médio:', error);
@@ -308,10 +344,12 @@ export class StockService {
       const q = query(alertsRef, ...constraints);
       const snapshot = await getDocs(q);
 
-      let alerts: StockAlert[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as StockAlert[];
+      let alerts: StockAlert[] = snapshot.docs
+        .map((docSnapshot) => ({
+          id: docSnapshot.id,
+          ...docSnapshot.data(),
+        }) as StockAlert)
+        .filter((alert) => Boolean(alert && alert.productId));
 
       // Filtrar por resolvido
       if (filters?.resolved === false) {
@@ -395,16 +433,21 @@ export class StockService {
       const alertsRef = collection(db, 'stores', storeId, 'stockAlerts');
       const snapshot = await getDocs(query(alertsRef, where('resolvedAt', '==', null)));
 
-      const itemsToReorder = (snapshot.docs.map((doc) => {
-        const alert = doc.data() as StockAlert;
+      const itemsToReorder = (snapshot.docs.map((docSnapshot) => {
+        const alert = { id: docSnapshot.id, ...docSnapshot.data() } as StockAlert;
+        if (!alert?.productId) return null;
+
+        const minQuantity = Number(alert.minQuantity) || 0;
+        const reorderQuantity = Number(alert.reorderQuantity || minQuantity * 2) || 0;
+
         return {
           productId: alert.productId,
-          productName: alert.productName,
-          currentQuantity: alert.currentQuantity,
-          minQuantity: alert.minQuantity,
-          suggestedQuantity: alert.reorderQuantity || alert.minQuantity * 2,
-          estimatedCost: (alert.reorderQuantity || alert.minQuantity * 2) * 10, // Placeholder
-          daysUntilStockout: alert.daysUntilStockout || 0,
+          productName: alert.productName || 'Produto sem nome',
+          currentQuantity: Number(alert.currentQuantity) || 0,
+          minQuantity,
+          suggestedQuantity: reorderQuantity,
+          estimatedCost: reorderQuantity * 10, // Placeholder
+          daysUntilStockout: Number(alert.daysUntilStockout) || 0,
           priority:
             alert.severity === 'CRITICAL'
               ? 'URGENT'
@@ -412,7 +455,9 @@ export class StockService {
               ? 'HIGH'
               : 'MEDIUM',
         };
-      }) as any[]).sort(
+      }) as any[])
+        .filter(Boolean)
+        .sort(
         (a, b) =>
           (['URGENT', 'HIGH', 'MEDIUM', 'LOW'].indexOf(a.priority) -
             ['URGENT', 'HIGH', 'MEDIUM', 'LOW'].indexOf(b.priority)) ||
@@ -449,12 +494,12 @@ export class StockService {
 
       // Calcular dados por dia
       const quantityByDate: Record<string, number> = {};
-      let currentQty = product.quantidadeDisponível || 0;
+      let currentQty = getProductAvailableStock(product);
 
       movements.reverse().forEach((m) => {
-        const date = m.timestamp.split('T')[0];
+        const date = toIsoDateString(m.timestamp).split('T')[0];
         if (!quantityByDate[date]) {
-          quantityByDate[date] = currentQty - (m.type === 'IN' ? m.quantity : -m.quantity);
+          quantityByDate[date] = currentQty - (m.type === 'IN' ? Number(m.quantity) || 0 : -(Number(m.quantity) || 0));
         }
       });
 
@@ -474,21 +519,22 @@ export class StockService {
 
       // Calcular uso médio
       const avgDailyUsage = await this.calculateAverageDailyUsage(storeId, productId, days);
-      const daysUntilStockout = avgDailyUsage > 0 ? Math.ceil((product.quantidadeDisponível || 0) / avgDailyUsage) : undefined;
+      const currentQuantity = getProductAvailableStock(product);
+      const daysUntilStockout = avgDailyUsage > 0 ? Math.ceil(currentQuantity / avgDailyUsage) : undefined;
 
       return {
         productId,
-        productName: product.nome,
+        productName: product.nome || 'Produto sem nome',
         storeId,
-        currentQuantity: product.quantidadeDisponível || 0,
-        minQuantity: product.quantidadeMinima || 5,
+        currentQuantity,
+        minQuantity: getProductMinimumStock(product),
         quantityHistory,
         trend,
         trendPercent,
         averageDailyUsage: avgDailyUsage,
         daysUntilStockout,
         turnoverRate: avgDailyUsage * 30,
-        totalValue: (product.quantidadeDisponível || 0) * (product.preco || 0),
+        totalValue: currentQuantity * (Number(product.preco || product.precoVendaRecomendado) || 0),
       };
     } catch (error) {
       console.error('Erro ao calcular analytics:', error);

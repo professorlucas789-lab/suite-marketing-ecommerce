@@ -22,6 +22,7 @@ import { useStore } from '../contexts/StoreContext';
 import { StockMovementRecorder } from './StockMovementRecorder';
 import { StockMovementHistory } from './StockMovementHistory';
 import { StockAnalyticsPanel } from './StockAnalyticsPanel';
+import { getProductAvailableStock, normalizeStockProductsWithId } from '../utils/stockUtils';
 
 type TabType = 'analytics' | 'recorder' | 'history';
 
@@ -34,11 +35,7 @@ export default function StockManagementPanel({ products }: StockManagementPanelP
 
   // Normalizar products: Array + filter para remover undefined/null e garantir id
   const validProducts = useMemo(() => {
-    if (!Array.isArray(products)) return [];
-    return products
-      .filter((p) => p != null) // Remove null/undefined
-      .filter((p) => p.id && typeof p.id === 'string') // Garante que id existe e é string
-      .filter((p) => p.nome && typeof p.nome === 'string'); // Garante que nome existe
+    return normalizeStockProductsWithId(products);
   }, [products]);
 
   const [activeTab, setActiveTab] = useState<TabType>('analytics');
@@ -46,13 +43,13 @@ export default function StockManagementPanel({ products }: StockManagementPanelP
 
   // Inicializar produto selecionado quando há produtos e nenhum foi selecionado
   useEffect(() => {
-    if (validProducts.length > 0 && !selectedProductId) {
+    if (validProducts.length > 0 && !validProducts.some((p) => p.id === selectedProductId)) {
       const firstProductId = validProducts[0]?.id;
       if (firstProductId) {
         setSelectedProductId(firstProductId);
       }
     }
-  }, [validProducts.length]); // Dependência apenas no tamanho para evitar loops
+  }, [validProducts, selectedProductId]);
 
   // Procurar o produto selecionado com segurança
   // Garante que sempre retorna um Product válido ou undefined (nunca null)
@@ -138,7 +135,7 @@ export default function StockManagementPanel({ products }: StockManagementPanelP
               // Dupla verificação: product.id é garantido pelo filter, mas validamos novamente
               const productId = product.id;
               const productName = product.nome || 'Produto sem nome';
-              const stock = product.quantidadeDisponível || product.quantidade || 0;
+              const stock = getProductAvailableStock(product);
 
               return (
                 <option key={productId} value={productId}>
