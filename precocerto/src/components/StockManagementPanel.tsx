@@ -2,6 +2,11 @@
  * StockManagementPanel Component
  * Componente wrapper que integra todo o sistema de gestão de estoque (Phase 2)
  * Combina: Registar movimentações, Histórico, e Análise de tendências
+ *
+ * PROTEÇÕES CONTRA UNDEFINED:
+ * - Valida currentStore antes de renderizar
+ * - Filtra products para garantir que todos têm id válido
+ * - Mostra mensagens úteis quando dados estão indisponíveis
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
@@ -10,8 +15,10 @@ import {
   Package,
   TrendingUp,
   Clock,
+  AlertCircle,
 } from 'lucide-react';
 import type { Product } from '../types';
+import { useStore } from '../contexts/StoreContext';
 import { StockMovementRecorder } from './StockMovementRecorder';
 import { StockMovementHistory } from './StockMovementHistory';
 import { StockAnalyticsPanel } from './StockAnalyticsPanel';
@@ -23,24 +30,41 @@ interface StockManagementPanelProps {
 }
 
 export default function StockManagementPanel({ products }: StockManagementPanelProps) {
-  // Garantir que products é sempre um array válido
-  const validProducts = Array.isArray(products) ? products : [];
+  const { currentStore } = useStore();
+
+  // Normalizar products: Array + filter para remover undefined/null e garantir id
+  const validProducts = useMemo(() => {
+    if (!Array.isArray(products)) return [];
+    return products
+      .filter((p) => p != null) // Remove null/undefined
+      .filter((p) => p.id && typeof p.id === 'string') // Garante que id existe e é string
+      .filter((p) => p.nome && typeof p.nome === 'string'); // Garante que nome existe
+  }, [products]);
 
   const [activeTab, setActiveTab] = useState<TabType>('analytics');
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>(undefined);
 
-  // Atualizar produto selecionado quando produtos mudam
+  // Inicializar produto selecionado quando há produtos e nenhum foi selecionado
   useEffect(() => {
-    if (validProducts?.length > 0 && !selectedProductId && validProducts[0]?.id) {
-      setSelectedProductId(validProducts[0].id);
+    if (validProducts.length > 0 && !selectedProductId) {
+      const firstProductId = validProducts[0]?.id;
+      if (firstProductId) {
+        setSelectedProductId(firstProductId);
+      }
     }
-  }, [validProducts, selectedProductId]);
+  }, [validProducts.length]); // Dependência apenas no tamanho para evitar loops
 
   // Procurar o produto selecionado com segurança
-  const selectedProduct = useMemo(
-    () => validProducts?.find((p) => p?.id === selectedProductId),
-    [validProducts, selectedProductId]
-  );
+  // Garante que sempre retorna um Product válido ou undefined (nunca null)
+  const selectedProduct = useMemo(() => {
+    if (!selectedProductId) return undefined;
+    const found = validProducts.find((p) => p.id === selectedProductId);
+    // Garantir que o produto tem as propriedades necessárias
+    if (found && found.id && found.nome) {
+      return found;
+    }
+    return undefined;
+  }, [validProducts, selectedProductId]);
 
   const tabs: Array<{ id: TabType; label: string; icon: React.ReactNode }> = [
     {
@@ -60,6 +84,23 @@ export default function StockManagementPanel({ products }: StockManagementPanelP
     },
   ];
 
+  // Se não houver loja, mostrar mensagem clara
+  if (!currentStore?.storeId) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 p-6 text-center"
+      >
+        <AlertCircle className="w-12 h-12 text-amber-600 dark:text-amber-400 mx-auto mb-3" />
+        <h2 className="text-lg font-bold text-amber-900 dark:text-amber-200 mb-2">Loja não selecionada</h2>
+        <p className="text-sm text-amber-800 dark:text-amber-300">
+          Selecione uma loja no menu para aceder à gestão de estoque.
+        </p>
+      </motion.div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -77,7 +118,7 @@ export default function StockManagementPanel({ products }: StockManagementPanelP
         </p>
       </motion.div>
 
-      {/* Seletor de Produto */}
+      {/* Seletor de Produto - SEGURO: validProducts já foi filtrado */}
       {validProducts.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 5 }}
@@ -93,11 +134,18 @@ export default function StockManagementPanel({ products }: StockManagementPanelP
             className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
             <option value="">-- Selecione um produto --</option>
-            {validProducts.map((product) => (
-              <option key={product.id} value={product.id || ''}>
-                {product.nome} (Stock: {product.quantidadeDisponível || 0})
-              </option>
-            ))}
+            {validProducts.map((product) => {
+              // Dupla verificação: product.id é garantido pelo filter, mas validamos novamente
+              const productId = product.id;
+              const productName = product.nome || 'Produto sem nome';
+              const stock = product.quantidadeDisponível || product.quantidade || 0;
+
+              return (
+                <option key={productId} value={productId}>
+                  {productName} (Stock: {stock})
+                </option>
+              );
+            })}
           </select>
         </motion.div>
       )}

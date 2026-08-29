@@ -146,7 +146,9 @@ export function useStockMovements(): UseStockMovementsReturn {
           product
         );
 
-        console.log(`✅ Análise de stock calculada para ${product.nome}`);
+        // Proteção: verificar se product tem nome antes de usar em console.log
+        const productName = product?.nome || 'Produto sem nome';
+        console.log(`✅ Análise de stock calculada para ${productName}`);
 
         return analytics;
       } catch (err) {
