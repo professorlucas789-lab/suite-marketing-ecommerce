@@ -22,7 +22,7 @@ export interface BusinessSegmentConfig {
 }
 
 export interface Product {
-  id?: string;
+  id: string; // Obrigatório: ID do documento Firestore
   nome: string;
   categoria: string;
   fornecedor: string; // Obrigatório
