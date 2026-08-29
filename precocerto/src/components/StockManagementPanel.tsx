@@ -4,22 +4,33 @@
  * Combina: Registar movimentações, Histórico, e Análise de tendências
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Package,
   TrendingUp,
   Clock,
 } from 'lucide-react';
+import type { Product } from '../types';
 import { StockMovementRecorder } from './StockMovementRecorder';
 import { StockMovementHistory } from './StockMovementHistory';
 import { StockAnalyticsPanel } from './StockAnalyticsPanel';
 
 type TabType = 'analytics' | 'recorder' | 'history';
 
-export default function StockManagementPanel() {
+interface StockManagementPanelProps {
+  products?: Product[];
+}
+
+export default function StockManagementPanel({ products = [] }: StockManagementPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('analytics');
-  const [selectedProductId, setSelectedProductId] = useState<string | undefined>();
+  const [selectedProductId, setSelectedProductId] = useState<string | undefined>(products[0]?.id);
+
+  // Procurar o produto selecionado
+  const selectedProduct = useMemo(
+    () => products.find((p) => p.id === selectedProductId),
+    [products, selectedProductId]
+  );
 
   const tabs: Array<{ id: TabType; label: string; icon: React.ReactNode }> = [
     {
@@ -55,6 +66,43 @@ export default function StockManagementPanel() {
           Rastreie movimentações, monitore stock baixo e obtenha recomendações de reabastecimento
         </p>
       </motion.div>
+
+      {/* Seletor de Produto */}
+      {products.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4"
+        >
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+            Selecione um Produto
+          </label>
+          <select
+            value={selectedProductId || ''}
+            onChange={(e) => setSelectedProductId(e.target.value || undefined)}
+            className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <option value="">-- Selecione um produto --</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.id || ''}>
+                {product.nome} (Stock: {product.quantidadeDisponível || 0})
+              </option>
+            ))}
+          </select>
+        </motion.div>
+      )}
+
+      {products.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-900 p-4 text-center"
+        >
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+            Nenhum produto disponível. Crie produtos antes de gerir estoque.
+          </p>
+        </motion.div>
+      )}
 
       {/* Tabs Navigation */}
       <motion.div
@@ -94,7 +142,7 @@ export default function StockManagementPanel() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            <StockAnalyticsPanel productId={selectedProductId} />
+            <StockAnalyticsPanel product={selectedProduct} />
           </motion.div>
         )}
 
@@ -108,9 +156,9 @@ export default function StockManagementPanel() {
             transition={{ duration: 0.2 }}
           >
             <StockMovementRecorder
-              productId={selectedProductId}
+              product={selectedProduct}
               onSuccess={() => {
-                // Switch to history tab after successful recording
+                // Mudar para aba de histórico após registar movimento
                 setActiveTab('history');
               }}
             />

@@ -1227,7 +1227,7 @@ export default function App() {
                     transition={{ duration: 0.15 }}
                   >
                     <Suspense fallback={<LazyComponentLoader />}>
-                      <StockManagementPanel />
+                      <StockManagementPanel products={products} />
                     </Suspense>
                   </motion.div>
                 )}

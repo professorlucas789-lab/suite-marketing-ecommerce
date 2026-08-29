@@ -51,7 +51,8 @@ export function StockMovementRecorder({ product, productId, onSuccess }: StockMo
   const { user } = useAuth();
 
   // Se não houver product, mostrar mensagem
-  if (!product && !productId) {
+  // Requer product object, não apenas productId
+  if (!product) {
     return (
       <div className="p-8 text-center">
         <ArrowUp className="w-12 h-12 text-slate-400 mx-auto mb-2" />

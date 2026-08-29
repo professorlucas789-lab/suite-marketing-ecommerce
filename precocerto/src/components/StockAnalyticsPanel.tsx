@@ -11,11 +11,10 @@ import { useStockMovements } from '../hooks/useStockMovements';
 import { Product } from '../types';
 
 interface StockAnalyticsPanelProps {
-  productId?: string;
   product?: Product;
 }
 
-export function StockAnalyticsPanel({ productId, product }: StockAnalyticsPanelProps) {
+export function StockAnalyticsPanel({ product }: StockAnalyticsPanelProps) {
   const { getStockAnalytics, isLoading, error } = useStockMovements();
   const [analytics, setAnalytics] = useState<StockAnalytics | null>(null);
 
