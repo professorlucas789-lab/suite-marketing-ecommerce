@@ -1,216 +1,256 @@
 /**
- * ExpiryMonitoringDashboard Component
- * Dashboard com KPIs e analytics de produtos vencendo
- * NOVO (Fase 13): Notificações inteligentes
+ * Componente: ExpiryMonitoringDashboard
+ * Dashboard de monitoramento de validade
+ * FASE 1: Notificações Inteligentes
+ *
+ * Mostra:
+ * - KPI cards (Críticos, Avisos, Info)
+ * - Gráfico de alertas por severidade
+ * - Tabela de produtos com próximos vencimentos
  */
 
-import React from "react";
-import { ExpiryAlert } from "../types/alerts";
-import { motion } from "motion/react";
-import {
-  AlertTriangle,
-  AlertCircle,
-  Clock,
-  TrendingDown,
-  Calendar,
-} from "lucide-react";
-import ExpiryAlertPanel from "./ExpiryAlertPanel";
+import React, { useState, useEffect } from 'react';
+import { AlertCircle, Clock, Eye, TrendingDown, Calendar } from 'lucide-react';
+import { ExpiryAlert, AlertSeverity } from '../types/notifications';
+import { useExpiryAlerts } from '../hooks/useExpiryAlerts';
 
-interface ExpiryMonitoringDashboardProps {
-  alerts: ExpiryAlert[];
-  onResolve: (alertId: string, motivo: string) => Promise<void>;
-  loading?: boolean;
+interface ProductExpiryRow {
+  id: string;
+  name: string;
+  daysUntilExpiry: number;
+  expiryDate: string;
+  quantity: number;
+  severity: AlertSeverity;
 }
 
-export default function ExpiryMonitoringDashboard({
-  alerts,
-  onResolve,
-  loading = false,
-}: ExpiryMonitoringDashboardProps) {
-  const criticalAlerts = alerts.filter((a) => a.severity === "CRITICAL");
-  const warningAlerts = alerts.filter((a) => a.severity === "WARNING");
-  const infoAlerts = alerts.filter((a) => a.severity === "INFO");
+export function ExpiryMonitoringDashboard() {
+  const { alerts, alertsSummary, isLoading, refreshAlerts } = useExpiryAlerts();
+  const [productRows, setProductRows] = useState<ProductExpiryRow[]>([]);
+  const [sortBy, setSortBy] = useState<'daysLeft' | 'quantity'>('daysLeft');
 
-  // Calcular produto que vence mais em breve
-  const soonestExpiry =
-    alerts.length > 0
-      ? alerts.reduce((prev, current) =>
-          current.daysUntilExpiry < prev.daysUntilExpiry ? current : prev
-        )
-      : null;
+  // Processar dados de alertas em linhas de tabela
+  useEffect(() => {
+    const rows: ProductExpiryRow[] = alerts.map((alert) => ({
+      id: alert.id,
+      name: alert.productName,
+      daysUntilExpiry: alert.daysUntilExpiry,
+      expiryDate: alert.expiryDate,
+      quantity: alert.quantity || 0,
+      severity: alert.severity,
+    }));
 
-  // Agrupar por período
-  const expireToday = alerts.filter((a) => a.daysUntilExpiry <= 0).length;
-  const expireThisWeek = alerts.filter(
-    (a) => a.daysUntilExpiry > 0 && a.daysUntilExpiry <= 7
-  ).length;
-  const expireThisMonth = alerts.filter(
-    (a) => a.daysUntilExpiry > 7 && a.daysUntilExpiry <= 30
-  ).length;
+    // Ordenar
+    if (sortBy === 'daysLeft') {
+      rows.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
+    } else {
+      rows.sort((a, b) => b.quantity - a.quantity);
+    }
 
-  const KPICard = ({
-    icon: Icon,
-    label,
-    value,
-    color,
-    trend,
-  }: {
-    icon: React.ReactNode;
-    label: string;
-    value: number | string;
-    color: string;
-    trend?: string;
-  }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`p-4 rounded-lg border-2 ${color}`}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-            {label}
-          </p>
-          <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-            {value}
-          </p>
-          {trend && (
-            <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-              {trend}
-            </p>
-          )}
+    setProductRows(rows);
+  }, [alerts, sortBy]);
+
+  const getSeverityBadge = (severity: AlertSeverity) => {
+    switch (severity) {
+      case 'CRITICAL':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+            <AlertCircle className="w-3 h-3" />
+            Crítico
+          </span>
+        );
+      case 'WARNING':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
+            <Clock className="w-3 h-3" />
+            Aviso
+          </span>
+        );
+      case 'INFO':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+            <Eye className="w-3 h-3" />
+            Info
+          </span>
+        );
+    }
+  };
+
+  const KPICard = ({ label, value, icon: Icon, color }: { label: string; value: number; icon: React.ComponentType<any>; color: string }) => (
+    <div className={`p-4 rounded-lg border ${color}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-600">{label}</p>
+          <p className="text-3xl font-bold mt-2">{value}</p>
         </div>
-        <div className="p-2 rounded-lg bg-opacity-20">{Icon}</div>
+        <Icon className="w-10 h-10 opacity-50" />
       </div>
-    </motion.div>
+    </div>
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
+      {/* Cabeçalho */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Monitoramento de Validade</h1>
+          <p className="text-gray-600 mt-1">Acompanhe produtos expirando</p>
+        </div>
+        <button
+          onClick={refreshAlerts}
+          disabled={isLoading}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {isLoading ? 'Atualizando...' : 'Atualizar'}
+        </button>
+      </div>
+
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <KPICard
-          icon={<AlertTriangle className="text-red-600 dark:text-red-400" size={20} />}
-          label="Críticos (0-7 dias)"
-          value={criticalAlerts.length}
-          color="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900"
-          trend={criticalAlerts.length > 0 ? "⚠️ Ação urgente!" : "✅ Nenhum"}
+          label="Críticos"
+          value={alertsSummary.critical}
+          icon={AlertCircle}
+          color="bg-red-50 border-red-200"
         />
-
         <KPICard
-          icon={<AlertCircle className="text-amber-600 dark:text-amber-400" size={20} />}
-          label="Avisos (8-30 dias)"
-          value={warningAlerts.length}
-          color="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900"
-          trend={warningAlerts.length > 0 ? "Monitorar" : "OK"}
+          label="Avisos"
+          value={alertsSummary.warning}
+          icon={Clock}
+          color="bg-yellow-50 border-yellow-200"
         />
-
         <KPICard
-          icon={<Clock className="text-blue-600 dark:text-blue-400" size={20} />}
-          label="Info (31-60 dias)"
-          value={infoAlerts.length}
-          color="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900"
-          trend="Planear"
-        />
-
-        <KPICard
-          icon={<TrendingDown className="text-slate-600 dark:text-slate-400" size={20} />}
-          label="Total em Risco"
-          value={alerts.length}
-          color="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
-          trend={`${alerts.length} produtos`}
+          label="Informativos"
+          value={alertsSummary.info}
+          icon={Eye}
+          color="bg-blue-50 border-blue-200"
         />
       </div>
 
-      {/* Timeline por período */}
-      {alerts.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-4 bg-white dark:bg-slate-900 rounded-lg border-2 border-slate-200 dark:border-slate-700 space-y-3"
-        >
-          <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <Calendar size={16} />
-            Distribuição Temporal
-          </h3>
-          <div className="space-y-2">
-            {expireToday > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-red-600 dark:text-red-400 font-semibold">
-                  Hoje (0 dias)
-                </span>
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-24 bg-red-200 dark:bg-red-900 rounded-full">
-                    <div
-                      className="h-full bg-red-600 dark:bg-red-500 rounded-full"
-                      style={{ width: `${(expireToday / alerts.length) * 100}%` }}
-                    />
-                  </div>
-                  <span className="font-mono font-bold">{expireToday}</span>
-                </div>
+      {/* Gráfico Simples (Pizza) */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold mb-4">Distribuição por Severidade</h2>
+        
+        <div className="flex items-center justify-center gap-8 py-8">
+          {/* Gráfico Pizza ASCII/SVG simples */}
+          <svg width="200" height="200" viewBox="0 0 200 200">
+            {/* Críticos */}
+            {alertsSummary.critical > 0 && (
+              <path
+                d={`M 100,100 L 100,10 A 90,90 0 0,1 ${100 + 90 * Math.sin((alertsSummary.critical / alertsSummary.total) * 2 * Math.PI)},${100 - 90 * Math.cos((alertsSummary.critical / alertsSummary.total) * 2 * Math.PI)} Z`}
+                fill="#dc2626"
+                opacity="0.8"
+              />
+            )}
+            {/* Avisos */}
+            {alertsSummary.warning > 0 && (
+              <path
+                d={`M 100,100 L ${100 + 90 * Math.sin((alertsSummary.critical / alertsSummary.total) * 2 * Math.PI)},${100 - 90 * Math.cos((alertsSummary.critical / alertsSummary.total) * 2 * Math.PI)} A 90,90 0 0,1 ${100 - 90 * Math.sin(((alertsSummary.critical + alertsSummary.warning) / alertsSummary.total) * 2 * Math.PI)},${100 - 90 * Math.cos(((alertsSummary.critical + alertsSummary.warning) / alertsSummary.total) * 2 * Math.PI)} Z`}
+                fill="#eab308"
+                opacity="0.8"
+              />
+            )}
+            {/* Info */}
+            {alertsSummary.info > 0 && (
+              <path
+                d={`M 100,100 L ${100 - 90 * Math.sin(((alertsSummary.critical + alertsSummary.warning) / alertsSummary.total) * 2 * Math.PI)},${100 - 90 * Math.cos(((alertsSummary.critical + alertsSummary.warning) / alertsSummary.total) * 2 * Math.PI)} A 90,90 0 0,1 100,10 Z`}
+                fill="#3b82f6"
+                opacity="0.8"
+              />
+            )}
+            <circle cx="100" cy="100" r="60" fill="white" />
+          </svg>
+
+          {/* Legenda */}
+          <div className="space-y-3">
+            {alertsSummary.critical > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-red-600 rounded"></div>
+                <span className="text-sm">Críticos: {alertsSummary.critical} ({Math.round((alertsSummary.critical / alertsSummary.total) * 100)}%)</span>
               </div>
             )}
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-amber-600 dark:text-amber-400 font-semibold">
-                Esta semana (1-7 dias)
-              </span>
+            {alertsSummary.warning > 0 && (
               <div className="flex items-center gap-2">
-                <div className="h-2 w-24 bg-amber-200 dark:bg-amber-900 rounded-full">
-                  <div
-                    className="h-full bg-amber-600 dark:bg-amber-500 rounded-full"
-                    style={{ width: `${(expireThisWeek / Math.max(alerts.length, 1)) * 100}%` }}
-                  />
-                </div>
-                <span className="font-mono font-bold">{expireThisWeek}</span>
+                <div className="w-4 h-4 bg-yellow-500 rounded"></div>
+                <span className="text-sm">Avisos: {alertsSummary.warning} ({Math.round((alertsSummary.warning / alertsSummary.total) * 100)}%)</span>
               </div>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-blue-600 dark:text-blue-400 font-semibold">
-                Este mês (8-30 dias)
-              </span>
+            )}
+            {alertsSummary.info > 0 && (
               <div className="flex items-center gap-2">
-                <div className="h-2 w-24 bg-blue-200 dark:bg-blue-900 rounded-full">
-                  <div
-                    className="h-full bg-blue-600 dark:bg-blue-500 rounded-full"
-                    style={{ width: `${(expireThisMonth / Math.max(alerts.length, 1)) * 100}%` }}
-                  />
-                </div>
-                <span className="font-mono font-bold">{expireThisMonth}</span>
+                <div className="w-4 h-4 bg-blue-600 rounded"></div>
+                <span className="text-sm">Informativos: {alertsSummary.info} ({Math.round((alertsSummary.info / alertsSummary.total) * 100)}%)</span>
               </div>
-            </div>
+            )}
+            {alertsSummary.total === 0 && (
+              <div className="text-sm text-gray-500">Sem alertas</div>
+            )}
           </div>
-        </motion.div>
-      )}
+        </div>
+      </div>
 
-      {/* Alerta mais urgente */}
-      {soonestExpiry && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-4 bg-red-50 dark:bg-red-950/20 border-2 border-red-200 dark:border-red-900 rounded-lg"
-        >
-          <h3 className="font-bold text-sm text-red-800 dark:text-red-300 flex items-center gap-2 mb-2">
-            <AlertTriangle size={16} />
-            Próximo a Vencer
-          </h3>
-          <p className="text-sm text-red-700 dark:text-red-400">
-            <span className="font-bold">{soonestExpiry.productName}</span> vence em{" "}
-            <span className="font-bold">{soonestExpiry.daysUntilExpiry}</span> dias (
-            {soonestExpiry.dataValidade})
-          </p>
-        </motion.div>
-      )}
+      {/* Tabela de Produtos */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Produtos com Próximo Vencimento</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSortBy('daysLeft')}
+              className={`px-3 py-1 rounded text-sm ${sortBy === 'daysLeft' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              Dias Restantes
+            </button>
+            <button
+              onClick={() => setSortBy('quantity')}
+              className={`px-3 py-1 rounded text-sm ${sortBy === 'quantity' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              Quantidade
+            </button>
+          </div>
+        </div>
 
-      {/* Alert Panel */}
-      <div>
-        <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 mb-3">
-          Alertas Detalhados
-        </h3>
-        <ExpiryAlertPanel
-          alerts={alerts}
-          onResolve={onResolve}
-          loading={loading}
-        />
+        {productRows.length === 0 ? (
+          <div className="py-8 text-center text-gray-500">
+            <TrendingDown className="w-12 h-12 mx-auto mb-2 opacity-50" />
+            <p>Nenhum produto expirando</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold">Produto</th>
+                  <th className="text-left px-4 py-3 font-semibold">Data Validade</th>
+                  <th className="text-left px-4 py-3 font-semibold">Dias Restantes</th>
+                  <th className="text-left px-4 py-3 font-semibold">Quantidade</th>
+                  <th className="text-left px-4 py-3 font-semibold">Severidade</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {productRows.slice(0, 10).map((row) => (
+                  <tr key={row.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{row.name}</td>
+                    <td className="px-4 py-3 text-gray-600 flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      {new Date(row.expiryDate).toLocaleDateString('pt-PT')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`font-medium ${row.daysUntilExpiry < 7 ? 'text-red-600' : row.daysUntilExpiry < 30 ? 'text-yellow-600' : 'text-blue-600'}`}>
+                        {row.daysUntilExpiry} dias
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{row.quantity} unidade(s)</td>
+                    <td className="px-4 py-3">{getSeverityBadge(row.severity)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {productRows.length > 10 && (
+              <div className="text-center py-4 text-gray-500 text-sm">
+                +{productRows.length - 10} produtos não listados
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

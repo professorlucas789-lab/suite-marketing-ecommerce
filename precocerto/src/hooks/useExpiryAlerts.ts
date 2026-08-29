@@ -1,126 +1,166 @@
 /**
- * Hook customizado para gerenciar alertas de validade
- * Semana 1: Padrão reutilizável seguindo arquitetura existente
+ * Hook: useExpiryAlerts
+ * Gerenciar alertas de validade de produtos
+ * FASE 1: Notificações Inteligentes
  *
- * Padrão de retorno: [data, loading, error, actions]
+ * Fornece interface reativa para:
+ * - Buscar produtos expirando
+ * - Listar alertas com filtros
+ * - Reconhecer/resolver alertas
+ * - Obter resumo de alertas
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ExpiryAlert, AlertSeverity } from '../types/notifications';
 import { ExpiryAlertService } from '../services/expiryAlertService';
+import { useStore } from './useStore';
 
-export interface ExpiryAlertsState {
+export interface UseExpiryAlertsReturn {
+  // Estado
   alerts: ExpiryAlert[];
-  summary: {
+  alertsSummary: {
     critical: number;
     warning: number;
     info: number;
     total: number;
   };
-  loading: boolean;
+  isLoading: boolean;
   error: string | null;
-}
 
-export interface ExpiryAlertsActions {
-  // Ações para alertas
+  // Ações
+  checkExpiringProducts: (daysThreshold?: number) => Promise<ExpiryAlert[]>;
+  listAlerts: (filters?: {
+    severity?: AlertSeverity;
+    resolved?: boolean;
+    limit?: number;
+  }) => Promise<void>;
   acknowledgeAlert: (alertId: string, userId: string) => Promise<void>;
   resolveAlert: (alertId: string, userId: string, reason: string) => Promise<void>;
-  refetch: () => Promise<void>;
-
-  // Filtros
-  filterBySeverity: (severity: AlertSeverity | 'ALL') => void;
-  filterByResolved: (resolved: boolean | 'ALL') => void;
+  refreshAlerts: () => Promise<void>;
+  getAlertsSummary: () => Promise<void>;
+  clearError: () => void;
 }
 
-export function useExpiryAlerts(storeId: string): [ExpiryAlertsState, ExpiryAlertsActions] {
-  const [state, setState] = useState<ExpiryAlertsState>({
-    alerts: [],
-    summary: {
-      critical: 0,
-      warning: 0,
-      info: 0,
-      total: 0,
-    },
-    loading: true,
-    error: null,
+export function useExpiryAlerts(): UseExpiryAlertsReturn {
+  const { currentStore } = useStore();
+  const [alerts, setAlerts] = useState<ExpiryAlert[]>([]);
+  const [alertsSummary, setAlertsSummary] = useState({
+    critical: 0,
+    warning: 0,
+    info: 0,
+    total: 0,
   });
-
-  const [filterSeverity, setFilterSeverity] = useState<AlertSeverity | 'ALL'>('ALL');
-  const [filterResolved, setFilterResolved] = useState<boolean | 'ALL'>('ALL');
-
-  /**
-   * Carregar alertas quando storeId muda ou filtros mudam
-   */
-  const loadAlerts = useCallback(async () => {
-    if (!storeId) {
-      setState({
-        alerts: [],
-        summary: { critical: 0, warning: 0, info: 0, total: 0 },
-        loading: false,
-        error: 'storeId não fornecido',
-      });
-      return;
-    }
-
-    try {
-      setState((prev) => ({ ...prev, loading: true, error: null }));
-
-      // Determinar filtros
-      const filters: any = {};
-      if (filterSeverity !== 'ALL') {
-        filters.severity = filterSeverity;
-      }
-      if (filterResolved !== 'ALL') {
-        filters.resolved = filterResolved === true;
-      }
-
-      // Buscar alertas
-      const alerts = await ExpiryAlertService.listAlerts(storeId, filters);
-
-      // Buscar resumo
-      const summary = await ExpiryAlertService.getAlertsSummary(storeId);
-
-      setState({
-        alerts,
-        summary,
-        loading: false,
-        error: null,
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao carregar alertas';
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        error: errorMessage,
-      }));
-    }
-  }, [storeId, filterSeverity, filterResolved]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   /**
-   * Carregar alertas ao montar componente ou quando storeId/filtros mudam
+   * Verificar produtos expirando
    */
-  useEffect(() => {
-    loadAlerts();
-  }, [loadAlerts]);
+  const checkExpiringProducts = useCallback(
+    async (daysThreshold: number = 60): Promise<ExpiryAlert[]> => {
+      if (!currentStore?.storeId) {
+        setError('Loja não selecionada');
+        return [];
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const expiringProducts = await ExpiryAlertService.checkExpiringProducts(
+          currentStore.storeId,
+          daysThreshold
+        );
+
+        console.log(
+          `✅ ${expiringProducts.length} produtos expirando nos próximos ${daysThreshold} dias`
+        );
+
+        return expiringProducts;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao verificar produtos';
+        setError(errorMessage);
+        console.error('Erro ao verificar produtos expirando:', err);
+        return [];
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [currentStore?.storeId]
+  );
+
+  /**
+   * Listar alertas com filtros
+   */
+  const listAlerts = useCallback(
+    async (filters?: {
+      severity?: AlertSeverity;
+      resolved?: boolean;
+      limit?: number;
+    }) => {
+      if (!currentStore?.storeId) {
+        setError('Loja não selecionada');
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const loadedAlerts = await ExpiryAlertService.listAlerts(
+          currentStore.storeId,
+          filters
+        );
+
+        setAlerts(loadedAlerts);
+
+        console.log(`✅ ${loadedAlerts.length} alertas carregados`);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao listar alertas';
+        setError(errorMessage);
+        console.error('Erro ao listar alertas:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [currentStore?.storeId]
+  );
 
   /**
    * Reconhecer alerta
    */
   const acknowledgeAlert = useCallback(
     async (alertId: string, userId: string) => {
+      if (!currentStore?.storeId) {
+        setError('Loja não selecionada');
+        return;
+      }
+
       try {
-        await ExpiryAlertService.acknowledgeAlert(storeId, alertId, userId);
-        // Recarregar alertas
-        await loadAlerts();
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Erro ao reconhecer alerta';
-        setState((prev) => ({
-          ...prev,
-          error: errorMessage,
-        }));
+        setIsLoading(true);
+        setError(null);
+
+        await ExpiryAlertService.acknowledgeAlert(currentStore.storeId, alertId, userId);
+
+        // Atualizar lista local
+        setAlerts((prev) =>
+          prev.map((alert) =>
+            alert.id === alertId
+              ? { ...alert, acknowledgedAt: new Date().toISOString() }
+              : alert
+          )
+        );
+
+        console.log(`✅ Alerta reconhecido: ${alertId}`);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao reconhecer alerta';
+        setError(errorMessage);
+        console.error('Erro ao reconhecer alerta:', err);
+      } finally {
+        setIsLoading(false);
       }
     },
-    [storeId, loadAlerts]
+    [currentStore?.storeId]
   );
 
   /**
@@ -128,89 +168,126 @@ export function useExpiryAlerts(storeId: string): [ExpiryAlertsState, ExpiryAler
    */
   const resolveAlert = useCallback(
     async (alertId: string, userId: string, reason: string) => {
+      if (!currentStore?.storeId) {
+        setError('Loja não selecionada');
+        return;
+      }
+
       try {
-        await ExpiryAlertService.resolveAlert(storeId, alertId, userId, reason);
-        // Recarregar alertas
-        await loadAlerts();
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Erro ao resolver alerta';
-        setState((prev) => ({
-          ...prev,
-          error: errorMessage,
-        }));
+        setIsLoading(true);
+        setError(null);
+
+        await ExpiryAlertService.resolveAlert(
+          currentStore.storeId,
+          alertId,
+          userId,
+          reason
+        );
+
+        // Atualizar lista local
+        setAlerts((prev) =>
+          prev.map((alert) =>
+            alert.id === alertId
+              ? { ...alert, resolvedAt: new Date().toISOString() }
+              : alert
+          )
+        );
+
+        console.log(`✅ Alerta resolvido: ${alertId}`);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao resolver alerta';
+        setError(errorMessage);
+        console.error('Erro ao resolver alerta:', err);
+      } finally {
+        setIsLoading(false);
       }
     },
-    [storeId, loadAlerts]
+    [currentStore?.storeId]
   );
 
   /**
-   * Filtrar por severidade
+   * Obter resumo de alertas
    */
-  const filterBySeverity = useCallback((severity: AlertSeverity | 'ALL') => {
-    setFilterSeverity(severity);
-  }, []);
+  const getAlertsSummary = useCallback(async () => {
+    if (!currentStore?.storeId) {
+      setError('Loja não selecionada');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const summary = await ExpiryAlertService.getAlertsSummary(currentStore.storeId);
+      setAlertsSummary(summary);
+
+      console.log(`✅ Resumo de alertas: ${summary.total} total`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao obter resumo';
+      setError(errorMessage);
+      console.error('Erro ao obter resumo de alertas:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentStore?.storeId]);
 
   /**
-   * Filtrar por status resolvido
+   * Recarregar alertas e resumo
    */
-  const filterByResolved = useCallback((resolved: boolean | 'ALL') => {
-    setFilterResolved(resolved);
-  }, []);
+  const refreshAlerts = useCallback(async () => {
+    if (!currentStore?.storeId) {
+      setError('Loja não selecionada');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Listar alertas não resolvidos
+      await listAlerts({ resolved: false, limit: 100 });
+
+      // Obter resumo
+      await getAlertsSummary();
+
+      console.log('✅ Alertas recarregados');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao recarregar';
+      setError(errorMessage);
+      console.error('Erro ao recarregar alertas:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentStore?.storeId, listAlerts, getAlertsSummary]);
 
   /**
-   * Recarregar alertas manualmente
+   * Limpar erro
    */
-  const refetch = useCallback(async () => {
-    await loadAlerts();
-  }, [loadAlerts]);
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
-  const actions: ExpiryAlertsActions = {
+  // Recarregar alertas ao mudar de loja
+  useEffect(() => {
+    if (currentStore?.storeId) {
+      refreshAlerts();
+    }
+  }, [currentStore?.storeId, refreshAlerts]);
+
+  return {
+    // Estado
+    alerts,
+    alertsSummary,
+    isLoading,
+    error,
+
+    // Ações
+    checkExpiringProducts,
+    listAlerts,
     acknowledgeAlert,
     resolveAlert,
-    refetch,
-    filterBySeverity,
-    filterByResolved,
-  };
-
-  return [state, actions];
-}
-
-/**
- * Hook para monitorar alertas críticos em tempo real
- * Útil para mostrar notificações urgentes no dashboard
- */
-export function useCriticalExpiryAlerts(storeId: string): {
-  criticalAlerts: ExpiryAlert[];
-  warningAlerts: ExpiryAlert[];
-  loading: boolean;
-  error: string | null;
-} {
-  const [state, actions] = useExpiryAlerts(storeId);
-
-  const criticalAlerts = state.alerts.filter((alert) => alert.severity === 'CRITICAL');
-  const warningAlerts = state.alerts.filter((alert) => alert.severity === 'WARNING');
-
-  return {
-    criticalAlerts,
-    warningAlerts,
-    loading: state.loading,
-    error: state.error,
-  };
-}
-
-/**
- * Hook para verificar se há alertas não resolvidos
- */
-export function useHasUnresolvedAlerts(storeId: string): {
-  hasAlerts: boolean;
-  count: number;
-  criticalCount: number;
-} {
-  const [state] = useExpiryAlerts(storeId);
-
-  return {
-    hasAlerts: state.alerts.length > 0,
-    count: state.alerts.length,
-    criticalCount: state.summary.critical,
+    refreshAlerts,
+    getAlertsSummary,
+    clearError,
   };
 }
