@@ -2,16 +2,21 @@ import React, { useState, useEffect } from "react";
 import { Product } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  Search,
-  X,
+  ChevronDown,
   Plus,
   Trash2,
-  DollarSign,
   Receipt,
   AlertCircle,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Menu,
+  Users,
 } from "lucide-react";
+import DocumentTypeSelector, {
+  DocumentType,
+} from "./DocumentTypeSelector";
+import DocumentItemsTab from "./DocumentItemsTab";
+import DocumentSettingsPanel from "./DocumentSettingsPanel";
 
 interface SaleItem {
   productId: string;
@@ -23,24 +28,75 @@ interface SaleItem {
   ivaPercentage?: number;
 }
 
+interface ClientData {
+  id: string;
+  nome: string;
+  nif?: string;
+  local?: string;
+}
+
 interface SalesModuleProps {
   products: Product[];
   onSaleComplete?: (items: SaleItem[], total: number) => void;
 }
 
+interface DocumentSettings {
+  emissionType: "fatura" | "recibo";
+  requiresCustomer: boolean;
+  requiresNIF: boolean;
+  autoNumbering: boolean;
+  documentPrefix: string;
+  observationRequired: boolean;
+}
+
 export default function SalesModule({ products, onSaleComplete }: SalesModuleProps) {
-  const [searchTerm, setSearchTerm] = useState("");
+  // State: Main sales data
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Filter products based on search
-  const filteredProducts = products.filter((p) =>
-    p.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.categoria && p.categoria.toLowerCase().includes(searchTerm.toLowerCase()))
+  // State: Client selection
+  const [selectedClient, setSelectedClient] = useState<ClientData | null>(null);
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+
+  // State: Document & UI
+  const [selectedDocument, setSelectedDocument] = useState<DocumentType>("fatura-recibo");
+  const [settings, setSettings] = useState<DocumentSettings>({
+    emissionType: "recibo",
+    requiresCustomer: false,
+    requiresNIF: false,
+    autoNumbering: true,
+    documentPrefix: "REC",
+    observationRequired: false,
+  });
+
+  const [activeMenu, setActiveMenu] = useState<"alterar" | "itens" | "definicoes" | null>(
+    null
   );
+
+  // Mock clients data - In production, this would come from Firebase
+  const mockClients: ClientData[] = [
+    {
+      id: "1",
+      nome: "Empresa ABC",
+      nif: "1234567890",
+      local: "Luanda, Angola",
+    },
+    {
+      id: "2",
+      nome: "João Silva",
+      nif: "0987654321",
+      local: "Benguela, Angola",
+    },
+    {
+      id: "3",
+      nome: "Maria Santos",
+      nif: "1357924680",
+      local: "Huambo, Angola",
+    },
+  ];
 
   // Add product to sale
   const handleAddProduct = () => {
@@ -54,19 +110,18 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
     const subtotal = qty * unitPrice;
 
     const newItem: SaleItem = {
-      productId: selectedProduct.id,
+      productId: selectedProduct.id || "",
       productName: selectedProduct.nome,
       quantity: qty,
       unitPrice,
       subtotal,
       hasIVA: selectedProduct.temIVA || false,
-      ivaPercentage: selectedProduct.ivaPercentage || 0
+      ivaPercentage: selectedProduct.ivaPercentage || 0,
     };
 
     setSaleItems([...saleItems, newItem]);
     setSelectedProduct(null);
     setQuantity("");
-    setSearchTerm("");
   };
 
   // Remove item from sale
@@ -100,6 +155,7 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
 
       setSuccessMessage("Venda registada com sucesso!");
       setSaleItems([]);
+      setSelectedClient(null);
       setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
       console.error("Erro ao registar venda:", error);
@@ -117,7 +173,7 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
           <Receipt className="w-8 h-8 text-emerald-500" />
           <h1 className="text-2xl md:text-3xl font-bold text-white">Módulo de Vendas</h1>
         </div>
-        <p className="text-slate-400">Sistema rápido para registar vendas e emitir recibos</p>
+        <p className="text-slate-400">ERP - Sistema profissional para registar vendas e emitir documentos</p>
       </div>
 
       {/* Success Message */}
@@ -135,250 +191,328 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Product Search and Items */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Search Product */}
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-xl p-6">
-            <label className="block text-sm font-semibold text-white mb-3">
-              Buscar Produto
-            </label>
+      {/* Top Menu Bar */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        <DocumentTypeSelector
+          selectedDocument={selectedDocument}
+          onDocumentChange={setSelectedDocument}
+        />
+        <button
+          onClick={() =>
+            setActiveMenu(activeMenu === "itens" ? null : "itens")
+          }
+          className="flex items-center gap-2 px-3 py-2 bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-white text-sm font-medium transition-colors"
+        >
+          <Menu className="w-4 h-4" />
+          <span className="hidden sm:inline">Itens</span>
+          <span className="sm:hidden">({saleItems.length})</span>
+        </button>
+        <button
+          onClick={() =>
+            setActiveMenu(activeMenu === "definicoes" ? null : "definicoes")
+          }
+          className="flex items-center gap-2 px-3 py-2 bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-white text-sm font-medium transition-colors"
+        >
+          <AlertCircle className="w-4 h-4" />
+          <span className="hidden sm:inline">Definições</span>
+        </button>
 
-            {/* Search Input */}
+        {/* Total Display (Right side) */}
+        <div className="ml-auto flex items-center gap-2 px-3 py-2 bg-emerald-500/20 border border-emerald-500/50 rounded-lg">
+          <span className="text-xs text-slate-400">Total:</span>
+          <span className="text-lg font-bold text-emerald-400">
+            Kz {total.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      {/* Expandable Menus */}
+      <AnimatePresence>
+        {activeMenu === "itens" && (
+          <DocumentItemsTab
+            items={saleItems}
+            onRemoveItem={handleRemoveItem}
+            isExpanded={true}
+            onToggleExpand={() => setActiveMenu(null)}
+          />
+        )}
+        {activeMenu === "definicoes" && (
+          <DocumentSettingsPanel
+            settings={settings}
+            onSettingsChange={setSettings}
+            isExpanded={true}
+            onToggleExpand={() => setActiveMenu(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Main 3-Column Layout */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* ==================== LEFT COLUMN: CLIENT ==================== */}
+        <div className="space-y-4">
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-xl p-6">
+            <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+              <Users className="w-4 h-4 text-slate-400" />
+              Cliente
+            </h2>
+
+            {/* Client Selector Dropdown */}
             <div className="relative mb-4">
-              <Search className="absolute left-3 top-3 w-5 h-5 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Digite nome ou categoria..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-              />
+              <button
+                onClick={() => setShowClientDropdown(!showClientDropdown)}
+                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white text-left flex items-center justify-between hover:bg-slate-700 transition-colors"
+              >
+                <span className={selectedClient ? "text-white" : "text-slate-400"}>
+                  {selectedClient ? selectedClient.nome : "Selecione cliente..."}
+                </span>
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform ${
+                    showClientDropdown ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {/* Dropdown Menu */}
+              <AnimatePresence>
+                {showClientDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-40 max-h-48 overflow-y-auto"
+                  >
+                    {mockClients.map((client) => (
+                      <button
+                        key={client.id}
+                        onClick={() => {
+                          setSelectedClient(client);
+                          setShowClientDropdown(false);
+                        }}
+                        className={`w-full px-4 py-3 text-left border-b border-slate-700/50 last:border-b-0 hover:bg-slate-700/50 transition-colors ${
+                          selectedClient?.id === client.id
+                            ? "bg-emerald-500/20 border-l-2 border-emerald-500"
+                            : ""
+                        }`}
+                      >
+                        <p className="font-medium text-white">{client.nome}</p>
+                        <p className="text-xs text-slate-400">{client.nif}</p>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-                {/* Autocomplete Dropdown - Busca Inteligente */}
-            {searchTerm && filteredProducts.length > 0 && (
+            {/* Client Details (Auto-loaded) */}
+            {selectedClient && (
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="mt-2 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden"
+                className="space-y-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg"
               >
-                {filteredProducts.slice(0, 8).map((product) => (
-                  <motion.button
-                    key={product.id}
-                    whileHover={{ backgroundColor: "rgb(51, 65, 85)" }}
-                    onClick={() => {
-                      setSelectedProduct(product);
-                      setSearchTerm("");
-                    }}
-                    className="w-full px-4 py-3 text-left border-b border-slate-700/50 hover:bg-slate-700 transition-colors flex justify-between items-center group"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">{product.nome}</p>
-                      <p className="text-xs text-slate-400">{product.categoria}</p>
-                    </div>
-                    <div className="text-right ml-4 flex-shrink-0">
-                      <p className="font-bold text-emerald-400">
-                        Kz {product.precoVendaRecomendado?.toFixed(2) || "0.00"}
-                      </p>
-                      <p className="text-xs text-slate-500">{product.quantidade || 0} stock</p>
-                    </div>
-                  </motion.button>
-                ))}
-                {filteredProducts.length > 8 && (
-                  <div className="px-4 py-2 text-center text-xs text-slate-400 bg-slate-700/30">
-                    +{filteredProducts.length - 8} mais produtos
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">Nome</p>
+                  <p className="font-medium text-white">{selectedClient.nome}</p>
+                </div>
+                {selectedClient.nif && (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-1">NIF</p>
+                    <p className="font-medium text-white">{selectedClient.nif}</p>
+                  </div>
+                )}
+                {selectedClient.local && (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-1">Localização</p>
+                    <p className="font-medium text-white">{selectedClient.local}</p>
                   </div>
                 )}
               </motion.div>
             )}
+          </div>
+        </div>
 
-            {searchTerm && filteredProducts.length === 0 && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-center text-red-300 text-sm"
+        {/* ==================== MIDDLE COLUMN: PRODUCTS ==================== */}
+        <div className="space-y-4">
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-xl p-6">
+            <h2 className="text-sm font-semibold text-white mb-4">Produtos</h2>
+
+            {/* Product Selector */}
+            <div className="relative mb-4">
+              <button
+                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white text-left flex items-center justify-between hover:bg-slate-700 transition-colors"
               >
-                ❌ Nenhum produto encontrado para "{searchTerm}"
-              </motion.div>
-            )}
+                <span className={selectedProduct ? "text-white" : "text-slate-400"}>
+                  {selectedProduct ? selectedProduct.nome : "Selecione produto..."}
+                </span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
 
-            {/* Selected Product Details */}
+              {/* Product Dropdown */}
+              <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-40 max-h-48 overflow-y-auto">
+                {products.map((product) => (
+                  <button
+                    key={product.id}
+                    onClick={() => setSelectedProduct(product)}
+                    className={`w-full px-4 py-3 text-left border-b border-slate-700/50 last:border-b-0 hover:bg-slate-700/50 transition-colors flex justify-between items-center group ${
+                      selectedProduct?.id === product.id
+                        ? "bg-emerald-500/20 border-l-2 border-emerald-500"
+                        : ""
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-white truncate group-hover:text-emerald-400 transition-colors">
+                        {product.nome}
+                      </p>
+                      <p className="text-xs text-slate-400">{product.categoria}</p>
+                    </div>
+                    <div className="text-right ml-2 flex-shrink-0">
+                      <p className="font-bold text-emerald-400 text-sm">
+                        Kz {product.precoVendaRecomendado?.toFixed(2) || "0.00"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {product.quantidade || 0} stock
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quantity Input */}
             {selectedProduct && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg"
+                className="space-y-3"
               >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <p className="font-semibold text-white">{selectedProduct.nome}</p>
-                    <p className="text-sm text-slate-400">{selectedProduct.categoria}</p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedProduct(null)}
-                    className="p-1 hover:bg-slate-700/50 rounded"
-                  >
-                    <X className="w-5 h-5 text-slate-400" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div>
-                    <p className="text-xs text-slate-400 mb-1">Preço Unitário</p>
-                    <p className="text-lg font-bold text-emerald-400">
-                      ${selectedProduct.precoVendaRecomendado?.toFixed(2) || "0.00"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-400 mb-1">Stock Disponível</p>
-                    <p className="text-lg font-bold text-white">
-                      {selectedProduct.quantidade || 0}
-                    </p>
+                <div>
+                  <p className="text-xs text-slate-400 mb-2">Quantidade</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      placeholder="Quantidade"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      min="0.01"
+                      step="0.01"
+                      className="flex-1 px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleAddProduct}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Adicionar</span>
+                    </motion.button>
                   </div>
                 </div>
 
-                {/* Quantity Input */}
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    placeholder="Quantidade"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    min="0.01"
-                    step="0.01"
-                    className="flex-1 px-3 py-2 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                  />
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleAddProduct}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Adicionar
-                  </motion.button>
+                {/* Product Info Card */}
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-slate-400 mb-1">Preço Unit.</p>
+                      <p className="font-bold text-emerald-400">
+                        Kz {selectedProduct.precoVendaRecomendado?.toFixed(2) || "0.00"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 mb-1">Stock</p>
+                      <p className="font-bold text-white">
+                        {selectedProduct.quantidade || 0}
+                      </p>
+                    </div>
+                  </div>
+                  {selectedProduct.temIVA && (
+                    <div className="mt-3 pt-3 border-t border-emerald-500/20">
+                      <p className="text-xs text-yellow-400 font-medium">
+                        ⚠️ IVA {selectedProduct.ivaPercentage}%
+                      </p>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
           </div>
-
-          {/* Sale Items List */}
-          {saleItems.length > 0 && (
-            <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Itens da Venda</h3>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {saleItems.map((item, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className="flex items-center justify-between p-3 bg-slate-700/30 border border-slate-600/30 rounded-lg hover:bg-slate-700/50 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-white truncate">{item.productName}</p>
-                      <p className="text-sm text-slate-400">
-                        {item.quantity} x ${item.unitPrice.toFixed(2)}
-                      </p>
-                    </div>
-                    <div className="text-right mr-3">
-                      <p className="font-semibold text-emerald-400">
-                        ${item.subtotal.toFixed(2)}
-                      </p>
-                      {item.hasIVA && (
-                        <p className="text-xs text-yellow-400">IVA: {item.ivaPercentage}%</p>
-                      )}
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => handleRemoveItem(index)}
-                      className="p-2 hover:bg-red-500/20 rounded transition-colors"
-                    >
-                      <Trash2 className="w-5 h-5 text-red-400" />
-                    </motion.button>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Right: Summary and Actions */}
-        <div className="lg:col-span-1">
-          <div className="sticky top-6 space-y-4">
-            {/* Summary Card */}
-            <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/30 rounded-xl p-6">
-              <h3 className="text-sm font-semibold text-emerald-400 mb-4">Resumo da Venda</h3>
+        {/* ==================== RIGHT COLUMN: SUMMARY (ESSENTIALS ONLY) ==================== */}
+        <div className="md:sticky md:top-6 space-y-4">
+          <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/30 rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-emerald-400 mb-6">Resumo Essencial</h3>
 
-              <div className="space-y-3 mb-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-300">Subtotal</span>
-                  <span className="font-semibold text-white">${subtotal.toFixed(2)}</span>
-                </div>
-
-                {totalIVA > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-300">IVA</span>
-                    <span className="font-semibold text-yellow-400">${totalIVA.toFixed(2)}</span>
-                  </div>
-                )}
-
-                <div className="border-t border-emerald-500/20 pt-3 flex justify-between">
-                  <span className="font-semibold text-white">Total</span>
-                  <span className="text-2xl font-bold text-emerald-400">${total.toFixed(2)}</span>
-                </div>
+            <div className="space-y-4 mb-6">
+              {/* Subtotal */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-300">Subtotal</span>
+                <span className="font-semibold text-white text-lg">
+                  Kz {subtotal.toFixed(2)}
+                </span>
               </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-2 pt-4 border-t border-emerald-500/20">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-white">{saleItems.length}</p>
-                  <p className="text-xs text-slate-400">Produtos</p>
+              {/* IVA (only if > 0) */}
+              {totalIVA > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-300">IVA</span>
+                  <span className="font-semibold text-yellow-400 text-lg">
+                    Kz {totalIVA.toFixed(2)}
+                  </span>
                 </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-white">
-                    {saleItems.reduce((sum, item) => sum + item.quantity, 0).toFixed(0)}
-                  </p>
-                  <p className="text-xs text-slate-400">Unidades</p>
+              )}
+
+              {/* Total (Highlighted) */}
+              <div className="border-t border-emerald-500/20 pt-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-bold text-white">Total</span>
+                  <span className="text-3xl font-bold text-emerald-400">
+                    Kz {total.toFixed(2)}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleCompleteSale}
-              disabled={saleItems.length === 0 || isLoading}
-              className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
-            >
-              {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Receipt className="w-5 h-5" />
-              )}
-              {isLoading ? "Processando..." : "Finalizar Venda"}
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setSaleItems([])}
-              className="w-full py-3 px-4 bg-slate-700/50 hover:bg-slate-700 text-slate-300 font-semibold rounded-lg transition-colors"
-            >
-              Limpar
-            </motion.button>
-
-            {/* Info Box */}
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 flex gap-3">
-              <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-300">
-                <p className="font-semibold mb-1">Dica Profissional</p>
-                <p>Produtos com IVA aparecem destacados. Revise antes de finalizar.</p>
+            {/* Item Count */}
+            {saleItems.length > 0 && (
+              <div className="py-3 px-3 bg-slate-700/50 rounded text-center">
+                <p className="text-xs text-slate-400 mb-1">Itens</p>
+                <p className="text-xl font-bold text-white">{saleItems.length}</p>
               </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleCompleteSale}
+            disabled={saleItems.length === 0 || isLoading}
+            className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
+          >
+            {isLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Receipt className="w-5 h-5" />
+            )}
+            {isLoading ? "Processando..." : "Finalizar Venda"}
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setSaleItems([])}
+            className="w-full py-3 px-4 bg-slate-700/50 hover:bg-slate-700 text-slate-300 font-semibold rounded-lg transition-colors"
+          >
+            Limpar
+          </motion.button>
+
+          {/* Info Box */}
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 flex gap-3">
+            <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-blue-300">
+              <p className="font-semibold mb-1">Dica</p>
+              <p>Produtos com IVA aparecem marcados com ⚠️</p>
             </div>
           </div>
         </div>
