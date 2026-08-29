@@ -697,6 +697,13 @@ export default function ProductForm({ productToEdit, onSave, onCancel, settings 
       return;
     }
 
+    // Verificar se as categorias ainda estão a carregar
+    if (marginCategoriesLoading) {
+      setValidationError("Aguarde o carregamento das categorias. Tente novamente em alguns segundos.");
+      return;
+    }
+
+    // Validar seleção de categoria (apenas se categorias carregaram)
     if (categories.length > 0 && !selectedCategory) {
       setValidationError("Selecione a categoria com margens para este produto.");
       return;

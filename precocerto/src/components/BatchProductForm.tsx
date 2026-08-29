@@ -258,6 +258,13 @@ export default function BatchProductForm({
           return;
         }
 
+        // Verificar se as categorias ainda estão a carregar
+        if (marginCategoriesLoading) {
+          setValidationError("Aguarde o carregamento das categorias. Tente novamente em alguns segundos.");
+          return;
+        }
+
+        // Validar seleção de categoria (apenas se categorias carregaram)
         if (categories.length > 0 && !item.categoryIdFinal) {
           setValidationError(`Selecione a categoria com margens para "${item.nome}".`);
           return;
