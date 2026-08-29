@@ -1,150 +1,154 @@
 /**
- * StockService - Gestão de Estoque Completa
+ * Serviço de Gestão de Estoque
+ * FASE 2: Gestão de Estoque Automática
+ *
  * Responsabilidades:
- * - Registar movimentações de stock (entrada/saída)
- * - Rastrear quantidade disponível em tempo real
- * - Gerar alertas de stock baixo
- * - Análise de tendências e previsões
- * - Histórico completo para auditoria
+ * - Registar movimentações de stock (IN/OUT/ADJUSTMENT)
+ * - Validar quantidades e atualizar Firestore
+ * - Detectar stock baixo e criar alertas
+ * - Gerar relatórios e análises
+ * - Manter histórico completo para auditoria
  */
 
 import {
   collection,
-  addDoc,
-  getDocs,
   query,
   where,
-  orderBy,
-  limit,
-  getDoc,
-  doc,
+  getDocs,
+  addDoc,
   updateDoc,
+  doc,
   serverTimestamp,
-  Query,
   QueryConstraint,
+  Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
   StockMovement,
+  StockMovementType,
+  StockMovementReason,
   StockAlert,
   StockAlertConfig,
-  StockMovementHistory,
+  StockHistory,
   StockAnalytics,
+  ReorderReport,
 } from '../types/inventory';
 import { Product } from '../types';
-import { getProductAvailableStock } from '../utils/stockUtils';
 
+/**
+ * Registar uma movimentação de stock
+ */
 export class StockService {
-  /**
-   * Registar movimentação de stock
-   */
   static async recordMovement(
-    movement: Omit<StockMovement, 'id' | 'timestamp'>
-  ): Promise<StockMovement> {
-    try {
-      const now = new Date().toISOString();
-
-      const movementData = {
-        ...movement,
-        timestamp: now,
-      };
-
-      // Salvar movimento em Firestore
-      const movementsRef = collection(
-        db,
-        'stores',
-        movement.storeId,
-        'stockMovements'
-      );
-
-      const docRef = await addDoc(movementsRef, {
-        ...movementData,
-        timestamp: serverTimestamp(),
-      });
-
-      // Atualizar quantidade disponível no produto
-      await this.updateProductQuantity(
-        movement.storeId,
-        movement.productId,
-        movement.quantity,
-        movement.type
-      );
-
-      return {
-        ...movementData,
-        id: docRef.id,
-      };
-    } catch (error) {
-      console.error('Erro ao registar movimento de stock:', error);
-      throw new Error('Falha ao registar movimento de stock');
-    }
-  }
-
-  /**
-   * Atualizar quantidade disponível do produto
-   */
-  private static async updateProductQuantity(
     storeId: string,
     productId: string,
+    product: Product,
+    type: StockMovementType,
     quantity: number,
-    type: 'IN' | 'OUT' | 'ADJUSTMENT'
-  ): Promise<void> {
+    reason: StockMovementReason,
+    userId: string,
+    options?: {
+      reference?: string;
+      batchNumber?: string;
+      unitCost?: number;
+      notes?: string;
+    }
+  ): Promise<StockMovement> {
     try {
-      const productRef = doc(db, 'stores', storeId, 'products', productId);
-      const productSnap = await getDoc(productRef);
-
-      if (!productSnap.exists()) {
-        console.warn('Produto não encontrado:', productId);
-        return;
+      // Validar quantidade
+      if (quantity <= 0) {
+        throw new Error('Quantidade deve ser maior que zero');
       }
 
-      const productData = productSnap.data();
-      const currentQuantity = Number(
-        productData.quantidadeDisponivel ?? productData.quantidadeDisponível ?? productData.quantidade ?? 0
-      );
-      let newQuantity = currentQuantity;
+      // Obter quantidade anterior
+      const currentQuantity = product.quantidadeDisponível || 0;
 
+      // Calcular nova quantidade
+      let newQuantity = currentQuantity;
       if (type === 'IN') {
         newQuantity = currentQuantity + quantity;
       } else if (type === 'OUT') {
-        newQuantity = Math.max(0, currentQuantity - quantity);
+        if (currentQuantity < quantity) {
+          throw new Error(`Stock insuficiente. Disponível: ${currentQuantity}`);
+        }
+        newQuantity = currentQuantity - quantity;
       } else if (type === 'ADJUSTMENT') {
-        newQuantity = quantity; // Ajuste direto
+        newQuantity = quantity; // ADJUSTMENT é o valor final
       }
 
-      await updateDoc(productRef, {
-        quantidadeDisponivel: newQuantity,
-        quantidadeDisponível: newQuantity,
-        ultimaMovimentacao: serverTimestamp(),
+      // Criar movimento
+      const movement: Omit<StockMovement, 'id'> = {
+        storeId,
+        productId,
+        productName: product.nome,
+        type,
+        reason,
+        quantity,
+        previousQuantity: currentQuantity,
+        newQuantity,
+        reference: options?.reference,
+        batchNumber: options?.batchNumber,
+        timestamp: new Date().toISOString(),
+        createdBy: userId,
+        notes: options?.notes,
+        unitCost: options?.unitCost,
+        totalCost: options?.unitCost ? options.unitCost * quantity : undefined,
+      };
+
+      // Salvar no Firestore
+      const movementsRef = collection(db, 'stores', storeId, 'stockMovements');
+      const docRef = await addDoc(movementsRef, {
+        ...movement,
+        timestamp: serverTimestamp(),
       });
+
+      // Atualizar produto com nova quantidade
+      const productRef = doc(db, 'stores', storeId, 'products', productId);
+      await updateDoc(productRef, {
+        quantidadeDisponível: newQuantity,
+      });
+
+      // Registar no histórico
+      await this.recordHistory(storeId, {
+        movementId: docRef.id,
+        productId,
+        ...movement,
+      });
+
+      // Verificar alertas de stock baixo
+      await this.checkAndCreateStockAlerts(storeId, productId, product, newQuantity);
+
+      const createdMovement: StockMovement = {
+        ...movement,
+        id: docRef.id,
+      };
+
+      console.log(`✅ Movimento registado: ${type} de ${quantity} unidades - ${product.nome}`);
+
+      return createdMovement;
     } catch (error) {
-      console.error('Erro ao atualizar quantidade do produto:', error);
-      // Não lançar erro - movimento já foi registado
+      console.error('Erro ao registar movimento:', error);
+      throw error;
     }
   }
 
   /**
-   * Obter histórico de movimentações com filtros
+   * Obter histórico de movimentações
    */
   static async getMovementHistory(
     storeId: string,
     filters?: {
       productId?: string;
-      type?: 'IN' | 'OUT' | 'ADJUSTMENT';
-      reason?: string;
+      type?: StockMovementType;
+      reason?: StockMovementReason;
       startDate?: string;
       endDate?: string;
       limit?: number;
     }
-  ): Promise<StockMovementHistory> {
+  ): Promise<StockMovement[]> {
     try {
-      const movementsRef = collection(
-        db,
-        'stores',
-        storeId,
-        'stockMovements'
-      );
-      const constraints: QueryConstraint[] = [orderBy('timestamp', 'desc')];
+      const movementsRef = collection(db, 'stores', storeId, 'stockMovements');
+      const constraints: QueryConstraint[] = [];
 
       if (filters?.productId) {
         constraints.push(where('productId', '==', filters.productId));
@@ -158,10 +162,6 @@ export class StockService {
         constraints.push(where('reason', '==', filters.reason));
       }
 
-      if (filters?.limit) {
-        constraints.push(limit(filters.limit));
-      }
-
       const q = query(movementsRef, ...constraints);
       const snapshot = await getDocs(q);
 
@@ -173,279 +173,326 @@ export class StockService {
       // Filtrar por data se especificado
       if (filters?.startDate || filters?.endDate) {
         movements = movements.filter((m) => {
-          const movementDate = new Date(m.timestamp).getTime();
-          const startTime = filters.startDate
-            ? new Date(filters.startDate).getTime()
-            : 0;
-          const endTime = filters.endDate
-            ? new Date(filters.endDate).getTime()
-            : Infinity;
-          return movementDate >= startTime && movementDate <= endTime;
+          const movDate = new Date(m.timestamp).getTime();
+          const startTime = filters.startDate ? new Date(filters.startDate).getTime() : 0;
+          const endTime = filters.endDate ? new Date(filters.endDate).getTime() : Infinity;
+          return movDate >= startTime && movDate <= endTime;
         });
       }
 
-      const dateRange = {
-        from: movements.length > 0
-          ? movements[movements.length - 1].timestamp
-          : new Date().toISOString(),
-        to: movements.length > 0
-          ? movements[0].timestamp
-          : new Date().toISOString(),
-      };
+      // Ordenar por data descendente
+      movements.sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
 
-      return {
-        movements,
-        totalCount: movements.length,
-        dateRange,
-      };
+      if (filters?.limit) {
+        return movements.slice(0, filters.limit);
+      }
+
+      return movements;
     } catch (error) {
-      console.error('Erro ao buscar histórico de movimentações:', error);
-      return {
-        movements: [],
-        totalCount: 0,
-        dateRange: { from: '', to: '' },
-      };
-    }
-  }
-
-  /**
-   * Verificar produtos com stock baixo
-   */
-  static async checkLowStockAlerts(storeId: string): Promise<StockAlert[]> {
-    try {
-      const productsRef = collection(db, 'stores', storeId, 'products');
-      const snapshot = await getDocs(productsRef);
-
-      const alerts: StockAlert[] = [];
-
-      snapshot.forEach((docSnapshot) => {
-        const product = { id: docSnapshot.id, ...docSnapshot.data() } as Product;
-        const quantity = getProductAvailableStock(product);
-        const minQuantity = product.quantidadeMinima ?? 5;
-        const reorderQuantity = 10; // Padrão
-
-        if (quantity <= minQuantity) {
-          alerts.push({
-            id: `stock-${product.id}-${Date.now()}`,
-            storeId,
-            productId: product.id || docSnapshot.id,
-            productName: product.nome,
-            currentQuantity: quantity,
-            minQuantity,
-            reorderQuantity,
-            severity: quantity <= 2 ? 'CRITICAL' : 'WARNING',
-            type: quantity <= 2 ? 'LOW_STOCK' : 'REORDER_SUGGESTED',
-            createdAt: new Date().toISOString(),
-            channels: [],
-          });
-        }
-      });
-
-      return alerts;
-    } catch (error) {
-      console.error('Erro ao verificar alertas de stock:', error);
+      console.error('Erro ao obter histórico:', error);
       return [];
     }
   }
 
   /**
-   * Calcular tendências e previsões de stock
+   * Verificar e criar alertas de stock baixo
+   */
+  private static async checkAndCreateStockAlerts(
+    storeId: string,
+    productId: string,
+    product: Product,
+    currentQuantity: number
+  ): Promise<void> {
+    try {
+      // Buscar configuração de alertas
+      const alertConfigRef = collection(db, 'stores', storeId, 'stockAlertConfigs');
+      const q = query(
+        alertConfigRef,
+        where('productId', '==', productId)
+      );
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        return; // Sem configuração específica
+      }
+
+      const config = snapshot.docs[0].data() as StockAlertConfig;
+
+      if (!config.enableAutoAlert) {
+        return;
+      }
+
+      // Verificar se deve criar alerta
+      if (currentQuantity < config.minQuantity) {
+        const severity = currentQuantity < (config.minQuantity * 0.5) ? 'CRITICAL' : 'LOW';
+
+        // Calcular dias até esgotar
+        const avgDailyUsage = await this.calculateAverageDailyUsage(storeId, productId);
+        const daysUntilStockout = avgDailyUsage > 0 ? Math.ceil(currentQuantity / avgDailyUsage) : undefined;
+
+        const alert: Omit<StockAlert, 'id'> = {
+          storeId,
+          productId,
+          productName: product.nome,
+          currentQuantity,
+          minQuantity: config.minQuantity,
+          reorderQuantity: config.reorderQuantity,
+          severity,
+          createdAt: new Date().toISOString(),
+          channels: config.alertChannels,
+          suggestedReorderQuantity: config.reorderQuantity,
+          daysUntilStockout,
+        };
+
+        const alertsRef = collection(db, 'stores', storeId, 'stockAlerts');
+        await addDoc(alertsRef, {
+          ...alert,
+          createdAt: serverTimestamp(),
+        });
+
+        console.log(`⚠️ Alerta de stock baixo criado para ${product.nome} (${severity})`);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar alertas de stock:', error);
+      // Não lançar erro - verificação de alertas não deve falhar o sistema
+    }
+  }
+
+  /**
+   * Calcular uso médio diário
+   */
+  private static async calculateAverageDailyUsage(
+    storeId: string,
+    productId: string,
+    days: number = 30
+  ): Promise<number> {
+    try {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+
+      const movements = await this.getMovementHistory(storeId, {
+        productId,
+        type: 'OUT',
+        startDate: startDate.toISOString(),
+      });
+
+      if (movements.length === 0) {
+        return 0;
+      }
+
+      const totalQuantity = movements.reduce((sum, m) => sum + m.quantity, 0);
+      return totalQuantity / days;
+    } catch (error) {
+      console.error('Erro ao calcular uso médio:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Obter alertas de stock baixo
+   */
+  static async getStockAlerts(
+    storeId: string,
+    filters?: { resolved?: boolean; severity?: 'LOW' | 'CRITICAL' }
+  ): Promise<StockAlert[]> {
+    try {
+      const alertsRef = collection(db, 'stores', storeId, 'stockAlerts');
+      const constraints: QueryConstraint[] = [];
+
+      if (filters?.severity) {
+        constraints.push(where('severity', '==', filters.severity));
+      }
+
+      const q = query(alertsRef, ...constraints);
+      const snapshot = await getDocs(q);
+
+      let alerts: StockAlert[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as StockAlert[];
+
+      // Filtrar por resolvido
+      if (filters?.resolved === false) {
+        alerts = alerts.filter((a) => !a.resolvedAt);
+      } else if (filters?.resolved === true) {
+        alerts = alerts.filter((a) => a.resolvedAt);
+      }
+
+      return alerts;
+    } catch (error) {
+      console.error('Erro ao obter alertas:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Reconhecer alerta de stock
+   */
+  static async acknowledgeStockAlert(
+    storeId: string,
+    alertId: string,
+    userId: string
+  ): Promise<void> {
+    try {
+      const alertRef = doc(db, 'stores', storeId, 'stockAlerts', alertId);
+      await updateDoc(alertRef, {
+        acknowledgedAt: serverTimestamp(),
+      });
+
+      console.log(`✅ Alerta de stock reconhecido: ${alertId}`);
+    } catch (error) {
+      console.error('Erro ao reconhecer alerta:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Registar no histórico
+   */
+  private static async recordHistory(
+    storeId: string,
+    movement: StockMovement
+  ): Promise<void> {
+    try {
+      const historyRef = collection(db, 'stores', storeId, 'stockHistory');
+
+      const history: Omit<StockHistory, 'id'> = {
+        storeId,
+        productId: movement.productId,
+        movementId: movement.id,
+        type: movement.type,
+        reason: movement.reason,
+        quantity: movement.quantity,
+        previousQuantity: movement.previousQuantity,
+        newQuantity: movement.newQuantity,
+        timestamp: movement.timestamp,
+        userId: movement.createdBy,
+        details: {
+          reference: movement.reference,
+          batchNumber: movement.batchNumber,
+          unitCost: movement.unitCost,
+          totalCost: movement.totalCost,
+          notes: movement.notes,
+        },
+      };
+
+      await addDoc(historyRef, {
+        ...history,
+        timestamp: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error('Erro ao registar histórico:', error);
+    }
+  }
+
+  /**
+   * Gerar relatório de reabastecimento
+   */
+  static async generateReorderReport(storeId: string): Promise<ReorderReport> {
+    try {
+      const alertsRef = collection(db, 'stores', storeId, 'stockAlerts');
+      const snapshot = await getDocs(query(alertsRef, where('resolvedAt', '==', null)));
+
+      const itemsToReorder = (snapshot.docs.map((doc) => {
+        const alert = doc.data() as StockAlert;
+        return {
+          productId: alert.productId,
+          productName: alert.productName,
+          currentQuantity: alert.currentQuantity,
+          minQuantity: alert.minQuantity,
+          suggestedQuantity: alert.reorderQuantity || alert.minQuantity * 2,
+          estimatedCost: (alert.reorderQuantity || alert.minQuantity * 2) * 10, // Placeholder
+          daysUntilStockout: alert.daysUntilStockout || 0,
+          priority:
+            alert.severity === 'CRITICAL'
+              ? 'URGENT'
+              : alert.daysUntilStockout && alert.daysUntilStockout < 7
+              ? 'HIGH'
+              : 'MEDIUM',
+        };
+      }) as any[]).sort(
+        (a, b) =>
+          (['URGENT', 'HIGH', 'MEDIUM', 'LOW'].indexOf(a.priority) -
+            ['URGENT', 'HIGH', 'MEDIUM', 'LOW'].indexOf(b.priority)) ||
+          a.daysUntilStockout - b.daysUntilStockout
+      );
+
+      const totalSuggestedCost = itemsToReorder.reduce((sum, item) => sum + item.estimatedCost, 0);
+
+      return {
+        id: `report-${Date.now()}`,
+        storeId,
+        generatedAt: new Date().toISOString(),
+        itemsToReorder,
+        totalSuggestedCost,
+        totalItems: itemsToReorder.length,
+      };
+    } catch (error) {
+      console.error('Erro ao gerar relatório:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obter análise de stock de um produto
    */
   static async getStockAnalytics(
     storeId: string,
     productId: string,
+    product: Product,
     days: number = 30
-  ): Promise<StockAnalytics | null> {
+  ): Promise<StockAnalytics> {
     try {
-      // Buscar produto
-      const productRef = doc(db, 'stores', storeId, 'products', productId);
-      const productSnap = await getDoc(productRef);
+      const movements = await this.getMovementHistory(storeId, { productId });
 
-      if (!productSnap.exists()) {
-        return null;
-      }
+      // Calcular dados por dia
+      const quantityByDate: Record<string, number> = {};
+      let currentQty = product.quantidadeDisponível || 0;
 
-      const product = productSnap.data() as Product;
-
-      // Buscar movimentações dos últimos N dias
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-
-      const history = await this.getMovementHistory(storeId, {
-        productId,
-        startDate: startDate.toISOString(),
+      movements.reverse().forEach((m) => {
+        const date = m.timestamp.split('T')[0];
+        if (!quantityByDate[date]) {
+          quantityByDate[date] = currentQty - (m.type === 'IN' ? m.quantity : -m.quantity);
+        }
       });
 
-      // Calcular estatísticas
-      let totalIn = 0;
-      let totalOut = 0;
+      const quantityHistory = Object.entries(quantityByDate)
+        .map(([date, qty]) => ({ date, quantity: qty }))
+        .sort((a, b) => a.date.localeCompare(b.date));
 
-      history.movements.forEach((m) => {
-        if (m.type === 'IN') totalIn += m.quantity;
-        else if (m.type === 'OUT') totalOut += m.quantity;
-      });
+      // Calcular trend
+      const recent = quantityHistory.slice(-7);
+      const older = quantityHistory.slice(-14, -7);
 
-      const currentQuantity = getProductAvailableStock(product);
-      const averageDaily = totalOut > 0 ? totalOut / days : 0;
-      const daysUntilEmpty =
-        averageDaily > 0
-          ? Math.ceil(currentQuantity / averageDaily)
-          : 999;
+      const recentAvg = recent.length > 0 ? recent.reduce((sum, h) => sum + h.quantity, 0) / recent.length : 0;
+      const olderAvg = older.length > 0 ? older.reduce((sum, h) => sum + h.quantity, 0) / older.length : 0;
 
-      // Determinar tendência
-      let trend: 'increasing' | 'stable' | 'decreasing' = 'stable';
-      if (totalIn > totalOut * 1.2) trend = 'increasing';
-      else if (totalOut > totalIn * 1.2) trend = 'decreasing';
+      const trendPercent = olderAvg > 0 ? ((recentAvg - olderAvg) / olderAvg) * 100 : 0;
+      const trend = trendPercent > 5 ? 'increasing' : trendPercent < -5 ? 'decreasing' : 'stable';
+
+      // Calcular uso médio
+      const avgDailyUsage = await this.calculateAverageDailyUsage(storeId, productId, days);
+      const daysUntilStockout = avgDailyUsage > 0 ? Math.ceil((product.quantidadeDisponível || 0) / avgDailyUsage) : undefined;
 
       return {
         productId,
         productName: product.nome,
-        totalIn,
-        totalOut,
-        currentQuantity,
-        averageDaily,
-        daysUntilEmpty,
-        trend,
-        lastMovement: history.movements[0]?.timestamp || new Date().toISOString(),
-      };
-    } catch (error) {
-      console.error('Erro ao calcular analytics de stock:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Sugerir quantidade de reabastecimento
-   */
-  static calculateReorderSuggestion(
-    currentQuantity: number,
-    averageDaily: number,
-    leadDays: number = 7,
-    targetDays: number = 30
-  ): number {
-    // Quantidade = (demanda média diária × dias de lead) + (demanda média diária × dias de target)
-    const reorderPoint = averageDaily * leadDays;
-    const targetStock = averageDaily * targetDays;
-    const reorderQuantity = Math.ceil(Math.max(targetStock - currentQuantity, 0));
-
-    return reorderQuantity;
-  }
-
-  /**
-   * Criar alerta de stock customizado
-   */
-  static async createStockAlertConfig(
-    config: Omit<StockAlertConfig, 'id' | 'createdAt' | 'updatedAt'>
-  ): Promise<StockAlertConfig> {
-    try {
-      const now = new Date().toISOString();
-
-      const configData = {
-        ...config,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      const alertsRef = collection(
-        db,
-        'stores',
-        config.storeId,
-        'stockAlertConfigs'
-      );
-
-      const docRef = await addDoc(alertsRef, {
-        ...configData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      return {
-        ...configData,
-        id: docRef.id,
-      };
-    } catch (error) {
-      console.error('Erro ao criar configuração de alerta:', error);
-      throw new Error('Falha ao criar configuração de alerta');
-    }
-  }
-
-  /**
-   * Obter configurações de alertas
-   */
-  static async getAlertConfigs(storeId: string): Promise<StockAlertConfig[]> {
-    try {
-      const configsRef = collection(
-        db,
-        'stores',
         storeId,
-        'stockAlertConfigs'
-      );
-
-      const snapshot = await getDocs(configsRef);
-
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as StockAlertConfig[];
+        currentQuantity: product.quantidadeDisponível || 0,
+        minQuantity: product.quantidadeMinima || 5,
+        quantityHistory,
+        trend,
+        trendPercent,
+        averageDailyUsage: avgDailyUsage,
+        daysUntilStockout,
+        turnoverRate: avgDailyUsage * 30,
+        totalValue: (product.quantidadeDisponível || 0) * (product.preco || 0),
+      };
     } catch (error) {
-      console.error('Erro ao buscar configurações de alertas:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Gerar relatório de reabastecimento recomendado
-   */
-  static async getReorderReport(
-    storeId: string
-  ): Promise<
-    Array<{
-      productId: string;
-      productName: string;
-      currentQuantity: number;
-      suggestedQuantity: number;
-      priority: 'URGENT' | 'HIGH' | 'MEDIUM';
-    }>
-  > {
-    try {
-      const alerts = await this.checkLowStockAlerts(storeId);
-      const report: any[] = [];
-
-      for (const alert of alerts) {
-        const analytics = await this.getStockAnalytics(
-          storeId,
-          alert.productId
-        );
-
-        if (analytics) {
-          const suggestedQuantity = this.calculateReorderSuggestion(
-            analytics.currentQuantity,
-            analytics.averageDaily
-          );
-
-          report.push({
-            productId: alert.productId,
-            productName: alert.productName,
-            currentQuantity: analytics.currentQuantity,
-            suggestedQuantity,
-            priority:
-              alert.severity === 'CRITICAL'
-                ? 'URGENT'
-                : alert.currentQuantity === 0
-                ? 'HIGH'
-                : 'MEDIUM',
-          });
-        }
-      }
-
-      return report.sort(
-        (a, b) =>
-          (['URGENT', 'HIGH', 'MEDIUM'].indexOf(a.priority) -
-            ['URGENT', 'HIGH', 'MEDIUM'].indexOf(b.priority))
-      );
-    } catch (error) {
-      console.error('Erro ao gerar relatório de reabastecimento:', error);
-      return [];
+      console.error('Erro ao calcular analytics:', error);
+      throw error;
     }
   }
 }

@@ -1,289 +1,253 @@
 /**
- * StockMovementRecorder Component
- * Registar movimentações de stock (entrada/saída)
- * NOVO (Fase 13 Phase 2): Gestão de estoque
+ * Componente: StockMovementRecorder
+ * Formulário rápido para registar movimentação de estoque
+ * FASE 2: Gestão de Estoque Automática
  */
 
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import {
-  Plus,
-  Minus,
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
-} from 'lucide-react';
-import { useStore } from '../contexts/StoreContext';
+import { ArrowUp, ArrowDown, RotateCcw, Save } from 'lucide-react';
 import { useStockMovements } from '../hooks/useStockMovements';
+import { useStore } from '../hooks/useStore';
 import { useAuth } from '../hooks/useAuth';
 import { StockMovementType, StockMovementReason } from '../types/inventory';
-import { getProductAvailableStock } from '../utils/stockUtils';
+import { Product } from '../types';
 
 interface StockMovementRecorderProps {
-  productId?: string;
-  productName?: string;
+  product: Product;
   onSuccess?: () => void;
 }
 
-export default function StockMovementRecorder({
-  productId: defaultProductId,
-  productName: defaultProductName,
-  onSuccess,
-}: StockMovementRecorderProps) {
-  const { products, currentStore } = useStore();
+const MOVEMENT_TYPES: { type: StockMovementType; label: string; icon: React.ComponentType<any>; color: string }[] = [
+  { type: 'IN', label: 'Entrada', icon: ArrowUp, color: 'bg-green-50 border-green-200' },
+  { type: 'OUT', label: 'Saída', icon: ArrowDown, color: 'bg-red-50 border-red-200' },
+  { type: 'ADJUSTMENT', label: 'Ajuste', icon: RotateCcw, color: 'bg-blue-50 border-blue-200' },
+];
+
+const REASONS: Record<StockMovementType, { value: StockMovementReason; label: string }[]> = {
+  IN: [
+    { value: 'purchase', label: 'Compra ao fornecedor' },
+    { value: 'return', label: 'Devolução do cliente' },
+    { value: 'transfer', label: 'Transferência de armazém' },
+    { value: 'other', label: 'Outro' },
+  ],
+  OUT: [
+    { value: 'sale', label: 'Venda ao cliente' },
+    { value: 'damage', label: 'Produto danificado' },
+    { value: 'expiry', label: 'Produto expirado' },
+    { value: 'loss', label: 'Perda não identificada' },
+    { value: 'other', label: 'Outro' },
+  ],
+  ADJUSTMENT: [
+    { value: 'inventory_count', label: 'Contagem física' },
+    { value: 'adjustment', label: 'Ajuste manual' },
+    { value: 'other', label: 'Outro' },
+  ],
+};
+
+export function StockMovementRecorder({ product, onSuccess }: StockMovementRecorderProps) {
+  const { recordMovement, isLoading, error, clearError } = useStockMovements();
+  const { currentStore } = useStore();
   const { user } = useAuth();
-  const [, actions] = useStockMovements(currentStore?.storeId || '');
-  const safeProducts = Array.isArray(products) ? products : [];
 
-  const [formData, setFormData] = useState({
-    productId: defaultProductId || '',
-    type: 'IN' as StockMovementType,
-    quantity: 1,
-    reason: 'purchase' as StockMovementReason,
-    notes: '',
-  });
+  const [movementType, setMovementType] = useState<StockMovementType>('IN');
+  const [reason, setReason] = useState<StockMovementReason>('purchase');
+  const [quantity, setQuantity] = useState<string>('1');
+  const [reference, setReference] = useState<string>('');
+  const [batchNumber, setBatchNumber] = useState<string>('');
+  const [unitCost, setUnitCost] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
-
-  const selectedProduct = safeProducts.find((p) => p.id === formData.productId);
+  const currentTypeConfig = MOVEMENT_TYPES.find((t) => t.type === movementType)!;
+  const availableReasons = REASONS[movementType];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(null);
 
-    if (!formData.productId || !currentStore?.storeId) {
-      setMessage({
-        type: 'error',
-        text: 'Produto e loja são obrigatórios',
-      });
-      return;
-    }
-
-    if (!user?.uid) {
-      setMessage({
-        type: 'error',
-        text: 'Sessão inválida. Entra novamente para registar a movimentação.',
-      });
-      return;
-    }
-
-    if (formData.quantity <= 0) {
-      setMessage({
-        type: 'error',
-        text: 'Quantidade deve ser maior que 0',
-      });
+    if (!currentStore?.storeId || !user?.uid) {
       return;
     }
 
     try {
-      setIsSubmitting(true);
+      await recordMovement(
+        product.id,
+        product,
+        movementType,
+        parseInt(quantity),
+        reason,
+        user.uid,
+        {
+          reference: reference || undefined,
+          batchNumber: batchNumber || undefined,
+          unitCost: unitCost ? parseFloat(unitCost) : undefined,
+          notes: notes || undefined,
+        }
+      );
 
-      await actions.recordMovement({
-        storeId: currentStore.storeId,
-        productId: formData.productId,
-        type: formData.type,
-        quantity: formData.quantity,
-        reason: formData.reason,
-        notes: formData.notes || undefined,
-        userId: user.uid,
-      });
-
-      setMessage({
-        type: 'success',
-        text: `Movimento registado com sucesso`,
-      });
-
-      // Reset form
-      setFormData({
-        productId: defaultProductId || '',
-        type: 'IN',
-        quantity: 1,
-        reason: 'purchase',
-        notes: '',
-      });
+      // Limpar formulário
+      setQuantity('1');
+      setReference('');
+      setBatchNumber('');
+      setUnitCost('');
+      setNotes('');
 
       onSuccess?.();
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'Erro ao registar movimento',
-      });
-    } finally {
-      setIsSubmitting(false);
+    } catch (err) {
+      console.error('Erro ao registar movimento:', err);
     }
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-6 shadow-sm"
-    >
-      <div className="flex items-center gap-2 mb-6">
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-          Registar Movimentação
-        </h2>
+    <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-semibold">Registar Movimentação</h2>
+        <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg">
+          <span className="text-sm font-medium text-gray-600">{product.nome}</span>
+          <span className="text-sm text-gray-500">Stock: {product.quantidadeDisponível}</span>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Produto */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-            Produto *
-          </label>
-          <select
-            value={formData.productId}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                productId: e.target.value,
-              }))
-            }
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={!!defaultProductId}
-          >
-            <option value="">Selecionar produto</option>
-            {safeProducts.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.nome} (Qty: {getProductAvailableStock(product)})
-              </option>
-            ))}
-          </select>
+      {error && (
+        <div className="p-3 bg-red-100 border border-red-300 rounded-lg mb-4 flex items-start justify-between">
+          <p className="text-sm font-medium text-red-800">{error}</p>
+          <button onClick={clearError} className="text-red-600 hover:text-red-800">
+            ✕
+          </button>
         </div>
+      )}
 
-        {/* Tipo de Movimento */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Tipo *
-            </label>
-            <div className="flex gap-2">
-              {(['IN', 'OUT'] as const).map((type) => (
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Tipo de movimento */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-3">Tipo de Movimentação</label>
+          <div className="grid grid-cols-3 gap-3">
+            {MOVEMENT_TYPES.map((option) => {
+              const Icon = option.icon;
+              return (
                 <button
-                  key={type}
+                  key={option.type}
                   type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({ ...prev, type }))
-                  }
-                  className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                    formData.type === type
-                      ? type === 'IN'
-                        ? 'bg-emerald-500 text-white'
-                        : 'bg-red-500 text-white'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  onClick={() => {
+                    setMovementType(option.type);
+                    setReason(REASONS[option.type][0].value);
+                  }}
+                  className={`p-4 border-2 rounded-lg transition ${
+                    movementType === option.type
+                      ? `${option.color} border-current`
+                      : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  {type === 'IN' ? (
-                    <Plus size={18} className="inline mr-1" />
-                  ) : (
-                    <Minus size={18} className="inline mr-1" />
-                  )}
-                  {type}
+                  <Icon className="w-6 h-6 mx-auto mb-2" />
+                  <span className="text-sm font-medium">{option.label}</span>
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Quantidade */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Quantidade *
-            </label>
-            <input
-              type="number"
-              min="1"
-              value={formData.quantity}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  quantity: parseInt(e.target.value) || 1,
-                }))
-              }
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+              );
+            })}
           </div>
         </div>
 
         {/* Razão */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-            Razão *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Motivo</label>
           <select
-            value={formData.reason}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                reason: e.target.value as StockMovementReason,
-              }))
-            }
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={reason}
+            onChange={(e) => setReason(e.target.value as StockMovementReason)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="purchase">Compra</option>
-            <option value="sale">Venda</option>
-            <option value="return">Devolução</option>
-            <option value="loss">Perda/Quebra</option>
-            <option value="inventory">Ajuste Inventário</option>
-            <option value="transfer">Transferência</option>
-            <option value="damage">Danificado</option>
-            <option value="expiry">Vencimento</option>
-            <option value="other">Outro</option>
+            {availableReasons.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
           </select>
+        </div>
+
+        {/* Quantidade */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Quantidade*</label>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              min="1"
+              max={movementType === 'OUT' ? product.quantidadeDisponível : 999999}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Custo Unitário (Kz)</label>
+            <input
+              type="number"
+              value={unitCost}
+              onChange={(e) => setUnitCost(e.target.value)}
+              step="0.01"
+              min="0"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* Referência e Lote */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Referência (ex: Fatura #)</label>
+            <input
+              type="text"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="FAT-2026-001"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Número de Lote</label>
+            <input
+              type="text"
+              value={batchNumber}
+              onChange={(e) => setBatchNumber(e.target.value)}
+              placeholder="LOT-2026-001"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
 
         {/* Notas */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-            Notas
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Notas (opcional)</label>
           <textarea
-            value={formData.notes}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                notes: e.target.value,
-              }))
-            }
-            rows={2}
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Observações adicionais..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Adicione observações sobre esta movimentação..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            rows={3}
           />
         </div>
 
-        {/* Mensagem */}
-        {message && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className={`p-3 rounded-lg flex items-center gap-2 text-sm ${
-              message.type === 'success'
-                ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300'
-                : 'bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300'
-            }`}
-          >
-            {message.type === 'success' ? (
-              <CheckCircle2 size={16} />
-            ) : (
-              <AlertCircle size={16} />
-            )}
-            {message.text}
-          </motion.div>
-        )}
+        {/* Preview */}
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-gray-700">
+            Stock atual: <strong>{product.quantidadeDisponível}</strong>
+            {' → '}
+            <strong>
+              {movementType === 'IN'
+                ? product.quantidadeDisponível + parseInt(quantity)
+                : movementType === 'OUT'
+                ? product.quantidadeDisponível - parseInt(quantity)
+                : parseInt(quantity)}
+            </strong>
+          </p>
+        </div>
 
-        {/* Submit */}
+        {/* Botão Submit */}
         <button
           type="submit"
-          disabled={isSubmitting}
-          className="w-full py-2 px-4 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+          disabled={isLoading}
+          className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-          {isSubmitting ? 'Registando...' : 'Registar Movimento'}
+          <Save className="w-4 h-4" />
+          {isLoading ? 'Registando...' : 'Registar Movimentação'}
         </button>
       </form>
-    </motion.div>
+    </div>
   );
 }

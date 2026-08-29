@@ -1,148 +1,166 @@
 /**
  * Hook: useStockAlerts
- * Monitora e gerencia alertas de stock baixo
- * Padrão: [data, loading, error, actions]
+ * Gerenciar alertas de stock baixo
+ * FASE 2: Gestão de Estoque Automática
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { StockAlert } from '../types/inventory';
+import { StockAlert, ReorderReport } from '../types/inventory';
 import { StockService } from '../services/stockService';
+import { useStore } from './useStore';
 
-interface UseStockAlertsState {
+export interface UseStockAlertsReturn {
+  // Estado
   alerts: StockAlert[];
-  criticalCount: number;
-  warningCount: number;
-  loading: boolean;
+  reorderReport: ReorderReport | null;
+  isLoading: boolean;
   error: string | null;
+
+  // Ações
+  getStockAlerts: (filters?: any) => Promise<void>;
+  acknowledgeAlert: (alertId: string, userId: string) => Promise<void>;
+  generateReorderReport: () => Promise<void>;
+  refreshAlerts: () => Promise<void>;
+  clearError: () => void;
 }
 
-interface UseStockAlertsActions {
-  checkAlerts: () => Promise<void>;
-  refetch: () => Promise<void>;
-}
-
-export function useStockAlerts(
-  storeId: string
-): [UseStockAlertsState, UseStockAlertsActions] {
-  const [state, setState] = useState<UseStockAlertsState>({
-    alerts: [],
-    criticalCount: 0,
-    warningCount: 0,
-    loading: true,
-    error: null,
-  });
-
-  /**
-   * Verificar alertas de stock
-   */
-  const checkAlerts = useCallback(async () => {
-    if (!storeId) {
-      setState({
-        alerts: [],
-        criticalCount: 0,
-        warningCount: 0,
-        loading: false,
-        error: 'storeId não fornecido',
-      });
-      return;
-    }
-
-    try {
-      setState((prev) => ({ ...prev, loading: true, error: null }));
-
-      const alerts = await StockService.checkLowStockAlerts(storeId);
-
-      const criticalCount = alerts.filter(
-        (a) => a.severity === 'CRITICAL'
-      ).length;
-      const warningCount = alerts.filter(
-        (a) => a.severity === 'WARNING'
-      ).length;
-
-      setState({
-        alerts,
-        criticalCount,
-        warningCount,
-        loading: false,
-        error: null,
-      });
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : 'Erro ao verificar alertas de stock';
-
-      setState({
-        alerts: [],
-        criticalCount: 0,
-        warningCount: 0,
-        loading: false,
-        error: errorMessage,
-      });
-    }
-  }, [storeId]);
-
-  /**
-   * Recarregar alertas
-   */
-  const refetch = useCallback(async () => {
-    await checkAlerts();
-  }, [checkAlerts]);
-
-  // Carregar alertas ao montar
-  useEffect(() => {
-    checkAlerts();
-  }, [checkAlerts]);
-
-  return [
-    state,
-    {
-      checkAlerts,
-      refetch,
-    },
-  ];
-}
-
-/**
- * Hook: useReorderSuggestions
- * Gera recomendações de reabastecimento
- */
-export function useReorderSuggestions(storeId: string) {
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+export function useStockAlerts(): UseStockAlertsReturn {
+  const { currentStore } = useStore();
+  const [alerts, setAlerts] = useState<StockAlert[]>([]);
+  const [reorderReport, setReorderReport] = useState<ReorderReport | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const generateSuggestions = useCallback(async () => {
-    if (!storeId) {
-      setError('storeId não fornecido');
+  /**
+   * Obter alertas de stock
+   */
+  const getStockAlerts = useCallback(
+    async (filters?: any) => {
+      if (!currentStore?.storeId) {
+        setError('Loja não selecionada');
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const loadedAlerts = await StockService.getStockAlerts(
+          currentStore.storeId,
+          filters
+        );
+
+        setAlerts(loadedAlerts);
+
+        console.log(`✅ ${loadedAlerts.length} alertas de stock carregados`);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar alertas';
+        setError(errorMessage);
+        console.error('Erro ao carregar alertas:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [currentStore?.storeId]
+  );
+
+  /**
+   * Reconhecer alerta
+   */
+  const acknowledgeAlert = useCallback(
+    async (alertId: string, userId: string) => {
+      if (!currentStore?.storeId) {
+        setError('Loja não selecionada');
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        await StockService.acknowledgeStockAlert(currentStore.storeId, alertId, userId);
+
+        // Atualizar lista local
+        setAlerts((prev) =>
+          prev.map((alert) =>
+            alert.id === alertId
+              ? { ...alert, acknowledgedAt: new Date().toISOString() }
+              : alert
+          )
+        );
+
+        console.log(`✅ Alerta reconhecido: ${alertId}`);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao reconhecer alerta';
+        setError(errorMessage);
+        console.error('Erro ao reconhecer alerta:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [currentStore?.storeId]
+  );
+
+  /**
+   * Gerar relatório de reabastecimento
+   */
+  const generateReorderReport = useCallback(async () => {
+    if (!currentStore?.storeId) {
+      setError('Loja não selecionada');
       return;
     }
 
     try {
-      setLoading(true);
+      setIsLoading(true);
       setError(null);
 
-      const report = await StockService.getReorderReport(storeId);
-      setSuggestions(report);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : 'Erro ao gerar sugestões de reabastecimento';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [storeId]);
+      const report = await StockService.generateReorderReport(currentStore.storeId);
+      setReorderReport(report);
 
+      console.log(`✅ Relatório de reabastecimento gerado: ${report.totalItems} itens`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao gerar relatório';
+      setError(errorMessage);
+      console.error('Erro ao gerar relatório:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentStore?.storeId]);
+
+  /**
+   * Atualizar tudo
+   */
+  const refreshAlerts = useCallback(async () => {
+    await getStockAlerts({ resolved: false });
+    await generateReorderReport();
+  }, [getStockAlerts, generateReorderReport]);
+
+  /**
+   * Limpar erro
+   */
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  // Carregar alertas ao montar ou mudar de loja
   useEffect(() => {
-    generateSuggestions();
-  }, [generateSuggestions]);
+    if (currentStore?.storeId) {
+      refreshAlerts();
+    }
+  }, [currentStore?.storeId, refreshAlerts]);
 
   return {
-    suggestions,
-    loading,
+    // Estado
+    alerts,
+    reorderReport,
+    isLoading,
     error,
-    refetch: generateSuggestions,
+
+    // Ações
+    getStockAlerts,
+    acknowledgeAlert,
+    generateReorderReport,
+    refreshAlerts,
+    clearError,
   };
 }

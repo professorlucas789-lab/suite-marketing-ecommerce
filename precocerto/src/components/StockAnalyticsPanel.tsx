@@ -1,334 +1,224 @@
 /**
- * StockAnalyticsPanel Component
- * Análise de tendências, previsões e recomendações de reabastecimento
- * NOVO (Fase 13 Phase 2): Gestão de estoque
+ * Componente: StockAnalyticsPanel
+ * Análise e gráficos de stock
+ * FASE 2: Gestão de Estoque Automática
  */
 
-import React, { useMemo } from 'react';
-import { motion } from 'motion/react';
-import {
-  TrendingDown,
-  TrendingUp,
-  AlertTriangle,
-  Package,
-  Clock,
-  ArrowRight,
-} from 'lucide-react';
-import { useStore } from '../contexts/StoreContext';
-import { useStockAlerts, useReorderSuggestions } from '../hooks/useStockAlerts';
-import { useStockAnalytics } from '../hooks/useStockMovements';
-import { getProductAvailableStock } from '../utils/stockUtils';
+import React, { useState, useEffect } from 'react';
+import { TrendingUp, TrendingDown, AlertCircle, Calendar } from 'lucide-react';
+import { StockAnalytics } from '../types/inventory';
+import { useStockMovements } from '../hooks/useStockMovements';
+import { Product } from '../types';
 
 interface StockAnalyticsPanelProps {
-  productId?: string;
+  product: Product;
 }
 
-export default function StockAnalyticsPanel({
-  productId,
-}: StockAnalyticsPanelProps) {
-  const { currentStore, products } = useStore();
-  const storeId = currentStore?.storeId || '';
+export function StockAnalyticsPanel({ product }: StockAnalyticsPanelProps) {
+  const { getStockAnalytics, isLoading, error } = useStockMovements();
+  const [analytics, setAnalytics] = useState<StockAnalytics | null>(null);
 
-  const [alertsState] = useStockAlerts(storeId);
-  const { suggestions, loading: suggestionsLoading } = useReorderSuggestions(storeId);
+  useEffect(() => {
+    loadAnalytics();
+  }, [product.id]);
 
-  // Se productId fornecido, mostrar analytics de 1 produto
-  const targetProduct = productId
-    ? products.find((p) => p.id === productId)
-    : undefined;
+  const loadAnalytics = async () => {
+    try {
+      const data = await getStockAnalytics(product.id, product);
+      setAnalytics(data);
+    } catch (err) {
+      console.error('Erro ao carregar análise:', err);
+    }
+  };
 
-  const { analytics, loading: analyticsLoading } = useStockAnalytics(
-    storeId,
-    productId || ''
-  );
-
-  // Calcular estatísticas agregadas
-  const stats = useMemo(() => {
-    const criticalProducts = alertsState.alerts.filter(
-      (a) => a.severity === 'CRITICAL'
+  if (isLoading) {
+    return (
+      <div className="p-8 text-center">
+        <div className="animate-spin inline-block w-8 h-8 border-4 border-gray-300 border-t-blue-600 rounded-full"></div>
+        <p className="mt-2 text-gray-500">Calculando análise...</p>
+      </div>
     );
-    const lowStockProducts = alertsState.alerts.filter(
-      (a) => a.severity === 'WARNING'
+  }
+
+  if (error || !analytics) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+        <p className="text-sm text-red-800">{error || 'Erro ao calcular análise'}</p>
+      </div>
     );
+  }
 
-    const totalValue = products.reduce((sum, p) => {
-      const price = p.precoVendaRecomendado || p.preco || 0;
-      const qty = getProductAvailableStock(p);
-      return sum + price * qty;
-    }, 0);
+  const getTrendIcon = () => {
+    if (analytics.trend === 'increasing') {
+      return <TrendingUp className="w-5 h-5 text-green-600" />;
+    } else if (analytics.trend === 'decreasing') {
+      return <TrendingDown className="w-5 h-5 text-red-600" />;
+    } else {
+      return <Calendar className="w-5 h-5 text-gray-600" />;
+    }
+  };
 
-    return {
-      totalProducts: products.length,
-      criticalCount: criticalProducts.length,
-      warningCount: lowStockProducts.length,
-      totalValue,
-      averageQuantity:
-        products.length > 0
-          ? Math.round(
-              products.reduce(
-                (sum, p) => sum + getProductAvailableStock(p),
-                0
-              ) / products.length
-            )
-          : 0,
-    };
-  }, [products, alertsState.alerts]);
+  const getTrendLabel = () => {
+    if (analytics.trend === 'increasing') {
+      return `Aumentando +${analytics.trendPercent.toFixed(1)}%`;
+    } else if (analytics.trend === 'decreasing') {
+      return `Diminuindo ${analytics.trendPercent.toFixed(1)}%`;
+    } else {
+      return 'Estável';
+    }
+  };
 
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Products */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4 shadow-xs"
-        >
-          <div className="flex items-start justify-between mb-2">
-            <div className="p-2 bg-blue-100 dark:bg-blue-950/30 rounded-lg">
-              <Package size={18} className="text-blue-600 dark:text-blue-400" />
-            </div>
-            <span className="text-2xl font-black text-blue-600 dark:text-blue-400">
-              {stats.totalProducts}
-            </span>
-          </div>
-          <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-            Total Produtos
-          </p>
-        </motion.div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Stock Atual */}
+        <div className="p-4 bg-white rounded-lg border border-gray-200">
+          <p className="text-sm text-gray-600 mb-2">Stock Atual</p>
+          <p className="text-3xl font-bold text-gray-900">{analytics.currentQuantity}</p>
+          <p className="text-xs text-gray-500 mt-2">Mínimo: {analytics.minQuantity}</p>
+        </div>
 
-        {/* Critical */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white dark:bg-slate-900 rounded-lg border border-red-200 dark:border-red-900/30 p-4 shadow-xs"
-        >
+        {/* Trend */}
+        <div className="p-4 bg-white rounded-lg border border-gray-200">
           <div className="flex items-start justify-between mb-2">
-            <div className="p-2 bg-red-100 dark:bg-red-950/30 rounded-lg">
-              <AlertTriangle
-                size={18}
-                className="text-red-600 dark:text-red-400"
-              />
-            </div>
-            <span className="text-2xl font-black text-red-600 dark:text-red-400">
-              {stats.criticalCount}
-            </span>
+            <p className="text-sm text-gray-600">Tendência</p>
+            {getTrendIcon()}
           </div>
-          <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-            Críticos
-          </p>
-        </motion.div>
+          <p className="text-lg font-semibold text-gray-900">{getTrendLabel()}</p>
+          <p className="text-xs text-gray-500 mt-2">Últimos 7 dias</p>
+        </div>
 
-        {/* Warning */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white dark:bg-slate-900 rounded-lg border border-amber-200 dark:border-amber-900/30 p-4 shadow-xs"
-        >
-          <div className="flex items-start justify-between mb-2">
-            <div className="p-2 bg-amber-100 dark:bg-amber-950/30 rounded-lg">
-              <AlertTriangle
-                size={18}
-                className="text-amber-600 dark:text-amber-400"
-              />
-            </div>
-            <span className="text-2xl font-black text-amber-600 dark:text-amber-400">
-              {stats.warningCount}
-            </span>
-          </div>
-          <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-            Avisos
-          </p>
-        </motion.div>
+        {/* Uso Médio Diário */}
+        <div className="p-4 bg-white rounded-lg border border-gray-200">
+          <p className="text-sm text-gray-600 mb-2">Uso Médio/Dia</p>
+          <p className="text-3xl font-bold text-gray-900">{analytics.averageDailyUsage.toFixed(1)}</p>
+          <p className="text-xs text-gray-500 mt-2">Últimos 30 dias</p>
+        </div>
 
-        {/* Total Value */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white dark:bg-slate-900 rounded-lg border border-emerald-200 dark:border-emerald-900/30 p-4 shadow-xs"
-        >
+        {/* Dias até Esgotar */}
+        <div className={`p-4 bg-white rounded-lg border ${
+          analytics.daysUntilStockout && analytics.daysUntilStockout < 7
+            ? 'border-red-200 bg-red-50'
+            : 'border-gray-200'
+        }`}>
           <div className="flex items-start justify-between mb-2">
-            <div className="p-2 bg-emerald-100 dark:bg-emerald-950/30 rounded-lg">
-              <Package
-                size={18}
-                className="text-emerald-600 dark:text-emerald-400"
-              />
-            </div>
-            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-              {(stats.totalValue / 1000).toFixed(1)}k
-            </span>
+            <p className="text-sm text-gray-600">Dias até esgotar</p>
+            {analytics.daysUntilStockout && analytics.daysUntilStockout < 7 && (
+              <AlertCircle className="w-5 h-5 text-red-600" />
+            )}
           </div>
-          <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-            Valor Total
+          <p className={`text-3xl font-bold ${
+            analytics.daysUntilStockout && analytics.daysUntilStockout < 7
+              ? 'text-red-600'
+              : 'text-gray-900'
+          }`}>
+            {analytics.daysUntilStockout || '∞'}
           </p>
-        </motion.div>
+          <p className="text-xs text-gray-500 mt-2">Se trend continuar</p>
+        </div>
       </div>
 
-      {/* Product Analytics (if productId provided) */}
-      {productId && !analyticsLoading && analytics && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-6 shadow-sm"
-        >
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-            Análise: {analytics.productName}
-          </h3>
+      {/* Gráfico de Stock */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="font-semibold mb-4">Evolução de Stock</h3>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {/* Trending */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-              <div className="flex items-center gap-2 mb-1">
-                {analytics.trend === 'increasing' ? (
-                  <TrendingUp className="text-emerald-600 dark:text-emerald-400" />
-                ) : analytics.trend === 'decreasing' ? (
-                  <TrendingDown className="text-red-600 dark:text-red-400" />
-                ) : (
-                  <ArrowRight className="text-slate-600 dark:text-slate-400" />
-                )}
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  Tendência
-                </span>
-              </div>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">
-                {analytics.trend === 'increasing'
-                  ? '📈 Aumentando'
-                  : analytics.trend === 'decreasing'
-                  ? '📉 Diminuindo'
-                  : '➡️ Estável'}
-              </p>
-            </div>
+        {analytics.quantityHistory.length > 0 ? (
+          <div className="overflow-x-auto">
+            {/* Gráfico simples em barras ASCII */}
+            <svg width="100%" height="200" viewBox="0 0 800 200" className="border border-gray-200 rounded">
+              {/* Grid */}
+              {[0, 25, 50, 75, 100].map((pct) => (
+                <line
+                  key={`grid-${pct}`}
+                  x1="50"
+                  y1={200 - (pct / 100) * 150}
+                  x2="780"
+                  y2={200 - (pct / 100) * 150}
+                  stroke="#e5e7eb"
+                  strokeDasharray="4"
+                  strokeWidth="1"
+                />
+              ))}
 
-            {/* Avg Daily */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-              <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Média Diária
-              </p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">
-                {analytics.averageDaily.toFixed(1)}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-500">
-                unidades/dia
-              </p>
-            </div>
+              {/* Eixos */}
+              <line x1="50" y1="50" x2="50" y2="200" stroke="#000" strokeWidth="2" />
+              <line x1="50" y1="200" x2="780" y2="200" stroke="#000" strokeWidth="2" />
 
-            {/* Days Until Empty */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-              <div className="flex items-center gap-1 mb-1">
-                <Clock size={14} className="text-slate-600 dark:text-slate-400" />
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  Dias Até Vazio
-                </span>
-              </div>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">
-                {analytics.daysUntilEmpty === 999
-                  ? '∞'
-                  : analytics.daysUntilEmpty}
-              </p>
-            </div>
+              {/* Pontos */}
+              {analytics.quantityHistory.map((item, idx) => {
+                const x = 50 + ((idx / (analytics.quantityHistory.length - 1)) * 730) || 50;
+                const maxQty = Math.max(...analytics.quantityHistory.map((h) => h.quantity));
+                const y = 200 - ((item.quantity / maxQty) * 150);
 
-            {/* Total In */}
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg">
-              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">
-                Total Entrada
-              </p>
-              <p className="text-lg font-bold text-emerald-900 dark:text-emerald-100">
-                +{analytics.totalIn}
-              </p>
-            </div>
+                return (
+                  <g key={`point-${idx}`}>
+                    <circle cx={x} cy={y} r="3" fill="#3b82f6" />
+                    {idx > 0 && (
+                      <line
+                        x1={50 + (((idx - 1) / (analytics.quantityHistory.length - 1)) * 730) || 50}
+                        y1={200 - ((analytics.quantityHistory[idx - 1].quantity / maxQty) * 150)}
+                        x2={x}
+                        y2={y}
+                        stroke="#3b82f6"
+                        strokeWidth="2"
+                      />
+                    )}
+                  </g>
+                );
+              })}
 
-            {/* Total Out */}
-            <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
-              <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">
-                Total Saída
-              </p>
-              <p className="text-lg font-bold text-red-900 dark:text-red-100">
-                -{analytics.totalOut}
-              </p>
-            </div>
+              {/* Label Y */}
+              <text x="10" y="55" fontSize="12" fill="#666">
+                Max
+              </text>
+              <text x="10" y="205" fontSize="12" fill="#666">
+                0
+              </text>
+            </svg>
 
-            {/* Current */}
-            <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-              <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1">
-                Quantidade Atual
-              </p>
-              <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
-                {analytics.currentQuantity}
-              </p>
+            <div className="text-center mt-4 text-sm text-gray-500">
+              Últimos {analytics.quantityHistory.length} dias
             </div>
           </div>
-        </motion.div>
-      )}
+        ) : (
+          <p className="text-center text-gray-500">Sem dados de histórico</p>
+        )}
+      </div>
 
-      {/* Reorder Suggestions */}
-      {!suggestionsLoading && suggestions.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-slate-900 rounded-lg border border-amber-200 dark:border-amber-900/30 p-6 shadow-sm"
-        >
-          <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100 mb-4">
-            🎯 Recomendações de Reabastecimento
-          </h3>
-
-          <div className="space-y-3 max-h-48 overflow-y-auto">
-            {suggestions.map((item) => (
-              <div
-                key={item.productId}
-                className={`p-3 rounded-lg border ${
-                  item.priority === 'URGENT'
-                    ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900'
-                    : item.priority === 'HIGH'
-                    ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900'
-                    : 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p
-                      className={`font-semibold ${
-                        item.priority === 'URGENT'
-                          ? 'text-red-900 dark:text-red-100'
-                          : item.priority === 'HIGH'
-                          ? 'text-orange-900 dark:text-orange-100'
-                          : 'text-amber-900 dark:text-amber-100'
-                      }`}
-                    >
-                      {item.productName}
-                    </p>
-                    <p
-                      className={`text-sm mt-1 ${
-                        item.priority === 'URGENT'
-                          ? 'text-red-700 dark:text-red-300'
-                          : item.priority === 'HIGH'
-                          ? 'text-orange-700 dark:text-orange-300'
-                          : 'text-amber-700 dark:text-amber-300'
-                      }`}
-                    >
-                      Atual: {item.currentQuantity} → Sugerido: +
-                      {item.suggestedQuantity}
-                    </p>
-                  </div>
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-bold text-white ${
-                      item.priority === 'URGENT'
-                        ? 'bg-red-600'
-                        : item.priority === 'HIGH'
-                        ? 'bg-orange-600'
-                        : 'bg-amber-600'
-                    }`}
-                  >
-                    {item.priority}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
+      {/* Recomendações */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-blue-600" />
+          Recomendações
+        </h3>
+        <ul className="space-y-2 text-sm">
+          {analytics.daysUntilStockout && analytics.daysUntilStockout < 7 && (
+            <li>
+              🚨 <strong>Ação urgente:</strong> Stock vai esgotar em{' '}
+              {analytics.daysUntilStockout} dias. Reabasteça imediatamente.
+            </li>
+          )}
+          {analytics.trend === 'decreasing' && Math.abs(analytics.trendPercent) > 10 && (
+            <li>
+              📉 <strong>Trend negativo:</strong> Stock está diminuindo rapidamente. Verifique
+              se as vendas aumentaram.
+            </li>
+          )}
+          {analytics.trend === 'increasing' && analytics.trendPercent > 20 && (
+            <li>
+              📈 <strong>Trend positivo:</strong> Stock está aumentando. Bom para
+              atender picos de demanda.
+            </li>
+          )}
+          {analytics.currentQuantity > (analytics.minQuantity * 3) && (
+            <li>
+              ✅ <strong>Stock saudável:</strong> Quantidade acima do normal. Monitore
+              a validade de produtos.
+            </li>
+          )}
+        </ul>
+      </div>
     </div>
   );
 }

@@ -1,162 +1,183 @@
 /**
  * Hook: useStockMovements
- * Gerencia movimentações de stock
- * Padrão: [data, loading, error, actions]
+ * Gerenciar movimentações de estoque
+ * FASE 2: Gestão de Estoque Automática
  */
 
-import { useState, useCallback, useEffect } from 'react';
-import { StockMovement, StockMovementHistory } from '../types/inventory';
+import { useState, useCallback } from 'react';
+import { StockMovement, StockMovementType, StockMovementReason, StockAnalytics } from '../types/inventory';
+import { Product } from '../types';
 import { StockService } from '../services/stockService';
+import { useStore } from './useStore';
 
-interface UseStockMovementsState {
-  history: StockMovementHistory | null;
-  loading: boolean;
+export interface UseStockMovementsReturn {
+  // Estado
+  movements: StockMovement[];
+  isLoading: boolean;
   error: string | null;
-}
 
-interface UseStockMovementsActions {
+  // Ações
   recordMovement: (
-    movement: Omit<StockMovement, 'id' | 'timestamp'>
+    productId: string,
+    product: Product,
+    type: StockMovementType,
+    quantity: number,
+    reason: StockMovementReason,
+    userId: string,
+    options?: {
+      reference?: string;
+      batchNumber?: string;
+      unitCost?: number;
+      notes?: string;
+    }
   ) => Promise<StockMovement>;
-  loadHistory: (productId?: string, limit?: number) => Promise<void>;
-  refetch: () => Promise<void>;
+
+  getMovementHistory: (filters?: any) => Promise<void>;
+  getStockAnalytics: (productId: string, product: Product) => Promise<StockAnalytics>;
+  clearError: () => void;
 }
 
-export function useStockMovements(
-  storeId: string,
-  productId?: string
-): [UseStockMovementsState, UseStockMovementsActions] {
-  const [state, setState] = useState<UseStockMovementsState>({
-    history: null,
-    loading: true,
-    error: null,
-  });
+export function useStockMovements(): UseStockMovementsReturn {
+  const { currentStore } = useStore();
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   /**
-   * Carregar histórico de movimentações
+   * Registar movimentação de stock
    */
-  const loadHistory = useCallback(
-    async (pid?: string, limit?: number) => {
-      if (!storeId) {
-        setState({
-          history: null,
-          loading: false,
-          error: 'storeId não fornecido',
-        });
+  const recordMovement = useCallback(
+    async (
+      productId: string,
+      product: Product,
+      type: StockMovementType,
+      quantity: number,
+      reason: StockMovementReason,
+      userId: string,
+      options?: {
+        reference?: string;
+        batchNumber?: string;
+        unitCost?: number;
+        notes?: string;
+      }
+    ): Promise<StockMovement> => {
+      if (!currentStore?.storeId) {
+        throw new Error('Loja não selecionada');
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const movement = await StockService.recordMovement(
+          currentStore.storeId,
+          productId,
+          product,
+          type,
+          quantity,
+          reason,
+          userId,
+          options
+        );
+
+        // Atualizar lista local
+        setMovements((prev) => [movement, ...prev]);
+
+        console.log(`✅ Movimento registado: ${movement.productName}`);
+
+        return movement;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao registar movimento';
+        setError(errorMessage);
+        console.error('Erro ao registar movimento:', err);
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [currentStore?.storeId]
+  );
+
+  /**
+   * Obter histórico de movimentações
+   */
+  const getMovementHistory = useCallback(
+    async (filters?: any) => {
+      if (!currentStore?.storeId) {
+        setError('Loja não selecionada');
         return;
       }
 
       try {
-        setState((prev) => ({ ...prev, loading: true, error: null }));
+        setIsLoading(true);
+        setError(null);
 
-        const history = await StockService.getMovementHistory(storeId, {
-          productId: pid || productId,
-          limit: limit || 50,
-        });
+        const history = await StockService.getMovementHistory(currentStore.storeId, filters);
+        setMovements(history);
 
-        setState({
-          history,
-          loading: false,
-          error: null,
-        });
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : 'Erro ao carregar histórico de movimentações';
-
-        setState({
-          history: null,
-          loading: false,
-          error: errorMessage,
-        });
+        console.log(`✅ ${history.length} movimentações carregadas`);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar histórico';
+        setError(errorMessage);
+        console.error('Erro ao carregar histórico:', err);
+      } finally {
+        setIsLoading(false);
       }
     },
-    [storeId, productId]
+    [currentStore?.storeId]
   );
 
   /**
-   * Registar nova movimentação
+   * Obter análise de stock
    */
-  const recordMovement = useCallback(
-    async (movement: Omit<StockMovement, 'id' | 'timestamp'>) => {
+  const getStockAnalytics = useCallback(
+    async (productId: string, product: Product): Promise<StockAnalytics> => {
+      if (!currentStore?.storeId) {
+        throw new Error('Loja não selecionada');
+      }
+
       try {
-        const recorded = await StockService.recordMovement(movement);
-        // Recarregar histórico após novo movimento
-        await loadHistory();
-        return recorded;
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : 'Erro ao registar movimentação';
+        setIsLoading(true);
+        setError(null);
 
-        setState((prev) => ({
-          ...prev,
-          error: errorMessage,
-        }));
+        const analytics = await StockService.getStockAnalytics(
+          currentStore.storeId,
+          productId,
+          product
+        );
 
-        throw error;
+        console.log(`✅ Análise de stock calculada para ${product.nome}`);
+
+        return analytics;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao calcular análise';
+        setError(errorMessage);
+        console.error('Erro ao calcular análise:', err);
+        throw err;
+      } finally {
+        setIsLoading(false);
       }
     },
-    [loadHistory]
+    [currentStore?.storeId]
   );
 
   /**
-   * Recarregar histórico
+   * Limpar erro
    */
-  const refetch = useCallback(async () => {
-    await loadHistory();
-  }, [loadHistory]);
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
-  // Carregar histórico ao montar ou quando productId muda
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+  return {
+    // Estado
+    movements,
+    isLoading,
+    error,
 
-  return [
-    state,
-    {
-      recordMovement,
-      loadHistory,
-      refetch,
-    },
-  ];
-}
-
-/**
- * Hook: useStockAnalytics
- * Análise de tendências e previsões
- */
-export function useStockAnalytics(storeId: string, productId: string) {
-  const [analytics, setAnalytics] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadAnalytics = useCallback(async () => {
-    if (!storeId || !productId) {
-      setError('storeId ou productId não fornecido');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const data = await StockService.getStockAnalytics(storeId, productId);
-      setAnalytics(data);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'Erro ao carregar analytics';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [storeId, productId]);
-
-  useEffect(() => {
-    loadAnalytics();
-  }, [loadAnalytics]);
-
-  return { analytics, loading, error, refetch: loadAnalytics };
+    // Ações
+    recordMovement,
+    getMovementHistory,
+    getStockAnalytics,
+    clearError,
+  };
 }
