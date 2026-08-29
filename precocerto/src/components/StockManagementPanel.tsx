@@ -4,7 +4,7 @@
  * Combina: Registar movimentações, Histórico, e Análise de tendências
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   Package,
@@ -24,11 +24,18 @@ interface StockManagementPanelProps {
 
 export default function StockManagementPanel({ products = [] }: StockManagementPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('analytics');
-  const [selectedProductId, setSelectedProductId] = useState<string | undefined>(products[0]?.id);
+  const [selectedProductId, setSelectedProductId] = useState<string | undefined>(undefined);
 
-  // Procurar o produto selecionado
+  // Atualizar produto selecionado quando produtos mudam
+  useEffect(() => {
+    if (products && products.length > 0 && !selectedProductId) {
+      setSelectedProductId(products[0].id);
+    }
+  }, [products, selectedProductId]);
+
+  // Procurar o produto selecionado com segurança
   const selectedProduct = useMemo(
-    () => products.find((p) => p.id === selectedProductId),
+    () => products?.find((p) => p.id === selectedProductId),
     [products, selectedProductId]
   );
 
