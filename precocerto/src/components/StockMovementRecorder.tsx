@@ -13,7 +13,8 @@ import { StockMovementType, StockMovementReason } from '../types/inventory';
 import { Product } from '../types';
 
 interface StockMovementRecorderProps {
-  product: Product;
+  product?: Product;
+  productId?: string;
   onSuccess?: () => void;
 }
 
@@ -44,10 +45,20 @@ const REASONS: Record<StockMovementType, { value: StockMovementReason; label: st
   ],
 };
 
-export function StockMovementRecorder({ product, onSuccess }: StockMovementRecorderProps) {
+export function StockMovementRecorder({ product, productId, onSuccess }: StockMovementRecorderProps) {
   const { recordMovement, isLoading, error, clearError } = useStockMovements();
   const { currentStore } = useStore();
   const { user } = useAuth();
+
+  // Se não houver product, mostrar mensagem
+  if (!product && !productId) {
+    return (
+      <div className="p-8 text-center">
+        <ArrowUp className="w-12 h-12 text-slate-400 mx-auto mb-2" />
+        <p className="text-slate-600 dark:text-slate-400">Selecione um produto para registar uma movimentação</p>
+      </div>
+    );
+  }
 
   const [movementType, setMovementType] = useState<StockMovementType>('IN');
   const [reason, setReason] = useState<StockMovementReason>('purchase');

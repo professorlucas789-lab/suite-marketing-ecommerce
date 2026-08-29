@@ -11,19 +11,33 @@ import { useStockMovements } from '../hooks/useStockMovements';
 import { Product } from '../types';
 
 interface StockAnalyticsPanelProps {
-  product: Product;
+  productId?: string;
+  product?: Product;
 }
 
-export function StockAnalyticsPanel({ product }: StockAnalyticsPanelProps) {
+export function StockAnalyticsPanel({ productId, product }: StockAnalyticsPanelProps) {
   const { getStockAnalytics, isLoading, error } = useStockMovements();
   const [analytics, setAnalytics] = useState<StockAnalytics | null>(null);
 
+  // Se não houver product, mostrar mensagem
+  if (!productId && !product) {
+    return (
+      <div className="p-8 text-center">
+        <AlertCircle className="w-12 h-12 text-slate-400 mx-auto mb-2" />
+        <p className="text-slate-600 dark:text-slate-400">Selecione um produto para ver a análise</p>
+      </div>
+    );
+  }
+
   useEffect(() => {
-    loadAnalytics();
-  }, [product.id]);
+    if (product) {
+      loadAnalytics();
+    }
+  }, [product?.id]);
 
   const loadAnalytics = async () => {
     try {
+      if (!product) return;
       const data = await getStockAnalytics(product.id, product);
       setAnalytics(data);
     } catch (err) {
