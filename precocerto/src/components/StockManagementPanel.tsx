@@ -31,7 +31,7 @@ export default function StockManagementPanel({ products }: StockManagementPanelP
 
   // Atualizar produto selecionado quando produtos mudam
   useEffect(() => {
-    if (validProducts && validProducts.length > 0 && !selectedProductId) {
+    if (validProducts?.length > 0 && !selectedProductId && validProducts[0]?.id) {
       setSelectedProductId(validProducts[0].id);
     }
   }, [validProducts, selectedProductId]);
