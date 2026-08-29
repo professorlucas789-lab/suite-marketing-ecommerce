@@ -11,9 +11,9 @@ import {
   TrendingUp,
   Clock,
 } from 'lucide-react';
-import StockMovementRecorder from './StockMovementRecorder';
-import StockMovementHistory from './StockMovementHistory';
-import StockAnalyticsPanel from './StockAnalyticsPanel';
+import { StockMovementRecorder } from './StockMovementRecorder';
+import { StockMovementHistory } from './StockMovementHistory';
+import { StockAnalyticsPanel } from './StockAnalyticsPanel';
 
 type TabType = 'analytics' | 'recorder' | 'history';
 

@@ -7,7 +7,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { StockAlert, ReorderReport } from '../types/inventory';
 import { StockService } from '../services/stockService';
-import { useStore } from './useStore';
+import { useStore } from '../contexts/StoreContext';
 
 export interface UseStockAlertsReturn {
   // Estado

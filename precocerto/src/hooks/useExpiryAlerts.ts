@@ -13,7 +13,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { ExpiryAlert, AlertSeverity } from '../types/notifications';
 import { ExpiryAlertService } from '../services/expiryAlertService';
-import { useStore } from './useStore';
+import { useStore } from '../contexts/StoreContext';
 
 export interface UseExpiryAlertsReturn {
   // Estado
@@ -39,6 +39,24 @@ export interface UseExpiryAlertsReturn {
   refreshAlerts: () => Promise<void>;
   getAlertsSummary: () => Promise<void>;
   clearError: () => void;
+}
+
+/**
+ * Hook auxiliar: Filtra alertas críticos e de aviso
+ * Útil para Dashboard e Health Check
+ */
+export function useCriticalExpiryAlerts(mode: string = "default") {
+  const { alerts, isLoading, error } = useExpiryAlerts();
+
+  const criticalAlerts = alerts.filter(alert => alert.severity === 'CRITICAL');
+  const warningAlerts = alerts.filter(alert => alert.severity === 'WARNING');
+
+  return {
+    criticalAlerts,
+    warningAlerts,
+    loading: isLoading,
+    error,
+  };
 }
 
 export function useExpiryAlerts(): UseExpiryAlertsReturn {

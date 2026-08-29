@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { ArrowUp, ArrowDown, RotateCcw, Save } from 'lucide-react';
 import { useStockMovements } from '../hooks/useStockMovements';
-import { useStore } from '../hooks/useStore';
+import { useStore } from '../contexts/StoreContext';
 import { useAuth } from '../hooks/useAuth';
 import { StockMovementType, StockMovementReason } from '../types/inventory';
 import { Product } from '../types';

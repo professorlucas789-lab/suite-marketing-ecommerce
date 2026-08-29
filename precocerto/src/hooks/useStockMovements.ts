@@ -8,7 +8,7 @@ import { useState, useCallback } from 'react';
 import { StockMovement, StockMovementType, StockMovementReason, StockAnalytics } from '../types/inventory';
 import { Product } from '../types';
 import { StockService } from '../services/stockService';
-import { useStore } from './useStore';
+import { useStore } from '../contexts/StoreContext';
 
 export interface UseStockMovementsReturn {
   // Estado

@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowUp, ArrowDown, RotateCcw, Calendar, User } from 'lucide-react';
 import { StockMovement, StockMovementType } from '../types/inventory';
 import { useStockMovements } from '../hooks/useStockMovements';
-import { useStore } from '../hooks/useStore';
+import { useStore } from '../contexts/StoreContext';
 
 interface StockMovementHistoryProps {
   productId?: string;
