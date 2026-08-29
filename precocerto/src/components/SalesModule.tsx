@@ -17,6 +17,8 @@ import DocumentTypeSelector, {
 } from "./DocumentTypeSelector";
 import DocumentItemsTab from "./DocumentItemsTab";
 import DocumentSettingsPanel from "./DocumentSettingsPanel";
+import { useStore } from "../contexts/StoreContext";
+import { useSalesTransaction } from "../hooks/useSalesTransaction";
 
 interface SaleItem {
   productId: string;
@@ -50,11 +52,14 @@ interface DocumentSettings {
 }
 
 export default function SalesModule({ products, onSaleComplete }: SalesModuleProps) {
+  // Context
+  const { currentStore, currentUser } = useStore();
+  const { recordTransaction, isLoading: isSaving, error: saveError, successMessage: saveMessage } = useSalesTransaction();
+
   // State: Main sales data
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [quantity, setQuantity] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
   // State: Client selection
@@ -75,6 +80,14 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
   const [activeMenu, setActiveMenu] = useState<"alterar" | "itens" | "definicoes" | null>(
     null
   );
+
+  // Show save message when transaction completes
+  useEffect(() => {
+    if (saveMessage) {
+      setSuccessMessage(saveMessage);
+      setTimeout(() => setSuccessMessage(""), 3000);
+    }
+  }, [saveMessage]);
 
   // Mock clients data - In production, this would come from Firebase
   const mockClients: ClientData[] = [
@@ -146,22 +159,62 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
       return;
     }
 
-    setIsLoading(true);
-    try {
-      // TODO: Save sale to Firebase
-      if (onSaleComplete) {
-        onSaleComplete(saleItems, total);
-      }
+    if (settings.requiresCustomer && !selectedClient) {
+      alert("Selecione um cliente para finalizar a venda");
+      return;
+    }
 
-      setSuccessMessage("Venda registada com sucesso!");
-      setSaleItems([]);
-      setSelectedClient(null);
-      setTimeout(() => setSuccessMessage(""), 3000);
+    if (settings.requiresNIF && !selectedClient?.nif) {
+      alert("NIF do cliente é obrigatório");
+      return;
+    }
+
+    if (!currentStore) {
+      alert("Loja não configurada");
+      return;
+    }
+
+    if (!currentUser) {
+      alert("Utilizador não autenticado");
+      return;
+    }
+
+    try {
+      // Record transaction to Firebase
+      const result = await recordTransaction({
+        storeId: currentStore.storeId,
+        storeName: currentStore.storeName,
+        userId: currentUser.uid,
+        userName: currentUser.displayName || currentUser.email || "Unknown",
+        customerName: selectedClient?.nome,
+        customerNif: selectedClient?.nif,
+        customerId: selectedClient?.id,
+        paymentMethod: "cash", // TODO: Add payment method selection
+        documentType: selectedDocument === "fatura-recibo" ? "receipt" : "internal_receipt",
+        items: saleItems.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        })),
+      });
+
+      if (result) {
+        // Call original callback
+        if (onSaleComplete) {
+          onSaleComplete(saleItems, total);
+        }
+
+        // Clear form
+        setSaleItems([]);
+        setSelectedClient(null);
+        setSelectedProduct(null);
+        setQuantity("");
+      } else {
+        alert("Erro ao registar venda: " + (saveError || "Erro desconhecido"));
+      }
     } catch (error) {
       console.error("Erro ao registar venda:", error);
       alert("Erro ao registar venda");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -176,7 +229,7 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
         <p className="text-slate-400">ERP - Sistema profissional para registar vendas e emitir documentos</p>
       </div>
 
-      {/* Success Message */}
+      {/* Messages */}
       <AnimatePresence>
         {successMessage && (
           <motion.div
@@ -187,6 +240,17 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
           >
             <CheckCircle2 className="w-5 h-5" />
             {successMessage}
+          </motion.div>
+        )}
+        {saveError && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-4 p-4 bg-red-500/20 border border-red-500/50 rounded-lg flex items-center gap-3 text-red-400"
+          >
+            <AlertCircle className="w-5 h-5" />
+            {saveError}
           </motion.div>
         )}
       </AnimatePresence>
@@ -487,15 +551,15 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleCompleteSale}
-            disabled={saleItems.length === 0 || isLoading}
+            disabled={saleItems.length === 0 || isSaving}
             className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
           >
-            {isLoading ? (
+            {isSaving ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <Receipt className="w-5 h-5" />
             )}
-            {isLoading ? "Processando..." : "Finalizar Venda"}
+            {isSaving ? "Processando..." : "Finalizar Venda"}
           </motion.button>
 
           <motion.button
