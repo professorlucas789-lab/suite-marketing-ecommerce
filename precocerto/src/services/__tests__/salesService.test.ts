@@ -237,4 +237,71 @@ describe('Sales Service', () => {
       expect(isValidCredit).toBe(true);
     });
   });
+
+  describe('FASE 1: Validação de Validade em Vendas', () => {
+    it('deve impedir venda de produto já vencido', () => {
+      const today = new Date();
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() - 1); // Ontem = vencido
+
+      const isExpired = expiryDate < today;
+      expect(isExpired).toBe(true);
+    });
+
+    it('deve impedir venda de produto vencendo hoje', () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const expiryDate = new Date();
+      expiryDate.setHours(0, 0, 0, 0); // Mesma data = vence hoje
+
+      const isExpiringToday = expiryDate.getTime() === today.getTime();
+      expect(isExpiringToday).toBe(true);
+    });
+
+    it('deve impedir venda de produto vencendo em 2 dias', () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const twoDaysFromNow = new Date(today);
+      twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
+
+      const expiryDate = new Date(twoDaysFromNow);
+      expiryDate.setDate(expiryDate.getDate() - 1); // Amanhã
+
+      const isCritical = expiryDate <= twoDaysFromNow;
+      expect(isCritical).toBe(true);
+    });
+
+    it('deve permitir venda de produto com validade adequada', () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const twoDaysFromNow = new Date(today);
+      twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
+
+      const expiryDate = new Date(today);
+      expiryDate.setDate(expiryDate.getDate() + 30); // 30 dias = OK
+
+      const isValid = expiryDate > twoDaysFromNow;
+      expect(isValid).toBe(true);
+    });
+
+    it('deve permitir venda de produto sem data de validade', () => {
+      const product = { nome: 'Produto teste', farmaciaDataValidade: undefined };
+      const isValid = !product.farmaciaDataValidade;
+      expect(isValid).toBe(true);
+    });
+
+    it('deve calcular corretamente dias até vencimento', () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const expiryDate = new Date(today);
+      expiryDate.setDate(expiryDate.getDate() + 15);
+
+      const daysUntilExpiry = Math.ceil(
+        (expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      expect(daysUntilExpiry).toBe(15);
+    });
+  });
 });

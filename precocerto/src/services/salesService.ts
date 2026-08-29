@@ -50,6 +50,50 @@ const cleanForFirestore = <T extends Record<string, any>>(value: T): T => {
   ) as T;
 };
 
+/**
+ * Valida a validade do produto antes de permitir a venda
+ * FASE 1: Integração com sistema de notificações de validade
+ */
+const validateProductExpiry = (product: Product): { valid: boolean; message?: string } => {
+  // Verificar se o produto tem data de validade definida
+  const expiryDate = product.farmaciaDataValidade || product.dataValidade;
+  if (!expiryDate) {
+    return { valid: true }; // Sem validade definida = produto OK
+  }
+
+  const expiry = new Date(expiryDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Comparar apenas datas, não horas
+
+  // Produto já venceu
+  if (expiry < today) {
+    return {
+      valid: false,
+      message: `❌ Produto "${product.nome}" já está vencido (vencimento: ${expiry.toLocaleDateString('pt-PT')})`,
+    };
+  }
+
+  // Produto vence hoje (crítico)
+  if (expiry.getTime() === today.getTime()) {
+    return {
+      valid: false,
+      message: `❌ Produto "${product.nome}" vence HOJE - não pode ser vendido (vencimento: ${expiry.toLocaleDateString('pt-PT')})`,
+    };
+  }
+
+  // Produto vence dentro de 2 dias (crítico)
+  const twoDaysFromNow = new Date(today);
+  twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
+  if (expiry <= twoDaysFromNow) {
+    return {
+      valid: false,
+      message: `❌ Produto "${product.nome}" vence muito em breve - não pode ser vendido (vencimento: ${expiry.toLocaleDateString('pt-PT')})`,
+    };
+  }
+
+  return { valid: true }; // Produto OK
+};
+
 const createReceiptNumber = (documentType: SaleTransactionInput['documentType']) => {
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -116,6 +160,12 @@ export async function recordSaleTransaction(input: SaleTransactionInput): Promis
 
     if (product.storeId && product.storeId !== input.storeId) {
       throw new Error(`O produto "${product.nome}" não pertence à loja atual.`);
+    }
+
+    // FASE 1: Validar se produto está vencido
+    const expiryValidation = validateProductExpiry(product);
+    if (!expiryValidation.valid) {
+      throw new Error(expiryValidation.message);
     }
 
     const stockBefore = getAvailableStock(product);
