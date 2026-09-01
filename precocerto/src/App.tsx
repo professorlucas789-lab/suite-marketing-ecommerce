@@ -433,16 +433,28 @@ export default function App() {
     productData: Omit<Product, "id" | "userId" | "createdAt" | "updatedAt">,
     changeReason?: string
   ) => {
-    if (!user) return;
+    if (!user) {
+      triggerNotification("Utilizador não autenticado. Por favor, faça login novamente.", "error");
+      return;
+    }
 
     const timestamp = new Date().toISOString();
-    const productDataWithStore = currentStore
-      ? {
-          ...productData,
-          storeId: productData.storeId || currentStore.storeId,
-          storeName: productData.storeName || currentStore.storeName,
-        }
-      : productData;
+
+    // Validar que temos um storeId válido
+    const finalStoreId = currentStore?.storeId || productData.storeId;
+    if (!finalStoreId || finalStoreId === "default") {
+      console.error("StoreId inválido:", finalStoreId);
+      console.error("CurrentStore:", currentStore);
+      console.error("ProductData.storeId:", productData.storeId);
+      triggerNotification("Erro: Loja não selecionada. Por favor, seleccione uma loja antes de gravar o produto.", "error");
+      return;
+    }
+
+    const productDataWithStore = {
+      ...productData,
+      storeId: finalStoreId,
+      storeName: currentStore?.storeName || productData.storeName || "Loja Padrão",
+    };
 
     try {
       if (editingProduct && editingProduct.id) {
