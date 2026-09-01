@@ -451,7 +451,7 @@ export default function App() {
         const prevPrice = editingProduct.venderEmbalagemInteira === false && editingProduct.precoRecomendadoUnidadeVenda !== undefined
           ? editingProduct.precoRecomendadoUnidadeVenda
           : editingProduct.precoVendaRecomendado;
-        
+
         const prevCost = editingProduct.custoRealUnidadeVenda !== undefined
           ? editingProduct.custoRealUnidadeVenda
           : (editingProduct.custoCompra + (editingProduct.custoTransporte || 0) + (editingProduct.custoEmbalagem || 0) + (editingProduct.outrosCustos || 0)) / prevQ;
@@ -497,92 +497,87 @@ export default function App() {
         const hasRelevantChanges = priceChanged || costChanged || marginChanged || roiChanged || profitChanged || qtyChanged || unitsChanged || uVendaChanged || modeChanged || margemDesejadaChanged || categoryChanged;
 
         // Update mode
-        try {
-          const productRef = doc(db, "products", editingProduct.id);
-          await updateDoc(productRef, {
-            ...productDataWithStore,
-            updatedAt: timestamp
-          });
+        const productRef = doc(db, "products", editingProduct.id);
+        await updateDoc(productRef, {
+          ...productDataWithStore,
+          updatedAt: timestamp
+        });
 
-          // Save history if there are changes
-          if (hasRelevantChanges) {
-            await addDoc(collection(db, "priceHistory"), {
-              productId: editingProduct.id,
-              productName: productData.nome,
-              productCategory: productData.categoria || "Outros",
-              userId: user.uid,
-              previousPrice: Math.round((prevPrice || 0) * 100) / 100,
-              newPrice: Math.round((newPrice || 0) * 100) / 100,
-              previousCost: Math.round((prevCost || 0) * 100) / 100,
-              newCost: Math.round((newCost || 0) * 100) / 100,
-              previousMargin: Math.round((prevMargin || 0) * 100) / 100,
-              newMargin: Math.round((newMargin || 0) * 100) / 100,
-              previousROI: Math.round((prevROI || 0) * 100) / 100,
-              newROI: Math.round((newROI || 0) * 100) / 100,
-              previousProfit: Math.round((prevProfit || 0) * 100) / 100,
-              newProfit: Math.round((newProfit || 0) * 100) / 100,
-              changeReason: changeReason || "Sem motivo informado",
-              createdAt: timestamp
-            });
-          }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.UPDATE, `products/${editingProduct.id}`);
+        // Save history if there are changes
+        if (hasRelevantChanges) {
+          await addDoc(collection(db, "priceHistory"), {
+            productId: editingProduct.id,
+            productName: productData.nome,
+            productCategory: productData.categoria || "Outros",
+            userId: user.uid,
+            previousPrice: Math.round((prevPrice || 0) * 100) / 100,
+            newPrice: Math.round((newPrice || 0) * 100) / 100,
+            previousCost: Math.round((prevCost || 0) * 100) / 100,
+            newCost: Math.round((newCost || 0) * 100) / 100,
+            previousMargin: Math.round((prevMargin || 0) * 100) / 100,
+            newMargin: Math.round((newMargin || 0) * 100) / 100,
+            previousROI: Math.round((prevROI || 0) * 100) / 100,
+            newROI: Math.round((newROI || 0) * 100) / 100,
+            previousProfit: Math.round((prevProfit || 0) * 100) / 100,
+            newProfit: Math.round((newProfit || 0) * 100) / 100,
+            changeReason: changeReason || "Sem motivo informado",
+            createdAt: timestamp
+          });
         }
         triggerNotification(`Produto "${productData.nome}" atualizado com sucesso!`);
       } else {
         // Create mode
-        try {
-          const docRef = await addDoc(collection(db, "products"), {
-            ...productDataWithStore,
-            userId: user.uid,
-            createdAt: timestamp,
-            updatedAt: timestamp
-          });
+        const docRef = await addDoc(collection(db, "products"), {
+          ...productDataWithStore,
+          userId: user.uid,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        });
 
-          // Also save the initial pricing in priceHistory
-          const initialPrice = productData.venderEmbalagemInteira === false && productData.precoRecomendadoUnidadeVenda !== undefined
-            ? productData.precoRecomendadoUnidadeVenda
-            : productData.precoVendaRecomendado;
+        // Also save the initial pricing in priceHistory
+        const initialPrice = productData.venderEmbalagemInteira === false && productData.precoRecomendadoUnidadeVenda !== undefined
+          ? productData.precoRecomendadoUnidadeVenda
+          : productData.precoVendaRecomendado;
 
-          const initialCost = productData.custoRealUnidadeVenda !== undefined
-            ? productData.custoRealUnidadeVenda
-            : (productData.custoCompra + (productData.custoTransporte || 0) + (productData.custoEmbalagem || 0) + (productData.outrosCustos || 0)) / (productData.quantidade || 1);
+        const initialCost = productData.custoRealUnidadeVenda !== undefined
+          ? productData.custoRealUnidadeVenda
+          : (productData.custoCompra + (productData.custoTransporte || 0) + (productData.custoEmbalagem || 0) + (productData.outrosCustos || 0)) / (productData.quantidade || 1);
 
-          const initialMargin = productData.margemReal || 0;
-          const initialROI = productData.roi || 0;
-          const initialProfit = productData.venderEmbalagemInteira === false && productData.lucroUnidadeVenda !== undefined
-            ? productData.lucroUnidadeVenda
-            : productData.lucroEstimado;
+        const initialMargin = productData.margemReal || 0;
+        const initialROI = productData.roi || 0;
+        const initialProfit = productData.venderEmbalagemInteira === false && productData.lucroUnidadeVenda !== undefined
+          ? productData.lucroUnidadeVenda
+          : productData.lucroEstimado;
 
-          await addDoc(collection(db, "priceHistory"), {
-            productId: docRef.id,
-            productName: productData.nome,
-            productCategory: productData.categoria || "Outros",
-            userId: user.uid,
-            previousPrice: 0,
-            newPrice: Math.round((initialPrice || 0) * 100) / 100,
-            previousCost: 0,
-            newCost: Math.round((initialCost || 0) * 100) / 100,
-            previousMargin: 0,
-            newMargin: Math.round((initialMargin || 0) * 100) / 100,
-            previousROI: 0,
-            newROI: Math.round((initialROI || 0) * 100) / 100,
-            previousProfit: 0,
-            newProfit: Math.round((initialProfit || 0) * 100) / 100,
-            changeReason: "Cadastro inicial do produto",
-            createdAt: timestamp
-          });
-        } catch (error) {
-          handleFirestoreError(error, OperationType.CREATE, "products");
-        }
+        await addDoc(collection(db, "priceHistory"), {
+          productId: docRef.id,
+          productName: productData.nome,
+          productCategory: productData.categoria || "Outros",
+          userId: user.uid,
+          previousPrice: 0,
+          newPrice: Math.round((initialPrice || 0) * 100) / 100,
+          previousCost: 0,
+          newCost: Math.round((initialCost || 0) * 100) / 100,
+          previousMargin: 0,
+          newMargin: Math.round((initialMargin || 0) * 100) / 100,
+          previousROI: 0,
+          newROI: Math.round((initialROI || 0) * 100) / 100,
+          previousProfit: 0,
+          newProfit: Math.round((initialProfit || 0) * 100) / 100,
+          changeReason: "Cadastro inicial do produto",
+          createdAt: timestamp
+        });
         triggerNotification(`Produto "${productData.nome}" cadastrado com sucesso!`);
       }
-      
+
       // Navigate back to listing
       setActiveTab("products");
       setEditingProduct(null);
     } catch (error) {
-      console.error("Error saving product: ", error);
+      console.error("Erro ao gravar produto:", error);
+      if (error instanceof Error) {
+        console.error("Mensagem de erro:", error.message);
+      }
       triggerNotification("Erro ao gravar dados do produto.", "error");
       throw error;
     }
