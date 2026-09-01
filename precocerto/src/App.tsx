@@ -1424,10 +1424,12 @@ export default function App() {
                     transition={{ duration: 0.15 }}
                   >
                     <Suspense fallback={<LazyComponentLoader />}>
-                      <SalesTab
+                      <SalesModule
                         products={products}
-                        settings={businessSettings}
-                        onNotification={triggerNotification}
+                        onSaleComplete={() => {
+                          triggerNotification("Venda registada com sucesso!");
+                          setActiveTab("products");
+                        }}
                       />
                     </Suspense>
                   </motion.div>
