@@ -157,7 +157,7 @@ export class SendGridEmailService {
     productName: string,
     daysUntilExpiry: number,
     severity: 'CRITICAL' | 'WARNING' | 'INFO'
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ messageId: string; success: boolean }> {
     const severityLabel = {
       CRITICAL: '🚨 CRÍTICO',
       WARNING: '⚠️ AVISO',
@@ -223,7 +223,7 @@ export class SendGridEmailService {
     criticalCount: number,
     warningCount: number,
     infoCount: number
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ messageId: string; success: boolean }> {
     const totalAlerts = criticalCount + warningCount + infoCount;
 
     const htmlContent = `
@@ -291,7 +291,7 @@ export class SendGridEmailService {
     productName: string,
     currentStock: number,
     minimumStock: number
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ messageId: string; success: boolean }> {
     const htmlContent = `
       <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -343,7 +343,7 @@ export class SendGridEmailService {
     totalRevenue: number,
     totalUnits: number,
     topProduct: string
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ messageId: string; success: boolean }> {
     const htmlContent = `
       <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">

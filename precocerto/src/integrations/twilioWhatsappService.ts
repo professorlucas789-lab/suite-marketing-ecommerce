@@ -126,7 +126,7 @@ export class TwilioWhatsAppService {
     productName: string,
     daysUntilExpiry: number,
     severity: 'CRITICAL' | 'WARNING' | 'INFO'
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ messageSid: string; success: boolean }> {
     const severityEmoji = {
       CRITICAL: '🚨',
       WARNING: '⚠️',
@@ -160,7 +160,7 @@ PreçoCerto - Sistema Inteligente`;
     productName: string,
     currentStock: number,
     minimumStock: number
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ messageSid: string; success: boolean }> {
     const deficit = Math.max(0, minimumStock - currentStock);
 
     const message = `📦 *ALERTA DE STOCK BAIXO*
@@ -188,7 +188,7 @@ PreçoCerto - Sistema Inteligente`;
     totalSales: number,
     totalRevenue: number,
     topProduct: string
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ messageSid: string; success: boolean }> {
     const message = `💰 *RESUMO DE VENDAS*
 
 Loja: ${storeName}
@@ -208,7 +208,7 @@ PreçoCerto - Sistema Inteligente`;
   /**
    * Enviar saudação de boas-vindas
    */
-  static async sendWelcomeMessage(phoneNumber: string, userName: string): Promise<{ success: boolean }> {
+  static async sendWelcomeMessage(phoneNumber: string, userName: string): Promise<{ messageSid: string; success: boolean }> {
     const message = `👋 *Bem-vindo ao PreçoCerto!*
 
 Olá ${userName}!
@@ -234,7 +234,7 @@ PreçoCerto - Sistema Inteligente`;
     storeName: string,
     criticalCount: number,
     warningCount: number
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ messageSid: string; success: boolean }> {
     if (criticalCount === 0 && warningCount === 0) {
       const message = `✅ *TUDO BEM*
 

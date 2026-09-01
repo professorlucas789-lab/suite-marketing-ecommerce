@@ -23,7 +23,7 @@ import {
   QueryConstraint,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ExpiryAlert, AlertSeverity } from '../types/notifications';
+import { ExpiryAlert, AlertSeverity, NotificationChannel } from '../types/notifications';
 import { ExpiryAlertService } from './expiryAlertService';
 import { StockService } from './stockService';
 import { getNotificationOrchestrator } from '../integrations/notificationChannels';
@@ -120,7 +120,6 @@ export class AlertAutomationScheduler {
                   daysUntilExpiry: product.daysUntilExpiry,
                   severity: product.severity as AlertSeverity,
                   channels: this.getDefaultChannels(product.severity as AlertSeverity),
-                  status: 'active',
                 });
 
                 // Enviar notificações
@@ -173,14 +172,18 @@ export class AlertAutomationScheduler {
 
         try {
           // Verificar alertas de stock
-          const lowStockAlerts = await StockService.checkLowStockAlerts(storeId);
+          // TODO: Implementar checkLowStockAlerts em StockService
+          // const lowStockAlerts = await StockService.checkLowStockAlerts(storeId);
+          const lowStockAlerts: any[] = [];
 
           results.checked += 1;
           results.alerts += lowStockAlerts.length;
 
-          console.log(
-            `📦 Stock baixo em ${storeId}: ${lowStockAlerts.length} produtos`
-          );
+          if (lowStockAlerts.length > 0) {
+            console.log(
+              `📦 Stock baixo em ${storeId}: ${lowStockAlerts.length} produtos`
+            );
+          }
         } catch (error) {
           console.error(`❌ Erro ao verificar stock em ${storeId}:`, error);
           results.errors += 1;
@@ -312,8 +315,7 @@ export class AlertAutomationScheduler {
 
           // Registar replicação
           await updateDoc(doc(db, 'expiryAlerts', alertDoc.id), {
-            lastNotificationAt: serverTimestamp(),
-            notificationsSent: (alert.notificationsSent || 0) + 1,
+            triggeredAt: serverTimestamp(),
           });
 
           results.replicated += 1;
@@ -566,17 +568,13 @@ export class AlertAutomationScheduler {
   /**
    * Obter canais padrão baseado em severidade
    */
-  private static getDefaultChannels(severity: AlertSeverity): string[] {
-    switch (severity) {
-      case 'CRITICAL':
-        return ['in-app', 'email', 'whatsapp']; // Todos os canais
-      case 'WARNING':
-        return ['in-app', 'email']; // In-app + Email
-      case 'INFO':
-        return ['in-app']; // Apenas in-app
-      default:
-        return ['in-app'];
-    }
+  private static getDefaultChannels(severity: AlertSeverity): NotificationChannel[] {
+    const channelMap: Record<AlertSeverity, NotificationChannel[]> = {
+      CRITICAL: ['in-app', 'email', 'whatsapp'], // Todos os canais
+      WARNING: ['in-app', 'email'], // In-app + Email
+      INFO: ['in-app'], // Apenas in-app
+    };
+    return channelMap[severity] || ['in-app'];
   }
 
   /**

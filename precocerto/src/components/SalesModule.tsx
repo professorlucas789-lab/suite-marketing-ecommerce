@@ -190,7 +190,7 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
         customerNif: selectedClient?.nif,
         customerId: selectedClient?.id,
         paymentMethod: "cash", // TODO: Add payment method selection
-        documentType: selectedDocument === "fatura-recibo" ? "receipt" : "internal_receipt",
+        documentType: selectedDocument === "fatura-recibo" ? "internal_invoice_receipt" : "internal_receipt",
         items: saleItems.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,

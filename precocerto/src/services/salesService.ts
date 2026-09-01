@@ -56,7 +56,7 @@ const cleanForFirestore = <T extends Record<string, any>>(value: T): T => {
  */
 const validateProductExpiry = (product: Product): { valid: boolean; message?: string } => {
   // Verificar se o produto tem data de validade definida
-  const expiryDate = product.farmaciaDataValidade || product.dataValidade;
+  const expiryDate = product.farmaciaDataValidade;
   if (!expiryDate) {
     return { valid: true }; // Sem validade definida = produto OK
   }

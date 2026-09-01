@@ -110,7 +110,7 @@ export class StockService {
 
       // Registar no histórico
       await this.recordHistory(storeId, {
-        movementId: docRef.id,
+        id: docRef.id,
         productId,
         ...movement,
       });
