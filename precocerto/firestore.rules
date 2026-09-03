@@ -22,13 +22,15 @@ service cloud.firestore {
     // STORES & CATEGORIES (Multi-Store System)
     // ============================================
     match /stores/{storeId} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null &&
+        storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
       allow create, update, delete: if request.auth != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin';
     }
 
     match /stores/{storeId}/categories/{categoryId} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null &&
+        storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
       allow create, update, delete: if request.auth != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin';
     }
@@ -37,18 +39,23 @@ service cloud.firestore {
     // SALES MODULE (Phase 3 & 6)
     // ============================================
     match /stores/{storeId}/sales/{saleId} {
-      // Ler: Qualquer utilizador autenticado da loja pode ver vendas
-      allow read: if request.auth != null;
+      // Ler: Utilizador autenticado que tem acesso ao storeId pode ver vendas
+      allow read: if request.auth != null &&
+        storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
 
-      // Criar: Qualquer utilizador autenticado pode registar vendas
+      // Criar: Utilizador autenticado pode registar vendas
       // - Deve incluir userId válido (seu próprio ID)
       // - Deve incluir storeId que corresponde à loja
+      // - Deve ter acesso a esse storeId
       allow create: if request.auth != null &&
         request.resource.data.userId == request.auth.uid &&
-        request.resource.data.storeId == storeId;
+        request.resource.data.storeId == storeId &&
+        storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
 
       // Actualizar: Apenas o próprio utilizador ou admin pode editar
+      // E deve ter acesso ao storeId
       allow update: if request.auth != null &&
+        storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas &&
         (resource.data.userId == request.auth.uid ||
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin');
 
@@ -61,23 +68,47 @@ service cloud.firestore {
     // LEGACY RULES (Product Management)
     // ============================================
     match /products/{productId} {
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null &&
+        resource.data.userId == request.auth.uid &&
+        resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
     }
 
     match /businessSettings/{settingId} {
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null &&
+        resource.data.userId == request.auth.uid &&
+        (resource.data.storeId == null || resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas);
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid &&
+        (request.resource.data.storeId == null || request.resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas);
     }
 
     match /priceHistory/{historyId} {
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Validação: Utilizador é dono OU admin
+      // Nota: priceHistory está associado a productId mas não tem storeId direto
+      // Por segurança adicional, recomenda-se adicionar storeId ao documento
+      allow read, update, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin'
+      );
+      allow create: if request.auth != null && (
+        request.resource.data.userId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin'
+      );
     }
 
     match /backupLogs/{logId} {
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Backup Logs são operações app-wide, apenas admin ou o utilizador que criou pode aceder
+      allow read, update, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin'
+      );
+      allow create: if request.auth != null && (
+        request.resource.data.userId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin'
+      );
     }
 
     // Default-deny catch-all rule as a global safety net (DEVE ESTAR NO FINAL)
