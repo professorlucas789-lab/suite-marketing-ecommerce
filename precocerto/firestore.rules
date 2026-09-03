@@ -68,9 +68,22 @@ service cloud.firestore {
     // LEGACY RULES (Product Management)
     // ============================================
     match /products/{productId} {
-      allow read, update, delete: if request.auth != null &&
+      allow read: if request.auth != null &&
         resource.data.userId == request.auth.uid &&
         resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
+
+      // UPDATE: Proteger imutabilidade de userId e storeId (impedir tenant switch)
+      allow update: if request.auth != null &&
+        resource.data.userId == request.auth.uid &&
+        resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.storeId == resource.data.storeId;
+
+      // DELETE: Apenas owner ou admin
+      allow delete: if request.auth != null &&
+        resource.data.userId == request.auth.uid &&
+        resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
+
       allow create: if request.auth != null &&
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
@@ -86,29 +99,13 @@ service cloud.firestore {
     }
 
     match /priceHistory/{historyId} {
-      // Validação: Utilizador é dono OU admin
-      // Nota: priceHistory está associado a productId mas não tem storeId direto
-      // Por segurança adicional, recomenda-se adicionar storeId ao documento
-      allow read, update, delete: if request.auth != null && (
-        resource.data.userId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin'
-      );
-      allow create: if request.auth != null && (
-        request.resource.data.userId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin'
-      );
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
     }
 
     match /backupLogs/{logId} {
-      // Backup Logs são operações app-wide, apenas admin ou o utilizador que criou pode aceder
-      allow read, update, delete: if request.auth != null && (
-        resource.data.userId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin'
-      );
-      allow create: if request.auth != null && (
-        request.resource.data.userId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin'
-      );
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
     }
 
     // Default-deny catch-all rule as a global safety net (DEVE ESTAR NO FINAL)
