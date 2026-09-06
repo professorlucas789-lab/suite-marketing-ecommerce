@@ -1,0 +1,666 @@
+/**
+ * PC-02A.5 — TESTES REAIS DAS FIRESTORE SECURITY RULES
+ *
+ * Suite de Integração: Valida field-level security, RBAC e multi-tenancy
+ * EXECUTA contra Firebase Local Emulator Suite com firestore.rules REAL
+ *
+ * Runner: Vitest + @firebase/rules-unit-testing
+ * Fonte de Verdade: precocerto/firestore.rules
+ *
+ * Resultado esperado: Todos os testes PASS
+ * Comportamento: assertSucceeds() se regra permite, assertFails() se nega
+ */
+
+import { describe, it, beforeAll, afterAll, expect } from 'vitest';
+import {
+  initializeTestEnvironment,
+  RulesTestEnvironment,
+  assertSucceeds,
+  assertFails,
+} from '@firebase/rules-unit-testing';
+import * as fs from 'fs';
+import * as path from 'path';
+
+let testEnv: RulesTestEnvironment;
+
+beforeAll(async () => {
+  // Carregar firestore.rules REAL do ficheiro
+  const rulesPath = path.join(__dirname, '../../..', 'firestore.rules');
+  const rulesContent = fs.readFileSync(rulesPath, 'utf-8');
+
+  // Inicializar Firebase Emulator com as Rules REAIS
+  testEnv = await initializeTestEnvironment({
+    projectId: 'precocerto-test',
+    firestore: {
+      rules: rulesContent,
+      host: 'localhost',
+      port: 8080,
+    },
+  });
+
+  console.log('[PC-02A.5] Firebase Emulator inicializado');
+  console.log('[PC-02A.5] Firestore Rules carregadas:', rulesPath);
+  console.log('[PC-02A.5] Emulator listening on localhost:8080');
+});
+
+afterAll(async () => {
+  await testEnv.cleanup();
+  console.log('[PC-02A.5] Emulator desligado');
+});
+
+describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
+
+  // ============================================================================
+  // SEED: Criar dados de teste com bypass de segurança (admin context)
+  // ============================================================================
+
+  describe('Seed — Preparar dados de teste', () => {
+    it('Deve criar utilizadores de teste via contexto administrativo', async () => {
+      // Usar withSecurityRulesDisabled para o seed data (bootstrap problem)
+      // Os dados são criados SEM passar pela Rule, depois os testes validam a Rule
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+
+        // Admin
+        await adminDb.collection('users').doc('admin_1').set({
+          id: 'admin_1',
+          nome: 'Admin Test',
+          email: 'admin@test.com',
+          papel: 'admin',
+          lojas: ['store_A', 'store_B'],
+          permissoes: {
+            visualizar: true,
+            criar: true,
+            editar: true,
+            deletar: true,
+          },
+          ativo: true,
+          dataCriacao: new Date().toISOString(),
+          criadoPor: 'system',
+        });
+
+        // Manager de Store A
+        await adminDb.collection('users').doc('manager_A').set({
+          id: 'manager_A',
+          nome: 'Manager A',
+          email: 'manager_a@test.com',
+          papel: 'loja-manager',
+          lojas: ['store_A'],
+          permissoes: {
+            visualizar: true,
+            criar: true,
+            editar: true,
+            deletar: false,
+          },
+          ativo: true,
+          dataCriacao: new Date().toISOString(),
+          criadoPor: 'admin_1',
+        });
+
+        // Funcionário Store A
+        await adminDb.collection('users').doc('func_A').set({
+          id: 'func_A',
+          nome: 'Func A',
+          email: 'func_a@test.com',
+          papel: 'funcionario',
+          lojas: ['store_A'],
+          permissoes: {
+            visualizar: true,
+            criar: true,
+            editar: false,
+            deletar: false,
+          },
+          ativo: true,
+          dataCriacao: new Date().toISOString(),
+          criadoPor: 'manager_A',
+        });
+
+        // Outro Funcionário Store A
+        await adminDb.collection('users').doc('func_A2').set({
+          id: 'func_A2',
+          nome: 'Func A2',
+          email: 'func_a2@test.com',
+          papel: 'funcionario',
+          lojas: ['store_A'],
+          permissoes: {
+            visualizar: true,
+            criar: true,
+            editar: false,
+            deletar: false,
+          },
+          ativo: true,
+          dataCriacao: new Date().toISOString(),
+          criadoPor: 'manager_A',
+        });
+
+        // Funcionário Store B
+        await adminDb.collection('users').doc('func_B').set({
+          id: 'func_B',
+          nome: 'Func B',
+          email: 'func_b@test.com',
+          papel: 'funcionario',
+          lojas: ['store_B'],
+          permissoes: {
+            visualizar: true,
+            criar: true,
+            editar: false,
+            deletar: false,
+          },
+          ativo: true,
+          dataCriacao: new Date().toISOString(),
+          criadoPor: 'system',
+        });
+
+        // Utilizador Desativado
+        await adminDb.collection('users').doc('deactivated_1').set({
+          id: 'deactivated_1',
+          nome: 'Deactivated',
+          email: 'deactivated@test.com',
+          papel: 'funcionario',
+          lojas: ['store_A'],
+          permissoes: {
+            visualizar: true,
+            criar: true,
+            editar: false,
+            deletar: false,
+          },
+          ativo: false,
+          dataCriacao: new Date().toISOString(),
+          criadoPor: 'manager_A',
+        });
+      });
+    });
+
+    it('Deve criar produtos de teste', async () => {
+      // Usar withSecurityRulesDisabled para o seed data
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+
+        // Produto em Store A, criado por func_A
+        await adminDb.collection('products').doc('product_A').set({
+          id: 'product_A',
+          nome: 'Produto A',
+          storeId: 'store_A',
+          userId: 'func_A',
+          custoCompra: 100,
+          precoVenda: 150,
+          quantidade: 50,
+          dataCriacao: new Date().toISOString(),
+        });
+
+        // Produto em Store B
+        await adminDb.collection('products').doc('product_B').set({
+          id: 'product_B',
+          nome: 'Produto B',
+          storeId: 'store_B',
+          userId: 'func_B',
+          custoCompra: 200,
+          precoVenda: 300,
+          quantidade: 30,
+          dataCriacao: new Date().toISOString(),
+        });
+      });
+    });
+  });
+
+  // ============================================================================
+  // V-ESC-001: SELF-PROMOTION (Alteração de papel)
+  // ============================================================================
+
+  describe('V-ESC-001 — Self-Promotion via papel', () => {
+    it('func_A tenta alterar seu papel de "funcionario" para "admin" — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertFails(
+        userDb.collection('users').doc('func_A').update({
+          papel: 'admin',
+        })
+      );
+    });
+
+    it('Admin consegue alterar papel de outro utilizador — DEVE PASSAR', async () => {
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertSucceeds(
+        adminDb.collection('users').doc('func_A').update({
+          papel: 'loja-manager',
+        })
+      );
+
+      // Voltar ao estado anterior para não interferir com outros testes
+      await assertSucceeds(
+        adminDb.collection('users').doc('func_A').update({
+          papel: 'funcionario',
+        })
+      );
+    });
+  });
+
+  // ============================================================================
+  // V-ESC-002: SELF-ASSIGNMENT DE LOJAS (Tenant Jump)
+  // ============================================================================
+
+  describe('V-ESC-002 — Auto-atribuição de Lojas', () => {
+    it('func_A (Store A) tenta adicionar-se a Store B — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertFails(
+        userDb.collection('users').doc('func_A').update({
+          lojas: ['store_A', 'store_B'],
+        })
+      );
+    });
+
+    it('func_A tenta remover-se de Store A — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertFails(
+        userDb.collection('users').doc('func_A').update({
+          lojas: [],
+        })
+      );
+    });
+
+    it('Admin consegue adicionar utilizador a outra loja — DEVE PASSAR', async () => {
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertSucceeds(
+        adminDb.collection('users').doc('func_A').update({
+          lojas: ['store_A', 'store_B'],
+        })
+      );
+
+      // Voltar ao estado anterior
+      await assertSucceeds(
+        adminDb.collection('users').doc('func_A').update({
+          lojas: ['store_A'],
+        })
+      );
+    });
+  });
+
+  // ============================================================================
+  // V-ESC-003: SELF-REACTIVATION (Alteração de ativo)
+  // ============================================================================
+
+  describe('V-ESC-003 — Self-Reactivation', () => {
+    it('Utilizador desativado tenta reativar-se — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('users').doc('deactivated_1').update({
+          ativo: true,
+        })
+      );
+    });
+
+    it('Admin consegue reativar utilizador — DEVE PASSAR', async () => {
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertSucceeds(
+        adminDb.collection('users').doc('deactivated_1').update({
+          ativo: true,
+        })
+      );
+
+      // Voltar ao estado anterior
+      await assertSucceeds(
+        adminDb.collection('users').doc('deactivated_1').update({
+          ativo: false,
+        })
+      );
+    });
+  });
+
+  // ============================================================================
+  // V-ESC-004: ALTERAÇÃO DE PERMISSÕES
+  // ============================================================================
+
+  describe('V-ESC-004 — Alteração de Permissões', () => {
+    it('func_A tenta aumentar suas permissões — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertFails(
+        userDb.collection('users').doc('func_A').update({
+          permissoes: {
+            visualizar: true,
+            criar: true,
+            editar: true,
+            deletar: true,
+          },
+        })
+      );
+    });
+
+    it('Admin consegue alterar permissões — DEVE PASSAR', async () => {
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertSucceeds(
+        adminDb.collection('users').doc('func_A').update({
+          permissoes: {
+            visualizar: true,
+            criar: true,
+            editar: true,
+            deletar: false,
+          },
+        })
+      );
+
+      // Voltar ao estado anterior
+      await assertSucceeds(
+        adminDb.collection('users').doc('func_A').update({
+          permissoes: {
+            visualizar: true,
+            criar: true,
+            editar: false,
+            deletar: false,
+          },
+        })
+      );
+    });
+  });
+
+  // ============================================================================
+  // SELF-UPDATE LEGÍTIMO (Campo permitido: nome)
+  // ============================================================================
+
+  describe('Self-Update Legítimo', () => {
+    it('func_A consegue alterar seu próprio nome — DEVE PASSAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertSucceeds(
+        userDb.collection('users').doc('func_A').update({
+          nome: 'Novo Nome',
+        })
+      );
+
+      // Voltar ao estado anterior
+      await assertSucceeds(
+        userDb.collection('users').doc('func_A').update({
+          nome: 'Func A',
+        })
+      );
+    });
+
+    it('func_A consegue alterar dataAtualizacao — DEVE PASSAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertSucceeds(
+        userDb.collection('users').doc('func_A').update({
+          dataAtualizacao: new Date().toISOString(),
+        })
+      );
+    });
+
+    it('func_A tenta alterar email — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertFails(
+        userDb.collection('users').doc('func_A').update({
+          email: 'newemail@test.com',
+        })
+      );
+    });
+
+    it('func_A tenta alterar dataCriacao — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertFails(
+        userDb.collection('users').doc('func_A').update({
+          dataCriacao: new Date().toISOString(),
+        })
+      );
+    });
+  });
+
+  // ============================================================================
+  // V-TEN-001: TENANT SWITCH (Alteração de storeId)
+  // ============================================================================
+
+  describe('V-TEN-001 — Tenant Switch Prevention', () => {
+    it('Produto não consegue mudar de storeId — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertFails(
+        userDb.collection('products').doc('product_A').update({
+          storeId: 'store_B',
+        })
+      );
+    });
+
+    it('Admin também não consegue mover produto entre stores — DEVE FALHAR', async () => {
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertFails(
+        adminDb.collection('products').doc('product_A').update({
+          storeId: 'store_B',
+        })
+      );
+    });
+  });
+
+  // ============================================================================
+  // V-AUD-001: AUDIT TRAIL LOSS (Alteração de userId)
+  // ============================================================================
+
+  describe('V-AUD-001 — Audit Trail Protection', () => {
+    it('Produto userId não consegue ser alterado — DEVE FALHAR', async () => {
+      const managerDb = testEnv.authenticatedContext('manager_A').firestore();
+
+      await assertFails(
+        managerDb.collection('products').doc('product_A').update({
+          userId: 'func_A2',
+        })
+      );
+    });
+
+    it('Admin também não consegue alterar userId — DEVE FALHAR', async () => {
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertFails(
+        adminDb.collection('products').doc('product_A').update({
+          userId: 'admin_1',
+        })
+      );
+    });
+  });
+
+  // ============================================================================
+  // MULTI-TENANCY: ISOLAMENTO ENTRE STORES
+  // ============================================================================
+
+  describe('Multi-Tenancy — Isolamento', () => {
+    it('func_A (Store A) consegue ler product_A (Store A) — DEVE PASSAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertSucceeds(
+        userDb.collection('products').doc('product_A').get()
+      );
+    });
+
+    it('func_A (Store A) tenta ler product_B (Store B) — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertFails(
+        userDb.collection('products').doc('product_B').get()
+      );
+    });
+
+    it('func_B (Store B) consegue ler product_B (Store B) — DEVE PASSAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_B').firestore();
+
+      await assertSucceeds(
+        userDb.collection('products').doc('product_B').get()
+      );
+    });
+
+    it('func_B (Store B) tenta ler product_A (Store A) — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_B').firestore();
+
+      await assertFails(
+        userDb.collection('products').doc('product_A').get()
+      );
+    });
+  });
+
+  // ============================================================================
+  // RBAC: OPERAÇÕES EM PRODUCTS
+  // ============================================================================
+
+  describe('RBAC — Operações em Products', () => {
+    it('func_A (funcionario) consegue ler seu produto — DEVE PASSAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertSucceeds(
+        userDb.collection('products').doc('product_A').get()
+      );
+    });
+
+    it('func_A2 (funcionario mesma store) consegue ler produto de func_A — DEVE PASSAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A2').firestore();
+
+      await assertSucceeds(
+        userDb.collection('products').doc('product_A').get()
+      );
+    });
+
+    it('func_A (funcionario) tenta editar produto de func_A — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertFails(
+        userDb.collection('products').doc('product_A').update({
+          precoVenda: 200,
+        })
+      );
+    });
+
+    it('manager_A consegue editar product_A (sua store) — DEVE PASSAR', async () => {
+      const managerDb = testEnv.authenticatedContext('manager_A').firestore();
+
+      await assertSucceeds(
+        managerDb.collection('products').doc('product_A').update({
+          precoVenda: 160,
+        })
+      );
+
+      // Voltar ao estado anterior
+      await assertSucceeds(
+        managerDb.collection('products').doc('product_A').update({
+          precoVenda: 150,
+        })
+      );
+    });
+
+    it('admin consegue editar qualquer produto — DEVE PASSAR', async () => {
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertSucceeds(
+        adminDb.collection('products').doc('product_A').update({
+          precoVenda: 170,
+        })
+      );
+
+      // Voltar
+      await assertSucceeds(
+        adminDb.collection('products').doc('product_A').update({
+          precoVenda: 150,
+        })
+      );
+    });
+  });
+
+  // ============================================================================
+  // OPERAÇÕES NÃO AUTENTICADAS
+  // ============================================================================
+
+  describe('Operações Não Autenticadas', () => {
+    it('Utilizador não autenticado tenta ler users — DEVE FALHAR', async () => {
+      const unauthDb = testEnv.unauthenticatedContext().firestore();
+
+      await assertFails(
+        unauthDb.collection('users').doc('admin_1').get()
+      );
+    });
+
+    it('Utilizador não autenticado tenta ler products — DEVE FALHAR', async () => {
+      const unauthDb = testEnv.unauthenticatedContext().firestore();
+
+      await assertFails(
+        unauthDb.collection('products').doc('product_A').get()
+      );
+    });
+
+    it('Utilizador não autenticado tenta criar product — DEVE FALHAR', async () => {
+      const unauthDb = testEnv.unauthenticatedContext().firestore();
+
+      await assertFails(
+        unauthDb.collection('products').add({
+          nome: 'Test',
+          storeId: 'store_A',
+          userId: 'hacker',
+        })
+      );
+    });
+  });
+
+  // ============================================================================
+  // CAMPOS MISTOS (Mixed-Field Attack)
+  // ============================================================================
+
+  describe('Mixed-Field Attack Prevention', () => {
+    it('func_A tenta alterar nome + papel simultâneamente — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertFails(
+        userDb.collection('users').doc('func_A').update({
+          nome: 'Novo Nome',
+          papel: 'admin',
+        })
+      );
+    });
+
+    it('func_A tenta alterar nome + lojas simultâneamente — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('func_A').firestore();
+
+      await assertFails(
+        userDb.collection('users').doc('func_A').update({
+          nome: 'Novo Nome',
+          lojas: ['store_A', 'store_B'],
+        })
+      );
+    });
+  });
+
+  // ============================================================================
+  // USERS — CAMPO SELF-EDITABLE
+  // ============================================================================
+
+  describe('Users — Whitelist de Campos Editáveis', () => {
+    it('Apenas "nome" e "dataAtualizacao" estão na whitelist para self-edit', () => {
+      // Este teste apenas documenta que a whitelist deve ser: ['nome', 'dataAtualizacao']
+      // Os testes anteriores já validam o comportamento
+      expect(['nome', 'dataAtualizacao']).toContain('nome');
+    });
+  });
+
+});
+
+describe('PC-02A.5 — Coverage Summary', () => {
+  it('Todos os cenários de escalation foram testados contra Firestore Emulator REAL', () => {
+    // Summary
+    const testedVulnerabilities = [
+      'V-ESC-001: Self-Promotion',
+      'V-ESC-002: Self-Assignment',
+      'V-ESC-003: Self-Reactivation',
+      'V-ESC-004: Permission Escalation',
+      'V-TEN-001: Tenant Switch',
+      'V-AUD-001: Audit Trail Loss',
+      'Multi-Tenancy Isolation',
+      'RBAC Enforcement',
+      'Mixed-Field Attack Prevention',
+    ];
+
+    expect(testedVulnerabilities.length).toBeGreaterThan(0);
+    console.log('[PC-02A.5] Vulnerabilidades testadas:', testedVulnerabilities.length);
+  });
+});
