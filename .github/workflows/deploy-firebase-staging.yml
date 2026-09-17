@@ -1,0 +1,71 @@
+name: 🚀 Deploy para Firebase Staging
+
+on:
+  push:
+    branches:
+      - claude/precocerto-stage-1-xsicob
+    paths:
+      - 'precocerto/src/**'
+      - 'precocerto/package.json'
+      - '.github/workflows/deploy-firebase-staging.yml'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: 📥 Clonar repositório
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: 🔧 Instalar dependências
+        working-directory: ./precocerto
+        run: npm ci --legacy-peer-deps
+
+      - name: 🏗️ Build da aplicação
+        working-directory: ./precocerto
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          VITE_APP_ENV: staging
+        run: npm run build
+
+      - name: 🔤 Normalizar Firebase Project ID (Lowercase)
+        id: firebase-config
+        run: |
+          # Transformar variável capitalizada em minúsculas para Firebase
+          # GitHub normaliza automaticamente: "Precocerto-staging" → minúsculas internamente
+          FIREBASE_PROJECT_ID_NORMALIZED=$(echo "${{ vars.FIREBASE_PROJECT_ID }}" | tr '[:upper:]' '[:lower:]')
+          echo "project_id=$FIREBASE_PROJECT_ID_NORMALIZED" >> $GITHUB_OUTPUT
+          echo "✅ Project ID normalizado para deploy: $FIREBASE_PROJECT_ID_NORMALIZED"
+
+      - name: 🚀 Deploy para Firebase Hosting (Staging)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          projectId: ${{ steps.firebase-config.outputs.project_id }}
+          channelId: live
+        env:
+          FIREBASE_CLI_EXPERIMENTS: webframeworks
+
+      - name: ✅ Deploy para Staging concluído!
+        run: |
+          echo "🎉 Aplicação deployada em https://${{ steps.firebase-config.outputs.project_id }}.web.app"
+          echo "📝 Verificar logs em: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "🔐 Ambiente: staging"
+          echo "🏷️ Project ID: ${{ steps.firebase-config.outputs.project_id }}"
