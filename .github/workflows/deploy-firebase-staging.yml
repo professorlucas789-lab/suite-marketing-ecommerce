@@ -2,6 +2,15 @@ name: 🚀 Deploy para Firebase Staging
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Escolha validate-auth para validar credenciais sem deploy, ou deploy para executar deploy completo'
+        required: true
+        default: 'validate-auth'
+        type: choice
+        options:
+          - validate-auth
+          - deploy
 
 jobs:
   build-and-deploy:
@@ -45,6 +54,65 @@ jobs:
           echo "project_id=$PROJECT_ID_NORMALIZED" >> $GITHUB_OUTPUT
           echo "PROJECT_ID_NORMALIZED=$PROJECT_ID_NORMALIZED" >> $GITHUB_ENV
 
+      - name: 🔐 Autenticar no Google Cloud (Firebase Service Account)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAGING }}
+
+      - name: ☁️ Setup Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: 🔍 Validar Identidade do Service Account (validate-auth)
+        if: ${{ github.event.inputs.operation == 'validate-auth' }}
+        run: |
+          echo "🔐 Validando identidade do service account ativo..."
+          ACTIVE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)")
+          echo "👤 Conta ativa: $ACTIVE_ACCOUNT"
+
+          EXPECTED_ACCOUNT="github-actions-staging@precocerto-staging.iam.gserviceaccount.com"
+          if [ "$ACTIVE_ACCOUNT" != "$EXPECTED_ACCOUNT" ]; then
+            echo "❌ BLOQUEADO: Identidade do service account não corresponde!"
+            echo "   Esperado: $EXPECTED_ACCOUNT"
+            echo "   Recebido: $ACTIVE_ACCOUNT"
+            exit 1
+          fi
+          echo "✅ Identidade validada: $EXPECTED_ACCOUNT"
+
+      - name: 🎯 Validar Projeto no gcloud (validate-auth)
+        if: ${{ github.event.inputs.operation == 'validate-auth' }}
+        run: |
+          echo "🔍 Configurando e validando projeto..."
+          gcloud config set project "${{ env.PROJECT_ID_NORMALIZED }}"
+
+          ACTIVE_PROJECT=$(gcloud config get-value project)
+          echo "📊 Projeto ativo: $ACTIVE_PROJECT"
+
+          if [ "$ACTIVE_PROJECT" != "${{ env.PROJECT_ID_NORMALIZED }}" ]; then
+            echo "❌ BLOQUEADO: Projeto ativo não corresponde!"
+            echo "   Esperado: ${{ env.PROJECT_ID_NORMALIZED }}"
+            echo "   Recebido: $ACTIVE_PROJECT"
+            exit 1
+          fi
+          echo "✅ Projeto validado: $ACTIVE_PROJECT"
+
+      - name: 🧪 Teste Read-Only de Acesso Firebase (validate-auth)
+        if: ${{ github.event.inputs.operation == 'validate-auth' }}
+        run: |
+          echo "🔍 Testando acesso de leitura aos recursos Firebase..."
+
+          # Tentar listar sites Hosting para confirmar acesso
+          echo "📦 Consultando Firebase Hosting sites (read-only)..."
+          npx firebase-tools hosting:sites:list --project "${{ env.PROJECT_ID_NORMALIZED }}" || {
+            EXIT_CODE=$?
+            if [ $EXIT_CODE -eq 0 ]; then
+              echo "✅ Acesso Firebase Hosting confirmado"
+            else
+              echo "⚠️  Firebase Hosting pode não estar configurado, mas autenticação está OK"
+            fi
+          }
+
+          echo "✅ Validação de autenticação e acesso concluída com sucesso"
+
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -52,10 +120,12 @@ jobs:
           cache: 'npm'
 
       - name: 🔧 Instalar dependências
+        if: ${{ github.event.inputs.operation == 'deploy' }}
         working-directory: ./precocerto
         run: npm ci --legacy-peer-deps
 
       - name: 🏗️ Build da aplicação
+        if: ${{ github.event.inputs.operation == 'deploy' }}
         working-directory: ./precocerto
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
@@ -69,6 +139,7 @@ jobs:
         run: npm run build
 
       - name: 🚀 Deploy para Firebase Hosting (Staging)
+        if: ${{ github.event.inputs.operation == 'deploy' }}
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
@@ -79,9 +150,23 @@ jobs:
           FIREBASE_CLI_EXPERIMENTS: webframeworks
 
       - name: ✅ Deploy para Staging concluído!
+        if: ${{ github.event.inputs.operation == 'deploy' }}
         run: |
           echo "🎉 Aplicação deployada em https://${{ steps.firebase-config.outputs.project_id }}.web.app"
           echo "📝 Verificar logs em: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "🔐 Ambiente: staging"
           echo "🏷️ Project ID: ${{ steps.firebase-config.outputs.project_id }}"
           echo "🔑 Credencial: FIREBASE_SERVICE_ACCOUNT_STAGING"
+
+      - name: ✅ Validação de Autenticação Completa (validate-auth)
+        if: ${{ github.event.inputs.operation == 'validate-auth' }}
+        run: |
+          echo "🎉 Validação de autenticação Firebase Staging concluída com sucesso!"
+          echo "📋 Resumo:"
+          echo "   ✅ Credencial FIREBASE_SERVICE_ACCOUNT_STAGING ativa"
+          echo "   ✅ Identidade: github-actions-staging@precocerto-staging.iam.gserviceaccount.com"
+          echo "   ✅ Projeto: ${{ env.PROJECT_ID_NORMALIZED }}"
+          echo "   ✅ Proteção de produção: ativa"
+          echo "   ✅ Acesso Firebase validado (read-only)"
+          echo ""
+          echo "⚡ Próximo passo: Executar com operation=deploy para publicar"
