@@ -201,6 +201,27 @@ describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
         });
       });
     });
+
+    it('Deve criar stores de teste', async () => {
+      // Usar withSecurityRulesDisabled para o seed data
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+
+        // Store A
+        await adminDb.collection('stores').doc('store_A').set({
+          id: 'store_A',
+          nome: 'Store A',
+          dataCriacao: new Date().toISOString(),
+        });
+
+        // Store B
+        await adminDb.collection('stores').doc('store_B').set({
+          id: 'store_B',
+          nome: 'Store B',
+          dataCriacao: new Date().toISOString(),
+        });
+      });
+    });
   });
 
   // ============================================================================
@@ -801,6 +822,326 @@ describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
           ativo: true,
         });
       });
+    });
+
+    it('Admin desativado tenta atualizar OUTRO user — DEVE FALHAR', async () => {
+      // Desativar admin
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('admin_1').update({
+          ativo: false,
+        });
+      });
+
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertFails(
+        adminDb.collection('users').doc('func_A').update({
+          nome: 'Alteração indevida por admin inativo',
+        })
+      );
+
+      // Reativar admin
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('admin_1').update({
+          ativo: true,
+        });
+      });
+    });
+
+    it('Admin desativado tenta deletar OUTRO user — DEVE FALHAR', async () => {
+      // Criar user temporário via seed
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('user_temp_delete').set({
+          id: 'user_temp_delete',
+          nome: 'Temp User Delete',
+          email: 'temp_delete@test.com',
+          papel: 'funcionario',
+          lojas: ['store_A'],
+          ativo: true,
+          dataCriacao: new Date().toISOString(),
+          criadoPor: 'admin_1',
+        });
+
+        // Desativar admin
+        await adminDb.collection('users').doc('admin_1').update({
+          ativo: false,
+        });
+      });
+
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertFails(
+        adminDb.collection('users').doc('user_temp_delete').delete()
+      );
+
+      // Reativar admin e limpar
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('admin_1').update({
+          ativo: true,
+        });
+        await adminDb.collection('users').doc('user_temp_delete').delete();
+      });
+    });
+
+    it('Utilizador desativado tenta ler sales — DEVE FALHAR', async () => {
+      // Criar sale fixture
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('stores').doc('store_A').collection('sales').doc('sale_temp').set({
+          id: 'sale_temp',
+          userId: 'func_A',
+          storeId: 'store_A',
+          dataCriacao: new Date().toISOString(),
+        });
+      });
+
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('stores').doc('store_A').collection('sales').doc('sale_temp').get()
+      );
+
+      // Limpar
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('stores').doc('store_A').collection('sales').doc('sale_temp').delete();
+      });
+    });
+
+    it('Utilizador desativado tenta criar sales — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('stores').doc('store_A').collection('sales').add({
+          userId: 'deactivated_1',
+          storeId: 'store_A',
+          dataCriacao: new Date().toISOString(),
+        })
+      );
+    });
+
+    it('Utilizador desativado tenta ler businessSettings — DEVE FALHAR', async () => {
+      // Criar setting fixture
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('businessSettings').doc('setting_temp').set({
+          id: 'setting_temp',
+          userId: 'deactivated_1',
+          storeId: 'store_A',
+          dataCriacao: new Date().toISOString(),
+        });
+      });
+
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('businessSettings').doc('setting_temp').get()
+      );
+
+      // Limpar
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('businessSettings').doc('setting_temp').delete();
+      });
+    });
+
+    it('Utilizador desativado tenta criar businessSettings — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('businessSettings').add({
+          userId: 'deactivated_1',
+          storeId: 'store_A',
+          dataCriacao: new Date().toISOString(),
+        })
+      );
+    });
+
+    it('Utilizador desativado tenta ler priceHistory — DEVE FALHAR', async () => {
+      // Criar price history fixture
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('priceHistory').doc('history_temp').set({
+          id: 'history_temp',
+          userId: 'deactivated_1',
+          dataCriacao: new Date().toISOString(),
+        });
+      });
+
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('priceHistory').doc('history_temp').get()
+      );
+
+      // Limpar
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('priceHistory').doc('history_temp').delete();
+      });
+    });
+
+    it('Utilizador desativado tenta criar priceHistory — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('priceHistory').add({
+          userId: 'deactivated_1',
+          dataCriacao: new Date().toISOString(),
+        })
+      );
+    });
+
+    it('Utilizador desativado tenta ler backupLogs — DEVE FALHAR', async () => {
+      // Criar backup logs fixture
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('backupLogs').doc('backup_temp').set({
+          id: 'backup_temp',
+          userId: 'deactivated_1',
+          dataCriacao: new Date().toISOString(),
+        });
+      });
+
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('backupLogs').doc('backup_temp').get()
+      );
+
+      // Limpar
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('backupLogs').doc('backup_temp').delete();
+      });
+    });
+
+    it('Utilizador desativado tenta criar backupLogs — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('backupLogs').add({
+          userId: 'deactivated_1',
+          dataCriacao: new Date().toISOString(),
+        })
+      );
+    });
+
+    it('Utilizador desativado tenta ler categories — DEVE FALHAR', async () => {
+      // Criar category fixture
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('stores').doc('store_A').collection('categories').doc('category_temp').set({
+          id: 'category_temp',
+          nome: 'Categoria Temp',
+          dataCriacao: new Date().toISOString(),
+        });
+      });
+
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('stores').doc('store_A').collection('categories').doc('category_temp').get()
+      );
+
+      // Limpar
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('stores').doc('store_A').collection('categories').doc('category_temp').delete();
+      });
+    });
+
+    it('Admin ativo consegue atualizar outro user — REGRESSÃO CHECK', async () => {
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertSucceeds(
+        adminDb.collection('users').doc('func_A').update({
+          nome: 'Atualizado por Admin Ativo',
+        })
+      );
+
+      // Reverter
+      await assertSucceeds(
+        adminDb.collection('users').doc('func_A').update({
+          nome: 'Func A',
+        })
+      );
+    });
+
+    it('Admin ativo consegue deletar user temporário — REGRESSÃO CHECK', async () => {
+      // Criar user temporário
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('user_temp_delete_2').set({
+          id: 'user_temp_delete_2',
+          nome: 'Temp User Delete 2',
+          email: 'temp_delete_2@test.com',
+          papel: 'funcionario',
+          lojas: ['store_A'],
+          ativo: true,
+          dataCriacao: new Date().toISOString(),
+          criadoPor: 'admin_1',
+        });
+      });
+
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertSucceeds(
+        adminDb.collection('users').doc('user_temp_delete_2').delete()
+      );
+    });
+
+    it('Admin ativo consegue criar store — REGRESSÃO CHECK', async () => {
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertSucceeds(
+        adminDb.collection('stores').add({
+          nome: 'Store Temp',
+          dataCriacao: new Date().toISOString(),
+        })
+      );
+
+      // Limpar (pega o documento criado e deleta)
+      // Nota: não temos o ID então deixamos a limpeza para outro teste ou seed disabled
+    });
+
+    it('Admin ativo consegue atualizar store — REGRESSÃO CHECK', async () => {
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertSucceeds(
+        adminDb.collection('stores').doc('store_A').update({
+          nome: 'Store A Atualizada',
+        })
+      );
+
+      // Reverter
+      await assertSucceeds(
+        adminDb.collection('stores').doc('store_A').update({
+          nome: 'Store A',
+        })
+      );
+    });
+
+    it('Admin ativo consegue deletar store temporária — REGRESSÃO CHECK', async () => {
+      // Criar store temporária
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('stores').doc('store_temp_delete').set({
+          id: 'store_temp_delete',
+          nome: 'Store Temp Delete',
+          dataCriacao: new Date().toISOString(),
+        });
+      });
+
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertSucceeds(
+        adminDb.collection('stores').doc('store_temp_delete').delete()
+      );
     });
   });
 
