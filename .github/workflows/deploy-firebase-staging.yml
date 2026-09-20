@@ -102,16 +102,43 @@ jobs:
 
           # Tentar listar sites Hosting para confirmar acesso
           echo "📦 Consultando Firebase Hosting sites (read-only)..."
-          npx firebase-tools hosting:sites:list --project "${{ env.PROJECT_ID_NORMALIZED }}" || {
-            EXIT_CODE=$?
-            if [ $EXIT_CODE -eq 0 ]; then
-              echo "✅ Acesso Firebase Hosting confirmado"
-            else
-              echo "⚠️  Firebase Hosting pode não estar configurado, mas autenticação está OK"
-            fi
-          }
 
-          echo "✅ Validação de autenticação e acesso concluída com sucesso"
+          # Capturar output e exit code sem falhar imediatamente
+          set +e
+          OUTPUT=$(npx firebase-tools hosting:sites:list --project "${{ env.PROJECT_ID_NORMALIZED }}" 2>&1)
+          EXIT_CODE=$?
+          set -e
+
+          # Analisar resultado
+          if [ $EXIT_CODE -eq 0 ]; then
+            # Sucesso: comando executou sem erros
+            echo "✅ Acesso Firebase Hosting confirmado"
+            echo "$OUTPUT"
+          else
+            # Erro: verificar se é erro de autenticação/autorização ou recurso não configurado
+
+            # Padrões de erro que indicam falha de autenticação/autorização
+            if echo "$OUTPUT" | grep -qi "permission denied\|insufficient permissions\|unauthorized\|unauthenticated\|authentication\|forbidden\|401\|403\|credentials\|permission"; then
+              echo "❌ BLOQUEADO: Erro de autenticação ou autorização detectado!"
+              echo "Output (sem expor tokens):"
+              echo "$OUTPUT" | head -20
+              exit 1
+            fi
+
+            # Se chegou aqui, pode ser recurso não configurado
+            if echo "$OUTPUT" | grep -qi "not found\|does not exist\|no sites\|not configured\|not enabled"; then
+              echo "⚠️  Firebase Hosting pode não estar configurado neste projeto"
+              echo "   Mas a autenticação foi bem-sucedida (serviço respondeu)"
+              echo "   Status: AUTH_OK_RESOURCE_NOT_CONFIGURED"
+            else
+              # Erro desconhecido - relatar com cautela
+              echo "⚠️  Comando retornou exit code $EXIT_CODE"
+              echo "   Este pode ser um erro não relacionado a autenticação"
+              echo "   Consultar logs para mais detalhes"
+            fi
+          fi
+
+          echo "✅ Validação de autenticação concluída"
 
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
