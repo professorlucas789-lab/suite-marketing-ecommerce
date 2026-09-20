@@ -29,10 +29,10 @@ jobs:
         run: |
           # Obter Project ID do GitHub Environment
           PROJECT_ID_RAW="${{ vars.FIREBASE_PROJECT_ID }}"
-          echo "🔍 Project ID recebido do GitHub: $PROJECT_ID_RAW"
+          echo "🔍 Project ID recebido do GitHub"
 
-          # Normalizar para minúsculas (Firebase requer lowercase)
-          PROJECT_ID_NORMALIZED=$(printf '%s' "$PROJECT_ID_RAW" | tr '[:upper:]' '[:lower:]')
+          # Normalizar: lowercase + remover whitespace (início/fim/tabs)
+          PROJECT_ID_NORMALIZED=$(printf '%s' "$PROJECT_ID_RAW" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
           echo "🔤 Project ID normalizado: $PROJECT_ID_NORMALIZED"
 
           # Validação obrigatória: deve ser staging, NUNCA produção
