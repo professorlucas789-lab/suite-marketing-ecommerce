@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: 'Escolha: validate-auth para validar credenciais, deploy-rules para publicar Firestore Rules, ou deploy para deploy Hosting completo'
+        description: 'Escolha: validate-auth para validar credenciais, deploy-rules para publicar Firestore Rules, smoke-rules para executar smoke tests, ou deploy para deploy Hosting completo'
         required: true
         default: 'validate-auth'
         type: choice
         options:
           - validate-auth
           - deploy-rules
+          - smoke-rules
           - deploy
 
 jobs:
@@ -246,4 +247,87 @@ jobs:
           echo "   ✅ Proteção de produção: ativa"
           echo ""
           echo "📊 Resultado: Firestore Rules em staging atualizadas com sucesso"
+          echo "📝 Verificar logs em: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: 🔐 Validar Project ID (smoke-rules)
+        if: ${{ github.event.inputs.operation == 'smoke-rules' }}
+        run: |
+          PROJECT_ID_RAW="${{ vars.FIREBASE_PROJECT_ID }}"
+          PROJECT_ID_NORMALIZED=$(printf '%s' "$PROJECT_ID_RAW" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+          if [ "$PROJECT_ID_NORMALIZED" = "precocerto-cc04a" ]; then
+            echo "❌ BLOQUEADO: Detectado Project ID de PRODUÇÃO!"
+            exit 1
+          fi
+
+          if [ "$PROJECT_ID_NORMALIZED" != "precocerto-staging" ]; then
+            echo "❌ BLOQUEADO: Project ID inválido para smoke-rules!"
+            exit 1
+          fi
+
+          echo "PROJECT_ID_NORMALIZED=$PROJECT_ID_NORMALIZED" >> $GITHUB_ENV
+          echo "✅ Project ID validado: $PROJECT_ID_NORMALIZED"
+
+      - name: 📦 Setup Node.js (smoke-rules)
+        if: ${{ github.event.inputs.operation == 'smoke-rules' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: 📥 Instalar dependências (smoke-rules)
+        if: ${{ github.event.inputs.operation == 'smoke-rules' }}
+        working-directory: ./precocerto
+        run: npm ci --legacy-peer-deps
+
+      - name: 🧪 Executar Smoke Tests das Firestore Rules (smoke-rules)
+        if: ${{ github.event.inputs.operation == 'smoke-rules' }}
+        working-directory: ./precocerto
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ env.PROJECT_ID_NORMALIZED }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          STG_SMOKE_ADMIN_EMAIL: ${{ secrets.STG_SMOKE_ADMIN_EMAIL }}
+          STG_SMOKE_ADMIN_PASSWORD: ${{ secrets.STG_SMOKE_ADMIN_PASSWORD }}
+          STG_SMOKE_MANAGER_A_EMAIL: ${{ secrets.STG_SMOKE_MANAGER_A_EMAIL }}
+          STG_SMOKE_MANAGER_A_PASSWORD: ${{ secrets.STG_SMOKE_MANAGER_A_PASSWORD }}
+          STG_SMOKE_FUNC_A_EMAIL: ${{ secrets.STG_SMOKE_FUNC_A_EMAIL }}
+          STG_SMOKE_FUNC_A_PASSWORD: ${{ secrets.STG_SMOKE_FUNC_A_PASSWORD }}
+          STG_SMOKE_FUNC_A2_EMAIL: ${{ secrets.STG_SMOKE_FUNC_A2_EMAIL }}
+          STG_SMOKE_FUNC_A2_PASSWORD: ${{ secrets.STG_SMOKE_FUNC_A2_PASSWORD }}
+          STG_SMOKE_FUNC_B_EMAIL: ${{ secrets.STG_SMOKE_FUNC_B_EMAIL }}
+          STG_SMOKE_FUNC_B_PASSWORD: ${{ secrets.STG_SMOKE_FUNC_B_PASSWORD }}
+          STG_SMOKE_DEACTIVATED_EMAIL: ${{ secrets.STG_SMOKE_DEACTIVATED_EMAIL }}
+          STG_SMOKE_DEACTIVATED_PASSWORD: ${{ secrets.STG_SMOKE_DEACTIVATED_PASSWORD }}
+        run: |
+          echo "🔥 Smoke Tests STG-01.4..."
+          echo ""
+          node scripts/staging-firestore-smoke.mjs
+          SMOKE_EXIT_CODE=$?
+
+          if [ $SMOKE_EXIT_CODE -eq 0 ]; then
+            echo ""
+            echo "✅ Smoke Tests PASS"
+          else
+            echo ""
+            echo "❌ Smoke Tests FAIL (exit code: $SMOKE_EXIT_CODE)"
+            exit $SMOKE_EXIT_CODE
+          fi
+
+      - name: ✅ Smoke Tests Concluído (smoke-rules)
+        if: ${{ github.event.inputs.operation == 'smoke-rules' }}
+        run: |
+          echo "🎉 Smoke Tests das Firestore Rules concluído com sucesso!"
+          echo "📋 Resumo:"
+          echo "   ✅ Firebase Client SDK autenticado"
+          echo "   ✅ 6 identities testadas"
+          echo "   ✅ 15 testes executados (6 positivos + 9 negativos)"
+          echo "   ✅ Projeto: ${{ env.PROJECT_ID_NORMALIZED }}"
+          echo "   ✅ Proteção de produção: ativa"
+          echo ""
+          echo "📊 Resultado: Firestore Rules validadas em staging"
           echo "📝 Verificar logs em: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
