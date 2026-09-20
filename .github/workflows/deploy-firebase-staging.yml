@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: 'Escolha validate-auth para validar credenciais sem deploy, ou deploy para executar deploy completo'
+        description: 'Escolha: validate-auth para validar credenciais, deploy-rules para publicar Firestore Rules, ou deploy para deploy Hosting completo'
         required: true
         default: 'validate-auth'
         type: choice
         options:
           - validate-auth
+          - deploy-rules
           - deploy
 
 jobs:
@@ -67,6 +68,42 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
+
+      - name: 🔥 Deploy Firestore Rules — STAGING (deploy-rules)
+        if: ${{ github.event.inputs.operation == 'deploy-rules' }}
+        run: |
+          echo "🔥 Deploy de Firestore Rules para STAGING..."
+          echo ""
+
+          # Validação crítica: SOMENTE staging autorizado
+          if [ "${{ env.PROJECT_ID_NORMALIZED }}" != "precocerto-staging" ]; then
+            echo "❌ BLOQUEADO: Project ID inválido para deploy-rules!"
+            echo "   Esperado: precocerto-staging"
+            echo "   Recebido: ${{ env.PROJECT_ID_NORMALIZED }}"
+            exit 1
+          fi
+
+          echo "✅ Project ID validado: ${{ env.PROJECT_ID_NORMALIZED }}"
+          echo "🔑 Secret: FIREBASE_SERVICE_ACCOUNT_STAGING"
+          echo ""
+
+          # Deploy SOMENTE das Firestore Rules
+          echo "📦 Publicando Firestore Rules de precocerto/firestore.rules..."
+          npx firebase-tools deploy \
+            --only firestore:rules \
+            --project "${{ env.PROJECT_ID_NORMALIZED }}" \
+            --non-interactive
+
+          if [ $? -eq 0 ]; then
+            echo ""
+            echo "✅ Firestore Rules publicadas com sucesso em precocerto-staging!"
+            echo "📍 Projeto: ${{ env.PROJECT_ID_NORMALIZED }}"
+            echo "🔒 Protegido: Nenhum index, Hosting ou Functions publicados"
+          else
+            echo ""
+            echo "❌ Erro ao publicar Firestore Rules!"
+            exit 1
+          fi
 
       - name: 🔍 Validar Identidade do Service Account (validate-auth)
         if: ${{ github.event.inputs.operation == 'validate-auth' }}
@@ -196,3 +233,17 @@ jobs:
           echo "   ✅ Acesso Firebase validado (read-only)"
           echo ""
           echo "⚡ Próximo passo: Executar com operation=deploy para publicar"
+
+      - name: ✅ Deploy Firestore Rules Concluído (deploy-rules)
+        if: ${{ github.event.inputs.operation == 'deploy-rules' }}
+        run: |
+          echo "🎉 Firestore Rules publicadas exclusivamente em precocerto-staging!"
+          echo "📋 Resumo:"
+          echo "   ✅ Firestore Rules (precocerto/firestore.rules) publicadas"
+          echo "   ✅ Projeto: ${{ env.PROJECT_ID_NORMALIZED }}"
+          echo "   ✅ Credencial: FIREBASE_SERVICE_ACCOUNT_STAGING"
+          echo "   🔒 Isolamento: Somente Rules (sem indexes, hosting, functions)"
+          echo "   ✅ Proteção de produção: ativa"
+          echo ""
+          echo "📊 Resultado: Firestore Rules em staging atualizadas com sucesso"
+          echo "📝 Verificar logs em: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
