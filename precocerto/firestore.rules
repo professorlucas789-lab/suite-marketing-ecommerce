@@ -2,25 +2,57 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // ============================================
+    // HELPER FUNCTIONS (Segurança)
+    // ============================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isActiveUser() {
+      return userExists() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid))
+          .data.ativo == true;
+    }
+
+    function isAdmin() {
+      return isActiveUser() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid))
+          .data.papel == 'admin';
+    }
+
+    function isStoreMember(storeId) {
+      return isActiveUser() &&
+        storeId in
+          get(/databases/$(database)/documents/users/$(request.auth.uid))
+            .data.lojas;
+    }
+
+    // ============================================
     // USER PROFILE PRIVACY & SECURITY (Fase 14)
     // ============================================
     match /users/{userId} {
-      // Ler: Próprio utilizador OU Admin
-      allow read: if request.auth != null && (
+      // Ler: Próprio utilizador (mesmo se inativo) OU Admin ATIVO
+      allow read: if isSignedIn() && (
         request.auth.uid == userId ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin'
+        isAdmin()
       );
 
-      // CRIAR: Apenas Admin pode criar novo utilizador
-      allow create: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin';
+      // CRIAR: Apenas Admin ATIVO pode criar novo utilizador
+      allow create: if isAdmin();
 
       // ATUALIZAR: Com proteção de campos sensíveis
-      allow update: if request.auth != null && (
-        // Caso 1: Admin consegue alterar qualquer campo
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin') ||
-        // Caso 2: Utilizador consegue alterar apenas campos de perfil pessoal (nome)
-        (request.auth.uid == userId &&
+      allow update: if isSignedIn() && (
+        // Caso 1: Admin ATIVO consegue alterar qualquer campo
+        isAdmin() ||
+        // Caso 2: Utilizador ATIVO consegue alterar apenas campos de perfil pessoal (nome)
+        (isActiveUser() &&
+         request.auth.uid == userId &&
          // Verificar que APENAS campos seguros são modificados
          request.resource.data.diff(resource.data).affectedKeys()
            .hasOnly(['nome', 'dataAtualizacao']) &&
@@ -33,104 +65,92 @@ service cloud.firestore {
         )
       );
 
-      // ELIMINAR: Apenas Admin
-      allow delete: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin';
+      // ELIMINAR: Apenas Admin ATIVO
+      allow delete: if isAdmin();
     }
 
     // ============================================
     // STORES & CATEGORIES (Multi-Store System)
     // ============================================
     match /stores/{storeId} {
-      allow read: if request.auth != null &&
-        storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
-      allow create, update, delete: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin';
+      allow read: if isStoreMember(storeId);
+      allow create, update, delete: if isAdmin();
     }
 
     match /stores/{storeId}/categories/{categoryId} {
-      allow read: if request.auth != null &&
-        storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
-      allow create, update, delete: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin';
+      allow read: if isStoreMember(storeId);
+      allow create, update, delete: if isAdmin();
     }
 
     // ============================================
     // SALES MODULE (Phase 3 & 6)
     // ============================================
     match /stores/{storeId}/sales/{saleId} {
-      // Ler: Utilizador autenticado que tem acesso ao storeId pode ver vendas
-      allow read: if request.auth != null &&
-        storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
+      // Ler: Utilizador ATIVO que tem acesso ao storeId pode ver vendas
+      allow read: if isStoreMember(storeId);
 
-      // Criar: Utilizador autenticado pode registar vendas
+      // Criar: Utilizador ATIVO pode registar vendas
       // - Deve incluir userId válido (seu próprio ID)
       // - Deve incluir storeId que corresponde à loja
       // - Deve ter acesso a esse storeId
-      allow create: if request.auth != null &&
+      allow create: if isStoreMember(storeId) &&
         request.resource.data.userId == request.auth.uid &&
-        request.resource.data.storeId == storeId &&
-        storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
+        request.resource.data.storeId == storeId;
 
-      // Actualizar: Apenas o próprio utilizador ou admin pode editar
+      // Actualizar: Apenas o próprio utilizador ATIVO ou admin ATIVO pode editar
       // E deve ter acesso ao storeId
-      allow update: if request.auth != null &&
-        storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas &&
+      allow update: if isStoreMember(storeId) &&
         (resource.data.userId == request.auth.uid ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin');
+         isAdmin());
 
-      // Apagar: Apenas admin pode apagar vendas
-      allow delete: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin';
+      // Apagar: Apenas admin ATIVO pode apagar vendas
+      allow delete: if isAdmin() &&
+        storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
     }
 
     // ============================================
     // LEGACY RULES (Product Management)
     // ============================================
     match /products/{productId} {
-      // READ: Membro da store consegue ler produtos (userId = auditoria)
-      allow read: if request.auth != null &&
-        resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
+      // READ: Utilizador ATIVO que tem acesso ao storeId consegue ler produtos
+      allow read: if isStoreMember(resource.data.storeId);
 
-      // CREATE: Membro da store consegue criar produtos
-      allow create: if request.auth != null &&
-        request.resource.data.userId == request.auth.uid &&
-        request.resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
+      // CREATE: Utilizador ATIVO consegue criar produtos na sua loja
+      allow create: if isStoreMember(request.resource.data.storeId) &&
+        request.resource.data.userId == request.auth.uid;
 
-      // UPDATE: Apenas admin ou manager conseguem editar (RBAC)
+      // UPDATE: Admin ATIVO ou manager ATIVO conseguem editar (RBAC)
       // Proteger imutabilidade de userId e storeId (impedir tenant switch)
-      allow update: if request.auth != null &&
+      allow update: if isStoreMember(resource.data.storeId) &&
         request.resource.data.userId == resource.data.userId &&
         request.resource.data.storeId == resource.data.storeId &&
-        resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas &&
         (
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin' ||
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'loja-manager'
         );
 
-      // DELETE: Apenas admin consegue eliminar
-      allow delete: if request.auth != null &&
-        resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin';
+      // DELETE: Apenas admin ATIVO consegue eliminar produtos
+      allow delete: if isAdmin() &&
+        resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
     }
 
     match /businessSettings/{settingId} {
-      allow read, update, delete: if request.auth != null &&
+      allow read, update, delete: if isActiveUser() &&
         resource.data.userId == request.auth.uid &&
         (resource.data.storeId == null || resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas);
-      allow create: if request.auth != null &&
+      allow create: if isActiveUser() &&
         request.resource.data.userId == request.auth.uid &&
         (request.resource.data.storeId == null || request.resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas);
     }
 
     match /priceHistory/{historyId} {
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if isActiveUser() && resource.data.userId == request.auth.uid;
+      allow create: if isActiveUser() && request.resource.data.userId == request.auth.uid;
     }
 
     match /backupLogs/{logId} {
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if isActiveUser() && resource.data.userId == request.auth.uid;
+      allow create: if isActiveUser() && request.resource.data.userId == request.auth.uid;
     }
 
     // Default-deny catch-all rule as a global safety net (DEVE ESTAR NO FINAL)

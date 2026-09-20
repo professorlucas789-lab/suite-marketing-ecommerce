@@ -643,6 +643,167 @@ describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
     });
   });
 
+  // ============================================================================
+  // UTILIZADORES DESATIVADOS (ativo: false)
+  // ============================================================================
+
+  describe('Utilizadores Desativados (ativo: false)', () => {
+    it('Utilizador desativado consegue ler seu próprio perfil — DEVE PASSAR', async () => {
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertSucceeds(
+        userDb.collection('users').doc('deactivated_1').get()
+      );
+    });
+
+    it('Utilizador desativado tenta atualizar seu perfil — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('users').doc('deactivated_1').update({
+          nome: 'Novo Nome',
+        })
+      );
+    });
+
+    it('Utilizador desativado tenta ler produtos — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('products').doc('product_A').get()
+      );
+    });
+
+    it('Utilizador desativado tenta criar produtos — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('products').add({
+          nome: 'Produto Novo',
+          storeId: 'store_A',
+          userId: 'deactivated_1',
+          custoCompra: 100,
+          precoVenda: 150,
+        })
+      );
+    });
+
+    it('Utilizador desativado tenta ler stores — DEVE FALHAR', async () => {
+      const userDb = testEnv.authenticatedContext('deactivated_1').firestore();
+
+      await assertFails(
+        userDb.collection('stores').doc('store_A').get()
+      );
+    });
+
+    it('Manager desativado tenta atualizar produto — DEVE FALHAR', async () => {
+      // Primeiro, desativar o manager
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('manager_A').update({
+          ativo: false,
+        });
+      });
+
+      const managerDb = testEnv.authenticatedContext('manager_A').firestore();
+
+      await assertFails(
+        managerDb.collection('products').doc('product_A').update({
+          precoVenda: 200,
+        })
+      );
+
+      // Reativar manager para não interferir com outros testes
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('manager_A').update({
+          ativo: true,
+        });
+      });
+    });
+
+    it('Admin desativado tenta criar utilizador — DEVE FALHAR', async () => {
+      // Desativar admin
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('admin_1').update({
+          ativo: false,
+        });
+      });
+
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertFails(
+        adminDb.collection('users').add({
+          id: 'new_user',
+          nome: 'New User',
+          email: 'newuser@test.com',
+          papel: 'funcionario',
+          lojas: ['store_A'],
+          ativo: true,
+        })
+      );
+
+      // Reativar admin
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('admin_1').update({
+          ativo: true,
+        });
+      });
+    });
+
+    it('Admin desativado tenta atualizar produto — DEVE FALHAR', async () => {
+      // Desativar admin
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('admin_1').update({
+          ativo: false,
+        });
+      });
+
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertFails(
+        adminDb.collection('products').doc('product_A').update({
+          precoVenda: 200,
+        })
+      );
+
+      // Reativar admin
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('admin_1').update({
+          ativo: true,
+        });
+      });
+    });
+
+    it('Admin desativado tenta deletar produto — DEVE FALHAR', async () => {
+      // Desativar admin
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('admin_1').update({
+          ativo: false,
+        });
+      });
+
+      const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+
+      await assertFails(
+        adminDb.collection('products').doc('product_B').delete()
+      );
+
+      // Reativar admin
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        await adminDb.collection('users').doc('admin_1').update({
+          ativo: true,
+        });
+      });
+    });
+  });
+
 });
 
 describe('PC-02A.5 — Coverage Summary', () => {
