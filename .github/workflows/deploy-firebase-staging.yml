@@ -62,6 +62,12 @@ jobs:
       - name: ☁️ Setup Google Cloud CLI
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
       - name: 🔍 Validar Identidade do Service Account (validate-auth)
         if: ${{ github.event.inputs.operation == 'validate-auth' }}
         run: |
@@ -111,40 +117,33 @@ jobs:
 
           # Analisar resultado
           if [ $EXIT_CODE -eq 0 ]; then
-            # Sucesso: comando executou sem erros
-            echo "✅ Acesso Firebase Hosting confirmado"
-            echo "$OUTPUT"
+            # Sucesso: EXIT_CODE 0 = AUTH_OK
+            echo "✅ Acesso Firebase Hosting confirmado [AUTH_OK]"
           else
-            # Erro: verificar se é erro de autenticação/autorização ou recurso não configurado
+            # Erro: verificar padrões específicos
 
             # Padrões de erro que indicam falha de autenticação/autorização
             if echo "$OUTPUT" | grep -qi "permission denied\|insufficient permissions\|unauthorized\|unauthenticated\|authentication\|forbidden\|401\|403\|credentials\|permission"; then
-              echo "❌ BLOQUEADO: Erro de autenticação ou autorização detectado!"
-              echo "Output (sem expor tokens):"
-              echo "$OUTPUT" | head -20
+              echo "❌ BLOQUEADO [AUTH_FAILED_OR_FORBIDDEN]"
+              echo "Erro de autenticação ou autorização detectado!"
               exit 1
             fi
 
-            # Se chegou aqui, pode ser recurso não configurado
+            # Padrões que indicam recurso não configurado (sem falha de auth)
             if echo "$OUTPUT" | grep -qi "not found\|does not exist\|no sites\|not configured\|not enabled"; then
-              echo "⚠️  Firebase Hosting pode não estar configurado neste projeto"
-              echo "   Mas a autenticação foi bem-sucedida (serviço respondeu)"
-              echo "   Status: AUTH_OK_RESOURCE_NOT_CONFIGURED"
+              echo "⚠️  [AUTH_OK_RESOURCE_NOT_CONFIGURED]"
+              echo "Firebase Hosting pode não estar configurado neste projeto"
+              echo "Mas a autenticação foi bem-sucedida (serviço respondeu)"
             else
-              # Erro desconhecido - relatar com cautela
-              echo "⚠️  Comando retornou exit code $EXIT_CODE"
-              echo "   Este pode ser um erro não relacionado a autenticação"
-              echo "   Consultar logs para mais detalhes"
+              # Erro desconhecido = FAIL-CLOSED obrigatório
+              echo "❌ BLOQUEADO [VALIDATION_FAILED_UNKNOWN_ERROR]"
+              echo "Comando retornou exit code $EXIT_CODE"
+              echo "Erro não identificado como autenticação ou recurso ausente"
+              exit 1
             fi
           fi
 
           echo "✅ Validação de autenticação concluída"
-
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
 
       - name: 🔧 Instalar dependências
         if: ${{ github.event.inputs.operation == 'deploy' }}
