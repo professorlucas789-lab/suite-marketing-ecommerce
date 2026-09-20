@@ -1097,16 +1097,23 @@ describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
 
     it('Admin ativo consegue criar store — REGRESSÃO CHECK', async () => {
       const adminDb = testEnv.authenticatedContext('admin_1').firestore();
+      const storeId = 'store_temp_create_regression_' + Date.now();
 
-      await assertSucceeds(
-        adminDb.collection('stores').add({
-          nome: 'Store Temp',
-          dataCriacao: new Date().toISOString(),
-        })
-      );
-
-      // Limpar (pega o documento criado e deleta)
-      // Nota: não temos o ID então deixamos a limpeza para outro teste ou seed disabled
+      try {
+        await assertSucceeds(
+          adminDb.collection('stores').doc(storeId).set({
+            id: storeId,
+            nome: 'Store Temp Create Regression',
+            dataCriacao: new Date().toISOString(),
+          })
+        );
+      } finally {
+        // Cleanup explícito via rules disabled
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const adminDb = context.firestore();
+          await adminDb.collection('stores').doc(storeId).delete();
+        });
+      }
     });
 
     it('Admin ativo consegue atualizar store — REGRESSÃO CHECK', async () => {
