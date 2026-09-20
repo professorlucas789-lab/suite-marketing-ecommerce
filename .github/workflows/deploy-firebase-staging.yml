@@ -1,13 +1,7 @@
 name: 🚀 Deploy para Firebase Staging
 
 on:
-  push:
-    branches:
-      - claude/precocerto-stage-1-xsicob
-    paths:
-      - 'precocerto/src/**'
-      - 'precocerto/package.json'
-      - '.github/workflows/deploy-firebase-staging.yml'
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -20,6 +14,36 @@ jobs:
     steps:
       - name: 📥 Clonar repositório
         uses: actions/checkout@v4
+
+      - name: 🔐 Validar e normalizar Project ID (Staging)
+        id: firebase-config
+        run: |
+          # Obter Project ID do GitHub Environment
+          PROJECT_ID_RAW="${{ vars.FIREBASE_PROJECT_ID }}"
+          echo "🔍 Project ID recebido do GitHub: $PROJECT_ID_RAW"
+
+          # Normalizar para minúsculas (Firebase requer lowercase)
+          PROJECT_ID_NORMALIZED=$(printf '%s' "$PROJECT_ID_RAW" | tr '[:upper:]' '[:lower:]')
+          echo "🔤 Project ID normalizado: $PROJECT_ID_NORMALIZED"
+
+          # Validação obrigatória: deve ser staging, NUNCA produção
+          if [ "$PROJECT_ID_NORMALIZED" = "precocerto-cc04a" ]; then
+            echo "❌ BLOQUEADO: Detectado Project ID de PRODUÇÃO!"
+            echo "Esta workflow só pode usar staging (precocerto-staging)."
+            exit 1
+          fi
+
+          # Validação obrigatória: confirmar que é staging
+          if [ "$PROJECT_ID_NORMALIZED" != "precocerto-staging" ]; then
+            echo "❌ BLOQUEADO: Project ID inválido para staging!"
+            echo "Esperado: precocerto-staging"
+            echo "Recebido: $PROJECT_ID_NORMALIZED"
+            exit 1
+          fi
+
+          echo "✅ Project ID validado: $PROJECT_ID_NORMALIZED"
+          echo "project_id=$PROJECT_ID_NORMALIZED" >> $GITHUB_OUTPUT
+          echo "PROJECT_ID_NORMALIZED=$PROJECT_ID_NORMALIZED" >> $GITHUB_ENV
 
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
@@ -36,7 +60,7 @@ jobs:
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_PROJECT_ID: ${{ env.PROJECT_ID_NORMALIZED }}
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
@@ -44,20 +68,11 @@ jobs:
           VITE_APP_ENV: staging
         run: npm run build
 
-      - name: 🔤 Normalizar Firebase Project ID (Lowercase)
-        id: firebase-config
-        run: |
-          # Transformar variável capitalizada em minúsculas para Firebase
-          # GitHub normaliza automaticamente: "Precocerto-staging" → minúsculas internamente
-          FIREBASE_PROJECT_ID_NORMALIZED=$(echo "${{ vars.FIREBASE_PROJECT_ID }}" | tr '[:upper:]' '[:lower:]')
-          echo "project_id=$FIREBASE_PROJECT_ID_NORMALIZED" >> $GITHUB_OUTPUT
-          echo "✅ Project ID normalizado para deploy: $FIREBASE_PROJECT_ID_NORMALIZED"
-
       - name: 🚀 Deploy para Firebase Hosting (Staging)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAGING }}'
           projectId: ${{ steps.firebase-config.outputs.project_id }}
           channelId: live
         env:
@@ -69,3 +84,4 @@ jobs:
           echo "📝 Verificar logs em: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "🔐 Ambiente: staging"
           echo "🏷️ Project ID: ${{ steps.firebase-config.outputs.project_id }}"
+          echo "🔑 Credencial: FIREBASE_SERVICE_ACCOUNT_STAGING"
