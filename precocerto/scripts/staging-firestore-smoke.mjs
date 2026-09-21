@@ -306,6 +306,8 @@ async function ensureAdminBootstrap(adminSession) {
 }
 
 async function setupUsers(adminSession, uids, state) {
+  log('Configurando utilizadores...');
+
   const usersToSetup = [
     {
       uid: uids.managerAUid,
@@ -360,9 +362,13 @@ async function setupUsers(adminSession, uids, state) {
 
     state.usersCreated.add(actor.uid);
   }
+
+  log(`Utilizadores configurados com sucesso (${state.usersCreated.size} total)`);
 }
 
 async function setupStores(adminSession, state) {
+  log('Configurando lojas...');
+
   const stores = [
     { id: STORE_A_ID, nome: 'Store A Smoke' },
     { id: STORE_B_ID, nome: 'Store B Smoke' },
@@ -387,9 +393,13 @@ async function setupStores(adminSession, state) {
 
     state.storesCreated.add(store.id);
   }
+
+  log(`Lojas configuradas com sucesso (${state.storesCreated.size} total)`);
 }
 
 async function setupProducts(sessions, uids, state) {
+  log('Configurando produto A...');
+
   const productA = {
     id: PRODUCT_A_ID,
     storeId: STORE_A_ID,
@@ -399,17 +409,24 @@ async function setupProducts(sessions, uids, state) {
   };
 
   const productARef = doc(sessions.funcA.firestore, 'products', PRODUCT_A_ID);
-  const existingA = await getDoc(productARef);
 
-  if (existingA.exists()) {
-    throw new SmokeInfraError(
-      `Product ${PRODUCT_A_ID} já existe (colisão de fixture)`,
-      'SMOKE_FIXTURE_COLLISION'
-    );
+  try {
+    // setDoc com merge: false vai falhar se o doc já existe
+    await setDoc(productARef, productA, { merge: false });
+    state.productsCreated.add(PRODUCT_A_ID);
+    log(`Produto ${PRODUCT_A_ID} criado com sucesso`);
+  } catch (error) {
+    if (error.code === 'already-exists') {
+      throw new SmokeInfraError(
+        `Product ${PRODUCT_A_ID} já existe (colisão de fixture)`,
+        'SMOKE_FIXTURE_COLLISION'
+      );
+    }
+    // Propagar outros erros (permission-denied, infra, etc.)
+    throw error;
   }
 
-  await setDoc(productARef, productA);
-  state.productsCreated.add(PRODUCT_A_ID);
+  log('Configurando produto B...');
 
   const productB = {
     id: PRODUCT_B_ID,
@@ -420,17 +437,22 @@ async function setupProducts(sessions, uids, state) {
   };
 
   const productBRef = doc(sessions.funcB.firestore, 'products', PRODUCT_B_ID);
-  const existingB = await getDoc(productBRef);
 
-  if (existingB.exists()) {
-    throw new SmokeInfraError(
-      `Product ${PRODUCT_B_ID} já existe (colisão de fixture)`,
-      'SMOKE_FIXTURE_COLLISION'
-    );
+  try {
+    // setDoc com merge: false vai falhar se o doc já existe
+    await setDoc(productBRef, productB, { merge: false });
+    state.productsCreated.add(PRODUCT_B_ID);
+    log(`Produto ${PRODUCT_B_ID} criado com sucesso`);
+  } catch (error) {
+    if (error.code === 'already-exists') {
+      throw new SmokeInfraError(
+        `Product ${PRODUCT_B_ID} já existe (colisão de fixture)`,
+        'SMOKE_FIXTURE_COLLISION'
+      );
+    }
+    // Propagar outros erros (permission-denied, infra, etc.)
+    throw error;
   }
-
-  await setDoc(productBRef, productB);
-  state.productsCreated.add(PRODUCT_B_ID);
 }
 
 // ============================================================
