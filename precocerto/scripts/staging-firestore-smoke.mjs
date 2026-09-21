@@ -76,12 +76,6 @@ class SmokeInfraError extends SmokeError {
   }
 }
 
-class SmokeCleanupError extends SmokeError {
-  constructor(message, code) {
-    super(message, code, 5);
-  }
-}
-
 // ============================================================
 // HELPERS
 // ============================================================
@@ -215,20 +209,6 @@ async function createAuthSession(email, password, appName, actorLabel) {
   }
 }
 
-async function closeAuthSession(session) {
-  if (!session) return;
-  try {
-    await signOut(session.auth);
-  } catch (e) {
-    // Ignorar erros de signOut
-  }
-  try {
-    await deleteApp(session.app);
-  } catch (e) {
-    // Ignorar erros de deleteApp duplo
-  }
-}
-
 async function closeAllSessions(sessions) {
   const errors = [];
 
@@ -261,8 +241,34 @@ function mapErrorToExitCode(error) {
   if (error instanceof SmokePrerequisiteError) return 2;
   if (error instanceof SmokeInvalidProjectError) return 3;
   if (error instanceof SmokeInfraError) return 4;
-  if (error instanceof SmokeCleanupError) return 5;
   return 4;
+}
+
+// ============================================================
+// RESOLVEDOR DE PRIORIDADE DE EXIT CODE (PURO)
+// ============================================================
+
+function resolveFinalExitCode({ primaryExitCode, cleanupFailed, sessionCloseFailed, primaryError, log }) {
+  // PRIORIDADE: cleanup failure > primary error > session close > success
+
+  if (cleanupFailed) {
+    // Cleanup failure SEMPRE resulta em exit 5
+    if (primaryError) {
+      log(`\n⚠️  Primary failure: ${primaryError.code ?? primaryError.message}`);
+    }
+    log(`   Cleanup: FAIL`);
+    log(`   Final Exit Code: 5`);
+    return 5;
+  }
+
+  if (sessionCloseFailed && primaryExitCode === 0) {
+    // Session close failure apenas se não há error primário
+    log(`\n⚠️  Erro ao fechar sessões, exit code 4`);
+    return 4;
+  }
+
+  // Preservar exit code primário
+  return primaryExitCode;
 }
 
 // ============================================================
@@ -551,6 +557,7 @@ async function runSmokeTests(sessions, uids, state) {
   );
 
   // STG-SMOKE-107: Anonymous user read
+  let anonApp107;
   try {
     const anonConfig = {
       apiKey: process.env.VITE_FIREBASE_API_KEY,
@@ -560,8 +567,8 @@ async function runSmokeTests(sessions, uids, state) {
       messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
       appId: process.env.VITE_FIREBASE_APP_ID,
     };
-    const anonApp = initializeApp(anonConfig, 'smoke-anon');
-    const anonFs = getFirestore(anonApp);
+    anonApp107 = initializeApp(anonConfig, 'smoke-anon');
+    const anonFs = getFirestore(anonApp107);
 
     try {
       await getDoc(doc(anonFs, 'users', uids.adminUid));
@@ -575,10 +582,20 @@ async function runSmokeTests(sessions, uids, state) {
         throw new SmokeInfraError(`STG-SMOKE-107: ${error.code}`, error.code);
       }
     }
-    await deleteApp(anonApp);
   } catch (error) {
     if (error instanceof SmokeInfraError) throw error;
     throw new SmokeInfraError(`STG-SMOKE-107 setup: ${error.message}`);
+  } finally {
+    if (anonApp107) {
+      try {
+        await deleteApp(anonApp107);
+      } catch (error) {
+        throw new SmokeInfraError(
+          'STG-SMOKE-107 anonymous app cleanup falhou',
+          'ANON_APP_CLOSE_FAILED'
+        );
+      }
+    }
   }
 
   // STG-SMOKE-108: Anonymous CREATE (NOVO ID SEGURO)
@@ -624,8 +641,11 @@ async function runSmokeTests(sessions, uids, state) {
     if (anonApp) {
       try {
         await deleteApp(anonApp);
-      } catch (e) {
-        // Ignorar erro ao fechar anonApp duplo
+      } catch (error) {
+        throw new SmokeInfraError(
+          'STG-SMOKE-108 anonymous app cleanup falhou',
+          'ANON_APP_CLOSE_FAILED'
+        );
       }
     }
   }
@@ -861,24 +881,19 @@ async function main() {
       const negativePass = testResults.negative.filter(r => r).length;
       log(`   Testes: ${positivePass}/${testResults.positive.length} positivos, ${negativePass}/${testResults.negative.length} negativos`);
     }
+    log(`   Primary Exit: ${primaryExitCode}`);
     log(`   Cleanup: ${cleanupFailed ? '❌ FAIL' : '✅ PASS'}`);
-    log(`   Exit Code: ${primaryExitCode}`);
+    log(`   Session Close: ${sessionCloseFailed ? '❌ FAIL' : '✅ PASS'}`);
   }
 
-  // ========== DETERMINAR EXIT CODE FINAL ==========
-  let finalExitCode = primaryExitCode;
-
-  if (cleanupFailed) {
-    if (primaryExitCode === 0) {
-      finalExitCode = 5;
-      log(`\n⚠️  Cleanup falhou, elevando exit code para 5`);
-    } else {
-      log(`\n⚠️  Cleanup também falhou, preservando erro primário [Exit ${primaryExitCode}]`);
-    }
-  } else if (sessionCloseFailed && primaryExitCode === 0) {
-    finalExitCode = 4;
-    log(`\n⚠️  Erro ao fechar sessões, exit code 4`);
-  }
+  // ========== DETERMINAR EXIT CODE FINAL (COM PRIORIDADE) ==========
+  const finalExitCode = resolveFinalExitCode({
+    primaryExitCode,
+    cleanupFailed,
+    sessionCloseFailed,
+    primaryError,
+    log
+  });
 
   return finalExitCode;
 }
