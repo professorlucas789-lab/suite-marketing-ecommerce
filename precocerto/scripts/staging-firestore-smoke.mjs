@@ -305,6 +305,162 @@ async function ensureAdminBootstrap(adminSession) {
   }
 }
 
+async function createProductFixtureCreateOnly({
+  session,
+  productId,
+  productData,
+}) {
+  assertSmokeFixtureId(productId);
+
+  if (!session?.user) {
+    throw new SmokeInfraError(
+      `Sessão inválida para criar ${productId}`,
+      'SMOKE_INVALID_AUTH_SESSION'
+    );
+  }
+
+  if (!productData || typeof productData !== 'object') {
+    throw new SmokeInfraError(
+      `Dados inválidos para fixture ${productId}`,
+      'SMOKE_INVALID_PRODUCT_FIXTURE'
+    );
+  }
+
+  const requiredStrings = ['id', 'storeId', 'userId', 'nome'];
+
+  for (const field of requiredStrings) {
+    if (
+      typeof productData[field] !== 'string' ||
+      productData[field].trim() === ''
+    ) {
+      throw new SmokeInfraError(
+        `Campo inválido em ${productId}: ${field}`,
+        'SMOKE_INVALID_PRODUCT_FIXTURE'
+      );
+    }
+  }
+
+  if (productData.id !== productId) {
+    throw new SmokeInfraError(
+      `ID interno divergente do documentId em ${productId}`,
+      'SMOKE_INVALID_PRODUCT_FIXTURE'
+    );
+  }
+
+  if (
+    typeof productData.precoVenda !== 'number' ||
+    !Number.isFinite(productData.precoVenda)
+  ) {
+    throw new SmokeInfraError(
+      `precoVenda inválido em ${productId}`,
+      'SMOKE_INVALID_PRODUCT_FIXTURE'
+    );
+  }
+
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+
+  if (!projectId) {
+    throw new SmokePrerequisiteError(
+      'VITE_FIREBASE_PROJECT_ID não definido',
+      'SMOKE_PROJECT_ID_MISSING'
+    );
+  }
+
+  let idToken;
+
+  try {
+    idToken = await session.user.getIdToken();
+  } catch {
+    throw new SmokeInfraError(
+      `Falha ao obter ID Token para criar ${productId}`,
+      'SMOKE_FIREBASE_TOKEN_FAILED'
+    );
+  }
+
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}` +
+    `/databases/(default)/documents/products` +
+    `?documentId=${encodeURIComponent(productId)}`;
+
+  const payload = {
+    fields: {
+      id: {
+        stringValue: productData.id,
+      },
+      storeId: {
+        stringValue: productData.storeId,
+      },
+      userId: {
+        stringValue: productData.userId,
+      },
+      nome: {
+        stringValue: productData.nome,
+      },
+      precoVenda: {
+        doubleValue: productData.precoVenda,
+      },
+    },
+  };
+
+  let response;
+
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new SmokeInfraError(
+      `Falha de comunicação com Firestore REST ao criar ${productId}`,
+      'SMOKE_FIRESTORE_REST_REQUEST_FAILED'
+    );
+  }
+
+  if (response.ok) {
+    return;
+  }
+
+  let apiStatus = null;
+
+  try {
+    const errorBody = await response.json();
+    apiStatus = errorBody?.error?.status ?? null;
+  } catch {
+    // Resposta sem JSON válido.
+  }
+
+  if (response.status === 409 || apiStatus === 'ALREADY_EXISTS') {
+    throw new SmokeInfraError(
+      `Product ${productId} já existe (colisão de fixture)`,
+      'SMOKE_FIXTURE_COLLISION'
+    );
+  }
+
+  if (response.status === 403 || apiStatus === 'PERMISSION_DENIED') {
+    throw new SmokeInfraError(
+      `Criação da fixture ${productId} negada pelas Firestore Rules`,
+      'permission-denied'
+    );
+  }
+
+  if (response.status === 401 || apiStatus === 'UNAUTHENTICATED') {
+    throw new SmokeInfraError(
+      `Autenticação REST recusada ao criar ${productId}`,
+      'SMOKE_FIRESTORE_REST_UNAUTHENTICATED'
+    );
+  }
+
+  throw new SmokeInfraError(
+    `Falha ao criar fixture ${productId}: HTTP ${response.status}` +
+      `${apiStatus ? ` (${apiStatus})` : ''}`,
+    apiStatus || `HTTP_${response.status}`
+  );
+}
+
 async function setupUsers(adminSession, uids, state) {
   log('Configurando utilizadores...');
 
@@ -408,21 +564,14 @@ async function setupProducts(sessions, uids, state) {
     precoVenda: 10.00,
   };
 
-  // Usar admin para verificação de colisão (admin consegue ler qualquer documento)
-  const productARefAdmin = doc(sessions.admin.firestore, 'products', PRODUCT_A_ID);
-  const existingA = await getDoc(productARefAdmin);
+  await createProductFixtureCreateOnly({
+    session: sessions.funcA,
+    productId: PRODUCT_A_ID,
+    productData: productA,
+  });
 
-  if (existingA.exists()) {
-    throw new SmokeInfraError(
-      `Product ${PRODUCT_A_ID} já existe (colisão de fixture)`,
-      'SMOKE_FIXTURE_COLLISION'
-    );
-  }
-
-  // Criar com sessão apropriada (funcA)
-  const productARef = doc(sessions.funcA.firestore, 'products', PRODUCT_A_ID);
-  await setDoc(productARef, productA);
   state.productsCreated.add(PRODUCT_A_ID);
+
   log(`Produto ${PRODUCT_A_ID} criado com sucesso`);
 
   log('Configurando produto B...');
@@ -435,21 +584,14 @@ async function setupProducts(sessions, uids, state) {
     precoVenda: 20.00,
   };
 
-  // Usar admin para verificação de colisão (admin consegue ler qualquer documento)
-  const productBRefAdmin = doc(sessions.admin.firestore, 'products', PRODUCT_B_ID);
-  const existingB = await getDoc(productBRefAdmin);
+  await createProductFixtureCreateOnly({
+    session: sessions.funcB,
+    productId: PRODUCT_B_ID,
+    productData: productB,
+  });
 
-  if (existingB.exists()) {
-    throw new SmokeInfraError(
-      `Product ${PRODUCT_B_ID} já existe (colisão de fixture)`,
-      'SMOKE_FIXTURE_COLLISION'
-    );
-  }
-
-  // Criar com sessão apropriada (funcB)
-  const productBRef = doc(sessions.funcB.firestore, 'products', PRODUCT_B_ID);
-  await setDoc(productBRef, productB);
   state.productsCreated.add(PRODUCT_B_ID);
+
   log(`Produto ${PRODUCT_B_ID} criado com sucesso`);
 }
 
