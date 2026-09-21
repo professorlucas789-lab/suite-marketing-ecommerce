@@ -408,23 +408,22 @@ async function setupProducts(sessions, uids, state) {
     precoVenda: 10.00,
   };
 
-  const productARef = doc(sessions.funcA.firestore, 'products', PRODUCT_A_ID);
+  // Usar admin para verificação de colisão (admin consegue ler qualquer documento)
+  const productARefAdmin = doc(sessions.admin.firestore, 'products', PRODUCT_A_ID);
+  const existingA = await getDoc(productARefAdmin);
 
-  try {
-    // setDoc com merge: false vai falhar se o doc já existe
-    await setDoc(productARef, productA, { merge: false });
-    state.productsCreated.add(PRODUCT_A_ID);
-    log(`Produto ${PRODUCT_A_ID} criado com sucesso`);
-  } catch (error) {
-    if (error.code === 'already-exists') {
-      throw new SmokeInfraError(
-        `Product ${PRODUCT_A_ID} já existe (colisão de fixture)`,
-        'SMOKE_FIXTURE_COLLISION'
-      );
-    }
-    // Propagar outros erros (permission-denied, infra, etc.)
-    throw error;
+  if (existingA.exists()) {
+    throw new SmokeInfraError(
+      `Product ${PRODUCT_A_ID} já existe (colisão de fixture)`,
+      'SMOKE_FIXTURE_COLLISION'
+    );
   }
+
+  // Criar com sessão apropriada (funcA)
+  const productARef = doc(sessions.funcA.firestore, 'products', PRODUCT_A_ID);
+  await setDoc(productARef, productA);
+  state.productsCreated.add(PRODUCT_A_ID);
+  log(`Produto ${PRODUCT_A_ID} criado com sucesso`);
 
   log('Configurando produto B...');
 
@@ -436,23 +435,22 @@ async function setupProducts(sessions, uids, state) {
     precoVenda: 20.00,
   };
 
-  const productBRef = doc(sessions.funcB.firestore, 'products', PRODUCT_B_ID);
+  // Usar admin para verificação de colisão (admin consegue ler qualquer documento)
+  const productBRefAdmin = doc(sessions.admin.firestore, 'products', PRODUCT_B_ID);
+  const existingB = await getDoc(productBRefAdmin);
 
-  try {
-    // setDoc com merge: false vai falhar se o doc já existe
-    await setDoc(productBRef, productB, { merge: false });
-    state.productsCreated.add(PRODUCT_B_ID);
-    log(`Produto ${PRODUCT_B_ID} criado com sucesso`);
-  } catch (error) {
-    if (error.code === 'already-exists') {
-      throw new SmokeInfraError(
-        `Product ${PRODUCT_B_ID} já existe (colisão de fixture)`,
-        'SMOKE_FIXTURE_COLLISION'
-      );
-    }
-    // Propagar outros erros (permission-denied, infra, etc.)
-    throw error;
+  if (existingB.exists()) {
+    throw new SmokeInfraError(
+      `Product ${PRODUCT_B_ID} já existe (colisão de fixture)`,
+      'SMOKE_FIXTURE_COLLISION'
+    );
   }
+
+  // Criar com sessão apropriada (funcB)
+  const productBRef = doc(sessions.funcB.firestore, 'products', PRODUCT_B_ID);
+  await setDoc(productBRef, productB);
+  state.productsCreated.add(PRODUCT_B_ID);
+  log(`Produto ${PRODUCT_B_ID} criado com sucesso`);
 }
 
 // ============================================================
