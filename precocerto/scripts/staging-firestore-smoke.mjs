@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * STG-01.4.1: Smoke Test Real das Firestore Rules em Staging (Hardened)
+ * STG-01.4.2: Smoke Test Real das Firestore Rules em Staging (Control Flow Fail-Safe)
  *
  * Valida comportamento das Security Rules contra o Firestore STAGING real.
  * Usa Firebase Client SDK com autenticação real (signInWithEmailAndPassword).
  *
- * Hardening aplicado:
- * - Cleanup em finally global (não apenas em sucesso)
- * - Tracking explícito de fixtures criadas
- * - Collision safety (não sobrescreve existentes)
- * - Admin membership validation (store A + B obrigatório)
- * - Classificação robusta de erros (infra vs security)
- * - Logs seguros (sem emails completos)
- * - Exit codes determinísticos por categoria
+ * Control Flow Fail-Safe:
+ * - Sem process.exit() em helpers (apenas throws)
+ * - Error types tipados com exit codes
+ * - Cleanup SEMPRE executado (finally garantido)
+ * - Erro primário preservado nos logs
+ * - Cleanup failure prioridade exit 5
+ * - Sessões sempre fechadas
+ * - Ponto final único de exit code (process.exitCode)
  */
 
 import {
@@ -46,14 +46,39 @@ const PRODUCT_A_ID = 'product_A_stg_smoke';
 const PRODUCT_B_ID = 'product_B_stg_smoke';
 
 // ============================================================
-// ERRO TIPADO PARA INFRA
+// ERRO TYPES TIPADOS (BASE + SUBCLASSES)
 // ============================================================
 
-class SmokeInfraError extends Error {
-  constructor(message, code = 'UNKNOWN') {
+class SmokeError extends Error {
+  constructor(message, code, exitCode) {
     super(message);
-    this.name = 'SmokeInfraError';
+    this.name = this.constructor.name;
     this.code = code;
+    this.exitCode = exitCode;
+  }
+}
+
+class SmokePrerequisiteError extends SmokeError {
+  constructor(message, code) {
+    super(message, code, 2);
+  }
+}
+
+class SmokeInvalidProjectError extends SmokeError {
+  constructor(message, code) {
+    super(message, code, 3);
+  }
+}
+
+class SmokeInfraError extends SmokeError {
+  constructor(message, code) {
+    super(message, code, 4);
+  }
+}
+
+class SmokeCleanupError extends SmokeError {
+  constructor(message, code) {
+    super(message, code, 5);
   }
 }
 
@@ -105,14 +130,11 @@ async function expectDeny(operation, testId) {
 }
 
 function validateProjectId(projectId) {
-  if (projectId === PRODUCTION_PROJECT_ID) {
-    console.error('SMOKE_ABORTED_INVALID_PROJECT');
-    process.exit(3);
-  }
-
-  if (projectId !== STAGING_PROJECT_ID) {
-    console.error('SMOKE_ABORTED_INVALID_PROJECT');
-    process.exit(3);
+  if (projectId === PRODUCTION_PROJECT_ID || projectId !== STAGING_PROJECT_ID) {
+    throw new SmokeInvalidProjectError(
+      `Project ID deve ser '${STAGING_PROJECT_ID}', obtido '${projectId}'`,
+      'SMOKE_ABORTED_INVALID_PROJECT'
+    );
   }
 }
 
@@ -141,15 +163,19 @@ function validatePrerequisites() {
   const missing = required.filter(v => !process.env[v]);
 
   if (missing.length > 0) {
-    console.error('SMOKE_PREREQUISITES_MISSING');
-    missing.forEach(v => console.error(`  - ${v}`));
-    process.exit(2);
+    throw new SmokePrerequisiteError(
+      `Faltam ${missing.length} variáveis obrigatórias: ${missing.join(', ')}`,
+      'SMOKE_PREREQUISITES_MISSING'
+    );
   }
 }
 
 function assertSmokeFixtureId(id) {
   if (!id.includes('_stg_smoke')) {
-    throw new Error(`SMOKE_UNSAFE_FIXTURE_ID: ${id} não contém marcador _stg_smoke`);
+    throw new SmokeInfraError(
+      `Fixture ID '${id}' não contém marcador _stg_smoke`,
+      'SMOKE_UNSAFE_FIXTURE_ID'
+    );
   }
 }
 
@@ -203,6 +229,42 @@ async function closeAuthSession(session) {
   }
 }
 
+async function closeAllSessions(sessions) {
+  const errors = [];
+
+  for (const [label, session] of Object.entries(sessions)) {
+    try {
+      if (session?.auth) {
+        await signOut(session.auth);
+      }
+      if (session?.app) {
+        await deleteApp(session.app);
+      }
+    } catch (error) {
+      errors.push(`${label}: ${error.message}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new SmokeInfraError(
+      `Falha ao fechar ${errors.length} sessão(ões): ${errors.join('; ')}`,
+      'SMOKE_SESSION_CLOSURE_FAILED'
+    );
+  }
+}
+
+// ============================================================
+// MAPEADOR CENTRAL DE ERROS → EXIT CODE
+// ============================================================
+
+function mapErrorToExitCode(error) {
+  if (error instanceof SmokePrerequisiteError) return 2;
+  if (error instanceof SmokeInvalidProjectError) return 3;
+  if (error instanceof SmokeInfraError) return 4;
+  if (error instanceof SmokeCleanupError) return 5;
+  return 4;
+}
+
 // ============================================================
 // BOOTSTRAP & SETUP
 // ============================================================
@@ -212,25 +274,28 @@ async function ensureAdminBootstrap(adminSession) {
   const adminSnap = await getDoc(adminRef);
 
   if (!adminSnap.exists()) {
-    console.error('SMOKE_ADMIN_BOOTSTRAP_REQUIRED');
-    process.exit(2);
+    throw new SmokePrerequisiteError(
+      'Documento de admin não existe no Firestore',
+      'SMOKE_ADMIN_BOOTSTRAP_REQUIRED'
+    );
   }
 
   const data = adminSnap.data();
 
-  // Verificações obrigatórias
   if (data.papel !== 'admin' || data.ativo !== true) {
-    console.error('SMOKE_ADMIN_BOOTSTRAP_REQUIRED');
-    process.exit(2);
+    throw new SmokePrerequisiteError(
+      `Admin deve ter papel='admin' e ativo=true, obtido papel='${data.papel}' ativo=${data.ativo}`,
+      'SMOKE_ADMIN_BOOTSTRAP_REQUIRED'
+    );
   }
 
-  // NOVO: Verificar membership obrigatória em ambas as stores
   if (!Array.isArray(data.lojas) ||
       !data.lojas.includes(STORE_A_ID) ||
       !data.lojas.includes(STORE_B_ID)) {
-    console.error('SMOKE_ADMIN_BOOTSTRAP_REQUIRED');
-    console.error(`Admin deve ter lojas: [${STORE_A_ID}, ${STORE_B_ID}]`);
-    process.exit(2);
+    throw new SmokePrerequisiteError(
+      `Admin deve ter acesso a [${STORE_A_ID}, ${STORE_B_ID}], obtido lojas=${JSON.stringify(data.lojas)}`,
+      'SMOKE_ADMIN_BOOTSTRAP_REQUIRED'
+    );
   }
 }
 
@@ -269,17 +334,16 @@ async function setupUsers(adminSession, uids, state) {
   ];
 
   for (const actor of usersToSetup) {
-    // NOVO: Verificar colisão antes de escrever
     const userRef = doc(adminSession.firestore, 'users', actor.uid);
     const existing = await getDoc(userRef);
 
     if (existing.exists()) {
-      console.error('SMOKE_FIXTURE_COLLISION');
-      console.error(`User ${actor.uid} já existe`);
-      process.exit(4);
+      throw new SmokeInfraError(
+        `User ${actor.uid} já existe (colisão de fixture)`,
+        'SMOKE_FIXTURE_COLLISION'
+      );
     }
 
-    // Criar novo
     await setDoc(userRef, {
       nome: actor.uid,
       papel: actor.papel,
@@ -288,7 +352,6 @@ async function setupUsers(adminSession, uids, state) {
       dataCriacao: new Date().toISOString(),
     });
 
-    // Registar no tracking
     state.usersCreated.add(actor.uid);
   }
 }
@@ -300,17 +363,16 @@ async function setupStores(adminSession, state) {
   ];
 
   for (const store of stores) {
-    // NOVO: Verificar colisão
     const storeRef = doc(adminSession.firestore, 'stores', store.id);
     const existing = await getDoc(storeRef);
 
     if (existing.exists()) {
-      console.error('SMOKE_FIXTURE_COLLISION');
-      console.error(`Store ${store.id} já existe`);
-      process.exit(4);
+      throw new SmokeInfraError(
+        `Store ${store.id} já existe (colisão de fixture)`,
+        'SMOKE_FIXTURE_COLLISION'
+      );
     }
 
-    // Criar novo
     await setDoc(storeRef, {
       id: store.id,
       nome: store.nome,
@@ -322,7 +384,6 @@ async function setupStores(adminSession, state) {
 }
 
 async function setupProducts(sessions, uids, state) {
-  // funcA cria product_A
   const productA = {
     id: PRODUCT_A_ID,
     storeId: STORE_A_ID,
@@ -335,15 +396,15 @@ async function setupProducts(sessions, uids, state) {
   const existingA = await getDoc(productARef);
 
   if (existingA.exists()) {
-    console.error('SMOKE_FIXTURE_COLLISION');
-    console.error(`Product ${PRODUCT_A_ID} já existe`);
-    process.exit(4);
+    throw new SmokeInfraError(
+      `Product ${PRODUCT_A_ID} já existe (colisão de fixture)`,
+      'SMOKE_FIXTURE_COLLISION'
+    );
   }
 
   await setDoc(productARef, productA);
   state.productsCreated.add(PRODUCT_A_ID);
 
-  // funcB cria product_B
   const productB = {
     id: PRODUCT_B_ID,
     storeId: STORE_B_ID,
@@ -356,9 +417,10 @@ async function setupProducts(sessions, uids, state) {
   const existingB = await getDoc(productBRef);
 
   if (existingB.exists()) {
-    console.error('SMOKE_FIXTURE_COLLISION');
-    console.error(`Product ${PRODUCT_B_ID} já existe`);
-    process.exit(4);
+    throw new SmokeInfraError(
+      `Product ${PRODUCT_B_ID} já existe (colisão de fixture)`,
+      'SMOKE_FIXTURE_COLLISION'
+    );
   }
 
   await setDoc(productBRef, productB);
@@ -369,7 +431,7 @@ async function setupProducts(sessions, uids, state) {
 // SMOKE TESTS
 // ============================================================
 
-async function runSmokeTests(sessions, uids) {
+async function runSmokeTests(sessions, uids, state) {
   const results = {
     positive: [],
     negative: [],
@@ -520,6 +582,7 @@ async function runSmokeTests(sessions, uids) {
   }
 
   // STG-SMOKE-108: Anonymous CREATE (NOVO ID SEGURO)
+  let anonApp;
   try {
     assertSmokeFixtureId('product_anon_stg_smoke');
 
@@ -531,7 +594,7 @@ async function runSmokeTests(sessions, uids) {
       messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
       appId: process.env.VITE_FIREBASE_APP_ID,
     };
-    const anonApp = initializeApp(anonConfig, 'smoke-anon-2');
+    anonApp = initializeApp(anonConfig, 'smoke-anon-2');
     const anonFs = getFirestore(anonApp);
 
     try {
@@ -544,8 +607,8 @@ async function runSmokeTests(sessions, uids) {
       });
       logTest('STG-SMOKE-108', false, 'Esperado DENY para anonymous');
       results.negative.push(false);
-      // Se permitido inesperadamente, registar para cleanup
-      // (será limpo no cleanup abaixo)
+      // Se criado inesperadamente, registar no state para cleanup
+      state.productsCreated.add('product_anon_stg_smoke');
     } catch (error) {
       if (error.code === 'permission-denied') {
         logTest('STG-SMOKE-108', true);
@@ -554,10 +617,17 @@ async function runSmokeTests(sessions, uids) {
         throw new SmokeInfraError(`STG-SMOKE-108: ${error.code}`, error.code);
       }
     }
-    await deleteApp(anonApp);
   } catch (error) {
     if (error instanceof SmokeInfraError) throw error;
     throw new SmokeInfraError(`STG-SMOKE-108 setup: ${error.message}`);
+  } finally {
+    if (anonApp) {
+      try {
+        await deleteApp(anonApp);
+      } catch (e) {
+        // Ignorar erro ao fechar anonApp duplo
+      }
+    }
   }
 
   results.negative.push(
@@ -580,20 +650,16 @@ async function cleanup(adminSession, state) {
   let cleanupErrors = [];
 
   try {
-    // 1. Remover products
+    // 1. Remover products (inclui product_anon_stg_smoke se foi criado)
     for (const productId of state.productsCreated) {
       try {
         await deleteDoc(doc(adminSession.firestore, 'products', productId));
       } catch (error) {
-        cleanupErrors.push(`Product ${productId}: ${error.code}`);
+        // NOT_FOUND é aceitável (fixture pode ter sido deletada)
+        if (error.code !== 'not-found') {
+          cleanupErrors.push(`Product ${productId}: ${error.code}`);
+        }
       }
-    }
-
-    // Tentar remover produto anon se foi criado inesperadamente
-    try {
-      await deleteDoc(doc(adminSession.firestore, 'products', 'product_anon_stg_smoke'));
-    } catch (error) {
-      // Ignorar se não existe (esperado)
     }
 
     // 2. Remover stores
@@ -601,7 +667,9 @@ async function cleanup(adminSession, state) {
       try {
         await deleteDoc(doc(adminSession.firestore, 'stores', storeId));
       } catch (error) {
-        cleanupErrors.push(`Store ${storeId}: ${error.code}`);
+        if (error.code !== 'not-found') {
+          cleanupErrors.push(`Store ${storeId}: ${error.code}`);
+        }
       }
     }
 
@@ -610,7 +678,9 @@ async function cleanup(adminSession, state) {
       try {
         await deleteDoc(doc(adminSession.firestore, 'users', userId));
       } catch (error) {
-        cleanupErrors.push(`User ${userId}: ${error.code}`);
+        if (error.code !== 'not-found') {
+          cleanupErrors.push(`User ${userId}: ${error.code}`);
+        }
       }
     }
 
@@ -630,20 +700,10 @@ async function cleanup(adminSession, state) {
 }
 
 // ============================================================
-// MAIN
+// MAIN (FAIL-SAFE CONTROL FLOW)
 // ============================================================
 
 async function main() {
-  // Validar pré-requisitos
-  validatePrerequisites();
-
-  const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-  validateProjectId(projectId);
-
-  log(`Project: ${projectId}`);
-  console.log('');
-
-  // NOVO: Tracking global de estado
   const state = {
     usersCreated: new Set(),
     storesCreated: new Set(),
@@ -653,142 +713,176 @@ async function main() {
   let sessions = {};
   let uids = {};
   let testResults = null;
-  let cleanupSuccess = true;
+
+  let primaryError = null;
+  let primaryExitCode = 0;
+  let cleanupFailed = false;
+  let sessionCloseFailed = false;
 
   try {
-    try {
-      // Criar sessões
-      log('Autenticando actors...');
+    // ========== VALIDAÇÕES ==========
+    validatePrerequisites();
 
-      sessions.admin = await createAuthSession(
-        process.env.STG_SMOKE_ADMIN_EMAIL,
-        process.env.STG_SMOKE_ADMIN_PASSWORD,
-        'smoke-admin',
-        'ADMIN'
-      );
-      uids.adminUid = sessions.admin.uid;
+    const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+    validateProjectId(projectId);
 
-      sessions.managerA = await createAuthSession(
-        process.env.STG_SMOKE_MANAGER_A_EMAIL,
-        process.env.STG_SMOKE_MANAGER_A_PASSWORD,
-        'smoke-manager-a',
-        'MANAGER_A'
-      );
-      uids.managerAUid = sessions.managerA.uid;
+    log(`Project: ${projectId}`);
+    console.log('');
 
-      sessions.funcA = await createAuthSession(
-        process.env.STG_SMOKE_FUNC_A_EMAIL,
-        process.env.STG_SMOKE_FUNC_A_PASSWORD,
-        'smoke-func-a',
-        'FUNC_A'
-      );
-      uids.funcAUid = sessions.funcA.uid;
+    // ========== AUTENTICAÇÃO (6 identidades) ==========
+    log('Autenticando actors...');
 
-      sessions.funcA2 = await createAuthSession(
-        process.env.STG_SMOKE_FUNC_A2_EMAIL,
-        process.env.STG_SMOKE_FUNC_A2_PASSWORD,
-        'smoke-func-a2',
-        'FUNC_A2'
-      );
-      uids.funcA2Uid = sessions.funcA2.uid;
+    sessions.admin = await createAuthSession(
+      process.env.STG_SMOKE_ADMIN_EMAIL,
+      process.env.STG_SMOKE_ADMIN_PASSWORD,
+      'smoke-admin',
+      'ADMIN'
+    );
+    uids.adminUid = sessions.admin.uid;
 
-      sessions.funcB = await createAuthSession(
-        process.env.STG_SMOKE_FUNC_B_EMAIL,
-        process.env.STG_SMOKE_FUNC_B_PASSWORD,
-        'smoke-func-b',
-        'FUNC_B'
-      );
-      uids.funcBUid = sessions.funcB.uid;
+    sessions.managerA = await createAuthSession(
+      process.env.STG_SMOKE_MANAGER_A_EMAIL,
+      process.env.STG_SMOKE_MANAGER_A_PASSWORD,
+      'smoke-manager-a',
+      'MANAGER_A'
+    );
+    uids.managerAUid = sessions.managerA.uid;
 
-      sessions.deactivated = await createAuthSession(
-        process.env.STG_SMOKE_DEACTIVATED_EMAIL,
-        process.env.STG_SMOKE_DEACTIVATED_PASSWORD,
-        'smoke-deactivated',
-        'DEACTIVATED'
-      );
-      uids.deactivatedUid = sessions.deactivated.uid;
+    sessions.funcA = await createAuthSession(
+      process.env.STG_SMOKE_FUNC_A_EMAIL,
+      process.env.STG_SMOKE_FUNC_A_PASSWORD,
+      'smoke-func-a',
+      'FUNC_A'
+    );
+    uids.funcAUid = sessions.funcA.uid;
 
-      log('Autenticação concluída');
-      console.log('');
+    sessions.funcA2 = await createAuthSession(
+      process.env.STG_SMOKE_FUNC_A2_EMAIL,
+      process.env.STG_SMOKE_FUNC_A2_PASSWORD,
+      'smoke-func-a2',
+      'FUNC_A2'
+    );
+    uids.funcA2Uid = sessions.funcA2.uid;
 
-      // Validar admin bootstrap
-      log('Validando bootstrap do admin...');
-      await ensureAdminBootstrap(sessions.admin);
-      log('Admin bootstrap validado');
-      console.log('');
+    sessions.funcB = await createAuthSession(
+      process.env.STG_SMOKE_FUNC_B_EMAIL,
+      process.env.STG_SMOKE_FUNC_B_PASSWORD,
+      'smoke-func-b',
+      'FUNC_B'
+    );
+    uids.funcBUid = sessions.funcB.uid;
 
-      // Setup
-      log('Configurando fixtures...');
-      await setupUsers(sessions.admin, uids, state);
-      await setupStores(sessions.admin, state);
-      await setupProducts(sessions, uids, state);
-      log('Fixtures configuradas');
-      console.log('');
+    sessions.deactivated = await createAuthSession(
+      process.env.STG_SMOKE_DEACTIVATED_EMAIL,
+      process.env.STG_SMOKE_DEACTIVATED_PASSWORD,
+      'smoke-deactivated',
+      'DEACTIVATED'
+    );
+    uids.deactivatedUid = sessions.deactivated.uid;
 
-      // Executar testes
-      log('Iniciando matriz de smoke tests...');
-      console.log('');
-      testResults = await runSmokeTests(sessions, uids);
-      console.log('');
+    log('Autenticação concluída');
+    console.log('');
 
-    } catch (error) {
-      if (error instanceof SmokeInfraError) {
-        throw error;
-      }
-      throw new SmokeInfraError(`Setup/Test error: ${error.message}`, 'SETUP_FAILED');
+    // ========== BOOTSTRAP ==========
+    log('Validando bootstrap do admin...');
+    await ensureAdminBootstrap(sessions.admin);
+    log('Admin bootstrap validado');
+    console.log('');
+
+    // ========== SETUP (fixtures) ==========
+    log('Configurando fixtures...');
+    await setupUsers(sessions.admin, uids, state);
+    await setupStores(sessions.admin, state);
+    await setupProducts(sessions, uids, state);
+    log('Fixtures configuradas');
+    console.log('');
+
+    // ========== TESTES ==========
+    log('Iniciando matriz de smoke tests...');
+    console.log('');
+    testResults = await runSmokeTests(sessions, uids, state);
+    console.log('');
+
+    // Verificar se testes passaram
+    const testPass = testResults.positive.every(r => r) && testResults.negative.every(r => r);
+    if (!testPass) {
+      primaryExitCode = 1;
+      primaryError = new Error('TEST_FAILURE: Um ou mais testes falharam');
+    } else {
+      primaryExitCode = 0;
+    }
+
+  } catch (error) {
+    // ========== CAPTURAR ERRO PRIMÁRIO ==========
+    primaryError = error;
+    primaryExitCode = mapErrorToExitCode(error);
+    log(`\n❌ ERRO PRIMÁRIO [Exit ${primaryExitCode}]: ${error.message}`);
+    if (error.code) {
+      log(`   Código: ${error.code}`);
     }
 
   } finally {
-    // NOVO: CLEANUP SEMPRE EXECUTADO
+    // ========== CLEANUP (SEMPRE) ==========
+    log(`\n🧹 Iniciando cleanup...`);
+
     try {
-      cleanupSuccess = await cleanup(sessions.admin, state);
-    } catch (error) {
-      log('❌ Erro ao executar cleanup:', error.message);
-      cleanupSuccess = false;
+      if (sessions.admin) {
+        const success = await cleanup(sessions.admin, state);
+        if (!success) {
+          cleanupFailed = true;
+        }
+      } else {
+        if (state.usersCreated.size > 0 || state.storesCreated.size > 0 || state.productsCreated.size > 0) {
+          log('❌ Erro: fixtures rastreadas mas sem sessão admin para limpeza');
+          cleanupFailed = true;
+        }
+      }
+      if (!cleanupFailed) {
+        log(`✅ Cleanup concluído`);
+      }
+    } catch (cleanupError) {
+      log(`❌ Erro no cleanup: ${cleanupError.message}`);
+      cleanupFailed = true;
     }
 
-    // Fechar sessões
-    console.log('');
-    for (const [key, session] of Object.entries(sessions)) {
-      await closeAuthSession(session);
+    // ========== FECHAR SESSÕES (SEMPRE) ==========
+    try {
+      await closeAllSessions(sessions);
+      log(`✅ Sessões fechadas`);
+    } catch (sessionError) {
+      log(`❌ Erro ao fechar sessões: ${sessionError.message}`);
+      sessionCloseFailed = true;
     }
 
-    // Exibir resumo
+    // ========== RESUMO FINAL ==========
+    log(`\n📊 RESUMO FINAL:`);
     if (testResults) {
-      log('SUMMARY');
       const positivePass = testResults.positive.filter(r => r).length;
       const negativePass = testResults.negative.filter(r => r).length;
-      console.log(`Positive: ${positivePass}/${testResults.positive.length}`);
-      console.log(`Negative: ${negativePass}/${testResults.negative.length}`);
-      console.log(`Total: ${positivePass + negativePass}/${testResults.positive.length + testResults.negative.length}`);
-      console.log(`Cleanup: ${cleanupSuccess ? 'PASS' : 'FAIL'}`);
-      console.log('');
-
-      // Determinar resultado final
-      const testPass = testResults.positive.every(r => r) && testResults.negative.every(r => r);
-      if (testPass && cleanupSuccess) {
-        log('Result: PASS');
-        process.exit(0);
-      } else {
-        log('Result: FAIL');
-        process.exit(1);
-      }
-    } else {
-      // Erro antes de testes
-      if (cleanupSuccess) {
-        process.exit(4);
-      } else {
-        process.exit(5);
-      }
+      log(`   Testes: ${positivePass}/${testResults.positive.length} positivos, ${negativePass}/${testResults.negative.length} negativos`);
     }
+    log(`   Cleanup: ${cleanupFailed ? '❌ FAIL' : '✅ PASS'}`);
+    log(`   Exit Code: ${primaryExitCode}`);
   }
+
+  // ========== DETERMINAR EXIT CODE FINAL ==========
+  let finalExitCode = primaryExitCode;
+
+  if (cleanupFailed) {
+    if (primaryExitCode === 0) {
+      finalExitCode = 5;
+      log(`\n⚠️  Cleanup falhou, elevando exit code para 5`);
+    } else {
+      log(`\n⚠️  Cleanup também falhou, preservando erro primário [Exit ${primaryExitCode}]`);
+    }
+  } else if (sessionCloseFailed && primaryExitCode === 0) {
+    finalExitCode = 4;
+    log(`\n⚠️  Erro ao fechar sessões, exit code 4`);
+  }
+
+  return finalExitCode;
 }
 
-main().catch(error => {
-  if (error instanceof SmokeInfraError) {
-    log(`Infra Error: ${error.message}`);
-    process.exit(4);
-  }
-  log(`Fatal Error: ${error.message}`);
-  process.exit(4);
-});
+// ========== INVOCAÇÃO ==========
+const exitCode = await main();
+process.exitCode = exitCode;
