@@ -64,39 +64,69 @@ let db = null;
 
 async function initFirebase() {
   try {
-    // Usar credenciais da variável de ambiente FIREBASE_SERVICE_ACCOUNT_STAGING
-    const serviceAccountJSON = process.env.FIREBASE_SERVICE_ACCOUNT_STAGING;
+    let credential = null;
+    let authSource = null;
 
-    if (!serviceAccountJSON) {
-      log('AUTENTICAÇÃO ADMINISTRATIVA INDISPONÍVEL');
-      log('Sem FIREBASE_SERVICE_ACCOUNT_STAGING no ambiente');
-      return null;
-    }
-
-    let serviceAccount;
-
+    // Estratégia 1: Tentar Application Default Credentials (ADC)
+    log('Tentando Application Default Credentials (ADC)...');
     try {
-      serviceAccount = JSON.parse(serviceAccountJSON);
-    } catch (err) {
-      log('FIREBASE_SERVICE_ACCOUNT_STAGING não é JSON válido');
-      return null;
-    }
+      const { GoogleAuth } = await import('google-auth-library');
+      const auth = new GoogleAuth({
+        projectId: PRODUCTION_PROJECT_ID,
+        scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      });
+      const client = await auth.getClient();
+      credential = {
+        getAccessToken: async () => {
+          const token = await client.getAccessToken();
+          return { access_token: token.token || token };
+        },
+      };
+      authSource = 'ADC (Application Default Credentials)';
+      log('ADC carregado com sucesso');
+    } catch (adcError) {
+      log('ADC não disponível, tentando credencial explícita...');
 
-    const projectIdFromAuth = serviceAccount.project_id;
+      // Estratégia 2: Tentar credencial de produção (FIREBASE_SERVICE_ACCOUNT_PRODUCTION)
+      const serviceAccountJSON = process.env.FIREBASE_SERVICE_ACCOUNT_PRODUCTION ||
+                                  process.env.FIREBASE_SERVICE_ACCOUNT;
 
-    if (projectIdFromAuth !== PRODUCTION_PROJECT_ID) {
-      log(`Projeto da autenticação (${projectIdFromAuth}) não corresponde ao alvo (${PRODUCTION_PROJECT_ID})`);
-      return null;
+      if (!serviceAccountJSON) {
+        log('AUTENTICAÇÃO ADMINISTRATIVA INDISPONÍVEL');
+        log('Sem FIREBASE_SERVICE_ACCOUNT_PRODUCTION ou ADC no ambiente');
+        return null;
+      }
+
+      let serviceAccount;
+      try {
+        serviceAccount = JSON.parse(serviceAccountJSON);
+      } catch (err) {
+        log('Credencial de ambiente não é JSON válido');
+        return null;
+      }
+
+      const projectIdFromAuth = serviceAccount.project_id;
+      if (projectIdFromAuth !== PRODUCTION_PROJECT_ID) {
+        log(`Credencial pertence ao projeto: ${projectIdFromAuth}`);
+        log(`Mas auditor requer projeto: ${PRODUCTION_PROJECT_ID}`);
+        log('NÃO EXECUTADA — CREDENCIAL DE PRODUÇÃO INCORRECTA');
+        return null;
+      }
+
+      credential = cert(serviceAccount);
+      authSource = 'Credencial JSON de produção (FIREBASE_SERVICE_ACCOUNT_PRODUCTION)';
+      log(`Credencial carregada: ${authSource}`);
     }
 
     const app = initializeApp({
-      credential: cert(serviceAccount),
+      credential,
       projectId: PRODUCTION_PROJECT_ID,
     });
 
     db = getFirestore(app);
 
     log(`Firestore inicializado para projeto: ${PRODUCTION_PROJECT_ID}`);
+    log(`Autenticação via: ${authSource}`);
 
     return db;
   } catch (err) {
