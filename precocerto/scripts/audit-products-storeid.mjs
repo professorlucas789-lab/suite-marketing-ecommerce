@@ -19,12 +19,7 @@ import {
   cert
 } from 'firebase-admin/app';
 import {
-  getFirestore,
-  collection,
-  getDocs,
-  query,
-  limit,
-  where
+  getFirestore
 } from 'firebase-admin/firestore';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -480,7 +475,9 @@ async function main() {
     console.log('Execução: NÃO EXECUTADA — AUTENTICAÇÃO ADMINISTRATIVA INDISPONÍVEL');
     console.log('');
     console.log('Para executar a auditoria real contra produção:');
-    console.log('1. Configure FIREBASE_SERVICE_ACCOUNT_STAGING com credencial admin válida');
+    console.log('1. Disponibilize autenticação administrativa de produção já autorizada');
+    console.log('   - Via Application Default Credentials (ADC), OU');
+    console.log('   - Via FIREBASE_SERVICE_ACCOUNT_PRODUCTION com credencial admin existente');
     console.log('2. Verifique que o project_id na credencial é exatamente: precocerto-cc04a');
     console.log('3. Re-execute o script');
     console.log('');
