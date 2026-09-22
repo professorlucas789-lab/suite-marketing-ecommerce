@@ -34,6 +34,7 @@ const REPORT_FILE = path.join(
   os.tmpdir(),
   'precocerto-reference-integrity.json'
 );
+const ALLOW_WRITES = false;
 
 function log(...args) {
   console.log('[AUDIT-INTEGRITY]', ...args);
@@ -41,6 +42,12 @@ function log(...args) {
 
 function logError(...args) {
   console.error('[AUDIT-INTEGRITY-ERROR]', ...args);
+}
+
+function assertReadOnly(operation) {
+  if (!ALLOW_WRITES && (operation === 'set' || operation === 'update' || operation === 'delete' || operation === 'batch' || operation === 'transaction')) {
+    throw new Error(`[SECURITY] Operação de escrita '${operation}' bloqueada. Este é um auditor READ-ONLY.`);
+  }
 }
 
 // ============================================================
@@ -76,6 +83,7 @@ async function initFirebase() {
 // ============================================================
 
 async function diagnoseCollections() {
+  assertReadOnly('read');
   log('Diagnóstico 1: Listando coleções top-level...');
 
   try {
@@ -97,6 +105,7 @@ async function diagnoseCollections() {
 // ============================================================
 
 async function diagnoseCounts(collectionNames) {
+  assertReadOnly('read');
   log('Diagnóstico 2: Contando documentos por coleção...');
 
   const counts = {};
@@ -128,6 +137,7 @@ async function diagnoseCounts(collectionNames) {
 // ============================================================
 
 async function diagnoseStoreIdReferences() {
+  assertReadOnly('read');
   log('Diagnóstico 3: Analisando referências storeId...');
 
   const result = {
@@ -202,6 +212,7 @@ async function diagnoseStoreIdReferences() {
 // ============================================================
 
 async function diagnoseUserIdReferences() {
+  assertReadOnly('read');
   log('Diagnóstico 4: Analisando referências userId...');
 
   const result = {
@@ -254,6 +265,7 @@ async function diagnoseUserIdReferences() {
 // ============================================================
 
 async function diagnoseProductPatterns() {
+  assertReadOnly('read');
   log('Diagnóstico 5: Analisando padrões dos produtos problemáticos...');
 
   const problematicProducts = [];
