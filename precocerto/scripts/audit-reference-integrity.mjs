@@ -45,7 +45,8 @@ function logError(...args) {
 }
 
 function assertReadOnly(operation) {
-  if (!ALLOW_WRITES && (operation === 'set' || operation === 'update' || operation === 'delete' || operation === 'batch' || operation === 'transaction')) {
+  const forbiddenOperations = ['set', 'update', 'delete', 'create', 'batch', 'transaction', 'bulkWrite'];
+  if (!ALLOW_WRITES && forbiddenOperations.includes(operation)) {
     throw new Error(`[SECURITY] Operação de escrita '${operation}' bloqueada. Este é um auditor READ-ONLY.`);
   }
 }
@@ -276,20 +277,34 @@ async function diagnoseProductPatterns() {
 
   try {
     const productsSnapshot = await db.collection('products').get();
+    let noStoreIdCount = 0;
+    let noUserIdCount = 0;
+    let bothProblematicCount = 0;
 
     for (const doc of productsSnapshot.docs) {
       const data = doc.data();
       const productId = doc.id;
 
-      // Considerar problemático se não tem storeId válido ou userId válido
+      // Validar storeId e userId
       const hasValidStore = data.storeId && typeof data.storeId === 'string' && data.storeId.trim() !== '';
       const hasValidUser = data.userId && typeof data.userId === 'string' && data.userId.trim() !== '';
 
+      // Categorizar produtos por problemas de referência
+      if (!hasValidStore && !hasValidUser) {
+        bothProblematicCount++;
+      } else if (!hasValidStore) {
+        noStoreIdCount++;
+      } else if (!hasValidUser) {
+        noUserIdCount++;
+      }
+
+      // Registar produtos com qualquer problema
       if (!hasValidStore || !hasValidUser) {
         problematicProducts.push({
           productId,
           storeId: data.storeId || null,
           userId: data.userId || null,
+          problemType: !hasValidStore && !hasValidUser ? 'NO_STORE_NO_USER' : !hasValidStore ? 'NO_STORE' : 'NO_USER',
           createdAt: data.createdAt ? data.createdAt.toDate?.().toISOString() : null,
           updatedAt: data.updatedAt ? data.updatedAt.toDate?.().toISOString() : null
         });
@@ -315,6 +330,9 @@ async function diagnoseProductPatterns() {
     }
 
     log(`Produtos problemáticos: ${problematicProducts.length}`);
+    log(`  - Sem storeId: ${noStoreIdCount}`);
+    log(`  - Sem userId: ${noUserIdCount}`);
+    log(`  - Sem storeId E userId: ${bothProblematicCount}`);
     log(`StoreIds distintos (com produtos): ${Object.keys(storeIdDistribution).length}`);
     log(`UserIds distintos (com produtos): ${Object.keys(userIdDistribution).length}`);
 
@@ -332,6 +350,12 @@ async function diagnoseProductPatterns() {
     problematicProducts,
     storeIdDistribution,
     userIdDistribution,
+    categorization: {
+      noStoreId: noStoreIdCount,
+      noUserId: noUserIdCount,
+      bothProblematic: bothProblematicCount,
+      total: problematicProducts.length
+    },
     temporalRange: { minCreatedAt, maxCreatedAt }
   };
 }
@@ -434,6 +458,7 @@ async function main() {
       },
       patterns: {
         problematicProductsCount: patterns.problematicProducts.length,
+        categorization: patterns.categorization,
         problematicProducts: patterns.problematicProducts,
         storeIdDistribution: patterns.storeIdDistribution,
         userIdDistribution: patterns.userIdDistribution,
