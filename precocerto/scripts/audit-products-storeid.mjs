@@ -16,7 +16,8 @@
 
 import {
   initializeApp,
-  cert
+  cert,
+  applicationDefault
 } from 'firebase-admin/app';
 import {
   getFirestore
@@ -65,18 +66,7 @@ async function initFirebase() {
     // Estratégia 1: Tentar Application Default Credentials (ADC)
     log('Tentando Application Default Credentials (ADC)...');
     try {
-      const { GoogleAuth } = await import('google-auth-library');
-      const auth = new GoogleAuth({
-        projectId: PRODUCTION_PROJECT_ID,
-        scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-      });
-      const client = await auth.getClient();
-      credential = {
-        getAccessToken: async () => {
-          const token = await client.getAccessToken();
-          return { access_token: token.token || token };
-        },
-      };
+      credential = applicationDefault();
       authSource = 'ADC (Application Default Credentials)';
       log('ADC carregado com sucesso');
     } catch (adcError) {
