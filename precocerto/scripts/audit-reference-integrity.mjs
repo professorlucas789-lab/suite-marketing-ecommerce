@@ -274,12 +274,12 @@ async function diagnoseProductPatterns() {
   const userIdDistribution = {};
   let minCreatedAt = null;
   let maxCreatedAt = null;
+  let noStoreIdCount = 0;
+  let noUserIdCount = 0;
+  let bothProblematicCount = 0;
 
   try {
     const productsSnapshot = await db.collection('products').get();
-    let noStoreIdCount = 0;
-    let noUserIdCount = 0;
-    let bothProblematicCount = 0;
 
     for (const doc of productsSnapshot.docs) {
       const data = doc.data();
