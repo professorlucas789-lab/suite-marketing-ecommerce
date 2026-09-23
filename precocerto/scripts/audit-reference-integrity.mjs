@@ -277,6 +277,10 @@ async function diagnoseProductPatterns() {
   let noStoreIdCount = 0;
   let noUserIdCount = 0;
   let bothProblematicCount = 0;
+  let storeRefExists = 0;
+  let storeRefMissing = 0;
+  let userRefExists = 0;
+  let userRefMissing = 0;
 
   try {
     // Carregar referências válidas
@@ -289,10 +293,6 @@ async function diagnoseProductPatterns() {
 
     // Processar produtos
     const productsSnapshot = await db.collection('products').get();
-    let storeRefExists = 0;
-    let storeRefMissing = 0;
-    let userRefExists = 0;
-    let userRefMissing = 0;
 
     for (const doc of productsSnapshot.docs) {
       const data = doc.data();
