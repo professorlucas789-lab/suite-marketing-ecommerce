@@ -137,7 +137,7 @@ async function diagnoseCounts(collectionNames) {
 // DIAGNÓSTICO 3: Referências storeId
 // ============================================================
 
-async function diagnoseStoreIdReferences(validStoreIds) {
+async function diagnoseStoreIdReferences(validStoreIds, collectionNames) {
   assertReadOnly('read');
   log('Diagnóstico 3: Analisando referências storeId...');
 
@@ -145,7 +145,8 @@ async function diagnoseStoreIdReferences(validStoreIds) {
     distinctStoreIds: new Set(),
     foundInStores: [],
     foundInLegacy: [],
-    notFound: []
+    notFound: [],
+    multipleMatches: []
   };
 
   try {
@@ -162,46 +163,93 @@ async function diagnoseStoreIdReferences(validStoreIds) {
     log(`Encontrados ${result.distinctStoreIds.size} storeId distintos`);
 
     // Usar o conjunto pré-carregado validStoreIds para análise
+    const orphanCandidates = [];
     for (const storeId of result.distinctStoreIds) {
       if (validStoreIds.has(storeId)) {
         result.foundInStores.push(storeId);
       } else {
-        result.notFound.push(storeId);
+        orphanCandidates.push(storeId);
       }
     }
 
     log(`  - Encontrados em /stores: ${result.foundInStores.length}`);
-    log(`  - NÃO encontrados: ${result.notFound.length}`);
+    log(`  - Candidatos órfãos para pesquisa: ${orphanCandidates.length}`);
 
-    // Verificar coleções legadas (se existirem)
-    const legacyCollections = ['lojas', 'businesses', 'businessesSettings', 'storesLegacy'];
-    for (const legacyName of legacyCollections) {
-      try {
-        const legacySnapshot = await db.collection(legacyName).get();
-        const legacyIds = new Set(legacySnapshot.docs.map(d => d.id));
+    // Descobrir dinamicamente coleções legacy
+    const excluded = new Set(['products', 'users', 'stores']);
 
-        for (const orphanId of result.notFound) {
-          if (legacyIds.has(orphanId)) {
-            result.foundInLegacy.push({
-              storeId: orphanId,
-              collection: legacyName
-            });
+    const legacyCandidateCollections = collectionNames.filter((name) => {
+      const normalized = name
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase();
+
+      if (excluded.has(name)) return false;
+
+      return (
+        normalized.includes('store') ||
+        normalized.includes('loja') ||
+        normalized.includes('business') ||
+        normalized.includes('negocio')
+      );
+    });
+
+    if (legacyCandidateCollections.length > 0) {
+      log(`  - Coleções legacy candidatas encontradas: ${legacyCandidateCollections.length}`);
+      legacyCandidateCollections.forEach(name => log(`    • ${name}`));
+    }
+
+    // Pesquisar cada candidato órfão em coleções legacy
+    for (const storeId of orphanCandidates) {
+      const matches = [];
+
+      for (const collectionName of legacyCandidateCollections) {
+        try {
+          const snap = await db
+            .collection(collectionName)
+            .doc(storeId)
+            .get();
+
+          if (snap.exists) {
+            matches.push(collectionName);
           }
+        } catch {
+          // Documento não existe nesta coleção, continuar
         }
-      } catch {
-        // Coleção não existe, prosseguir
+      }
+
+      // Classificar resultado
+      if (matches.length === 0) {
+        result.notFound.push(storeId);
+      } else if (matches.length === 1) {
+        result.foundInLegacy.push({
+          storeId,
+          collection: matches[0]
+        });
+      } else {
+        result.multipleMatches.push({
+          storeId,
+          collections: matches
+        });
       }
     }
 
+    log(`  - NÃO encontrados em lugar algum: ${result.notFound.length}`);
     if (result.foundInLegacy.length > 0) {
-      log(`  - Encontrados em coleções legadas: ${result.foundInLegacy.length}`);
+      log(`  - Encontrados em coleções legacy (match único): ${result.foundInLegacy.length}`);
+    }
+    if (result.multipleMatches.length > 0) {
+      log(`  - Encontrados em múltiplas coleções legacy: ${result.multipleMatches.length}`);
     }
 
   } catch (err) {
     logError('Falha ao analisar referências storeId:', err.message);
   }
 
-  return result;
+  return {
+    ...result,
+    legacyCandidateCollections
+  };
 }
 
 // ============================================================
@@ -467,13 +515,58 @@ async function main() {
   const counts = await diagnoseCounts(collections);
   console.log('');
 
-  const storeRefs = await diagnoseStoreIdReferences(validStoreIds);
+  const storeRefs = await diagnoseStoreIdReferences(validStoreIds, collections);
   console.log('');
 
   const userRefs = await diagnoseUserIdReferences(validUserIds, totalUsersInCollection);
   console.log('');
 
   const patterns = await diagnoseProductPatterns(validStoreIds, validUserIds);
+  console.log('');
+
+  // Criar findings estruturais
+  const structuralFindings = [];
+
+  const addFinding = (value) => {
+    if (!structuralFindings.includes(value)) {
+      structuralFindings.push(value);
+    }
+  };
+
+  if (counts.stores === 0) {
+    addFinding('STORES_COLLECTION_EMPTY');
+  }
+
+  if (counts.users === 0) {
+    addFinding('USERS_COLLECTION_EMPTY');
+  }
+
+  if (storeRefs.legacyCandidateCollections.length > 0) {
+    addFinding('LEGACY_STORE_COLLECTION_DETECTED');
+  }
+
+  if (
+    storeRefs.notFound.length > 0 ||
+    userRefs.notFound.length > 0 ||
+    patterns.problematicProducts.length > 0
+  ) {
+    addFinding('PRODUCT_REFERENCES_ORPHANED');
+  }
+
+  if (storeRefs.foundInLegacy.length > 0) {
+    addFinding('POSSIBLE_COLLECTION_RENAME');
+  }
+
+  if (
+    patterns.referentialIntegrity.storeReferences.missing > 0 ||
+    patterns.referentialIntegrity.userReferences.missing > 0
+  ) {
+    addFinding('DATA_MODEL_MISMATCH');
+  }
+
+  if (structuralFindings.length === 0) {
+    addFinding('INCONCLUSIVE');
+  }
   console.log('');
 
   const distribution = generateDistribution(
@@ -497,6 +590,8 @@ async function main() {
         foundInStores: storeRefs.foundInStores.length,
         foundInLegacy: storeRefs.foundInLegacy,
         notFound: storeRefs.notFound,
+        multipleMatches: storeRefs.multipleMatches,
+        legacyCandidateCollections: storeRefs.legacyCandidateCollections,
         orphanStoreIds: Array.from(storeRefs.notFound)
       },
       userIdReferences: {
@@ -515,6 +610,7 @@ async function main() {
         userIdDistribution: patterns.userIdDistribution,
         temporalRange: patterns.temporalRange
       },
+      structuralFindings,
       distribution: {
         topStores: distribution.topStores,
         topUsers: distribution.topUsers
@@ -531,13 +627,56 @@ async function main() {
   }
 
   console.log('');
-  console.log('RESULTADO DIAGNÓSTICO:');
-  console.log('======================');
+  console.log('COLEÇÕES LEGACY CANDIDATAS:');
+  console.log('===========================');
+  if (storeRefs.legacyCandidateCollections.length > 0) {
+    storeRefs.legacyCandidateCollections.forEach(name => {
+      console.log(`  • ${name}`);
+    });
+  } else {
+    console.log('  (nenhuma detectada)');
+  }
   console.log('');
-  console.log(`Collections encontradas: ${collections.length}`);
-  console.log(`StoreIds órfãos: ${storeRefs.notFound.length}`);
-  console.log(`UserIds órfãos: ${userRefs.notFound.length}`);
-  console.log(`Produtos problemáticos: ${patterns.problematicProducts.length}`);
+
+  console.log('FINDINGS ESTRUTURAIS:');
+  console.log('====================');
+  if (structuralFindings.length > 0) {
+    structuralFindings.forEach(finding => {
+      console.log(`  ⚠️  ${finding}`);
+    });
+  } else {
+    console.log('  (nenhum)');
+  }
+  console.log('');
+
+  console.log('REFERÊNCIAS DE STORE:');
+  console.log('====================');
+  console.log(`  DISTINCT_STORE_IDS: ${storeRefs.distinctStoreIds.size}`);
+  console.log(`  FOUND_IN_STORES: ${storeRefs.foundInStores.length}`);
+  console.log(`  FOUND_IN_LEGACY_STORE_COLLECTION: ${storeRefs.foundInLegacy.length}`);
+  console.log(`  NOT_FOUND_ANYWHERE: ${storeRefs.notFound.length}`);
+  console.log(`  MULTIPLE_POSSIBLE_MATCHES: ${storeRefs.multipleMatches.length}`);
+  console.log('');
+
+  console.log('REFERÊNCIAS DE USER:');
+  console.log('====================');
+  console.log(`  DISTINCT_USER_IDS: ${userRefs.distinctUserIds.size}`);
+  console.log(`  FOUND_IN_USERS: ${userRefs.found.length}`);
+  console.log(`  NOT_FOUND_IN_USERS: ${userRefs.notFound.length}`);
+  console.log('');
+
+  console.log('PRODUTOS PROBLEMÁTICOS:');
+  console.log('=======================');
+  console.log(`  Total: ${patterns.problematicProducts.length}`);
+  console.log(`  Sem store válido: ${patterns.categorization.noStoreId}`);
+  console.log(`  Sem user válido: ${patterns.categorization.noUserId}`);
+  console.log(`  Sem store E user: ${patterns.categorization.bothProblematic}`);
+  console.log('');
+
+  console.log('RESULTADO FINAL:');
+  console.log('================');
+  console.log(`  Collections encontradas: ${collections.length}`);
+  console.log(`  Arquivo de relatório: ${REPORT_FILE}`);
   console.log('');
   console.log('✓ Nenhum documento Firestore foi alterado durante a PC-02B.1A.');
   console.log('');
