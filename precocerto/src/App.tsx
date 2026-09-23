@@ -709,7 +709,7 @@ export default function App() {
           productId: docRef.id,
           productName: duplicatedProduct.nome,
           productCategory: duplicatedProduct.categoria || "Outros",
-          storeId: currentStore?.storeId,
+          storeId: duplicatedProduct.storeId,
           userId: user.uid,
           previousPrice: 0,
           newPrice: Math.round((initialPrice || 0) * 100) / 100,
