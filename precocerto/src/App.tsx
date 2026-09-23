@@ -618,7 +618,7 @@ export default function App() {
 
   // Delete Product Handler
   const handleDeleteProduct = async (id: string) => {
-    if (!currentStore?.storeId) {
+    if (!user || !currentStore?.storeId) {
       triggerNotification("Erro: Nenhuma loja selecionada.", "error");
       return;
     }
