@@ -8,7 +8,6 @@ import React, { useState, useEffect } from 'react';
 import { Loader2, Calendar, LogIn, Lock, Camera, User as UserIcon, AlertCircle } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { collection, query, where, orderBy, limit, onSnapshot, QueryConstraint } from 'firebase/firestore';
-import { useStore } from '../contexts/StoreContext';
 
 interface Activity {
   id: string;
@@ -76,12 +75,12 @@ const formatDate = (dateString: string) => {
 };
 
 export const ActivityHistoryCard: React.FC = () => {
-  const { currentStore } = useStore();
+  const user = auth.currentUser;
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentStore?.storeId) {
+    if (!user) {
       setLoading(false);
       return;
     }
@@ -89,10 +88,10 @@ export const ActivityHistoryCard: React.FC = () => {
     setLoading(true);
 
     try {
-      // Construir query para atividades da loja (filtered by store ID - tenant isolation)
+      // Construir query para atividades do utilizador
       const q = query(
         collection(db, 'audit_logs'),
-        where('storeId', '==', currentStore.storeId),
+        where('userId', '==', user.uid),
         orderBy('timestamp', 'desc'),
         limit(10)
       );
@@ -125,7 +124,7 @@ export const ActivityHistoryCard: React.FC = () => {
       console.error('Erro ao configurar listener:', error);
       setLoading(false);
     }
-  }, [currentStore?.storeId]);
+  }, [user]);
 
   if (loading) {
     return (
