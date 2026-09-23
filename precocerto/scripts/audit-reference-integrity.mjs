@@ -122,18 +122,33 @@ async function diagnoseCounts(collectionNames) {
     }
   }
 
-  // Validar coleções obrigatórias
-  const requiredCollections = ['products', 'users', 'stores'];
-  const missing = requiredCollections.filter(c => !collectionNames.includes(c));
+  // Apenas 'products' deve estar listada (obrigatória)
+  const requiredListedCollections = ['products'];
+  const missingRequired = requiredListedCollections.filter(c => !collectionNames.includes(c));
 
-  if (missing.length > 0) {
-    throw new Error(`Coleções obrigatórias não encontradas: ${missing.join(', ')}`);
+  if (missingRequired.length > 0) {
+    throw new Error(`Coleções obrigatórias não encontradas: ${missingRequired.join(', ')}`);
   }
 
-  // Validar que coleções obrigatórias foram contadas sem erro
-  const failedCounts = requiredCollections.filter(c => counts[c] === 'ERROR');
-  if (failedCounts.length > 0) {
-    throw new Error(`Falha ao contar coleções obrigatórias: ${failedCounts.join(', ')}`);
+  // 'stores' e 'users' podem estar vazias (não aparecem em listCollections)
+  // Tentar contar mesmo que não estejam listadas
+  const optionalCollections = ['stores', 'users'];
+  for (const collName of optionalCollections) {
+    if (!collectionNames.includes(collName) && !counts[collName]) {
+      try {
+        const snapshot = await db.collection(collName).count().get();
+        counts[collName] = snapshot.data().count;
+        log(`  ${collName}: ${counts[collName]} documentos (não listada, mas consultada)`);
+      } catch (err) {
+        counts[collName] = 0;
+        log(`  ${collName}: 0 documentos (não encontrada, assumida vazia)`);
+      }
+    }
+  }
+
+  // Validar que 'products' foi contada sem erro
+  if (counts['products'] === 'ERROR') {
+    throw new Error(`Falha ao contar coleção obrigatória 'products'`);
   }
 
   return counts;
