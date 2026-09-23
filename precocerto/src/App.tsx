@@ -336,77 +336,95 @@ export default function App() {
 
   // Real-time products listener (filtered by store ID - tenant isolation)
   useEffect(() => {
-    if (!currentStore?.storeId) return;
+    if (!user || !currentStore?.storeId) {
+      setProducts([]);
+      setProductsLoading(false);
+      return;
+    }
 
     setProductsLoading(true);
+
     const q = query(
       collection(db, "products"),
       where("storeId", "==", currentStore.storeId)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const productsData: Product[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const productsData: Product[] = [];
 
-        productsData.push({
-          ...data,
-          id: docSnap.id,
-          nome: data.nome,
-          categoria: data.categoria,
-          fornecedor: data.fornecedor,
-          numeroFatura: data.numeroFatura || "",
-          dataEmissaoFatura: data.dataEmissaoFatura || "",
-          storeId: data.storeId,
-          custoCompra: data.custoCompra || 0,
-          custoTransporte: data.custoTransporte || 0,
-          custoEmbalagem: data.custoEmbalagem || 0,
-          outrosCustos: data.outrosCustos || 0,
-          
-          comissaoVenda: data.comissaoVenda || 0,
-          taxaBancaria: data.taxaBancaria || 0,
-          taxaMarketplace: data.taxaMarketplace || 0,
-          custoPublicidade: data.custoPublicidade || 0,
-          custoEntrega: data.custoEntrega || 0,
-          combustivel: data.combustivel || 0,
-          impostoTaxa: data.impostoTaxa || 0,
-          perdasDesperdicios: data.perdasDesperdicios || 0,
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
 
-          energia: data.energia || 0,
-          internet: data.internet || 0,
-          renda: data.renda || 0,
-          salario: data.salario || 0,
-          agua: data.agua || 0,
-          contabilidade: data.contabilidade || 0,
-          seguranca: data.seguranca || 0,
-          outrosCustosFixos: data.outrosCustosFixos || 0,
+          productsData.push({
+            ...data,
+            id: docSnap.id,
+            nome: data.nome,
+            categoria: data.categoria,
+            fornecedor: data.fornecedor,
+            numeroFatura: data.numeroFatura || "",
+            dataEmissaoFatura: data.dataEmissaoFatura || "",
+            storeId: data.storeId,
 
-          margemDesejada: data.margemDesejada || 0,
-          precoVendaRecomendado: data.precoVendaRecomendado || 0,
-          lucroEstimado: data.lucroEstimado || 0,
-          margemReal: data.margemReal || 0,
-          roi: data.roi || 0,
-          observacoes: data.observacoes || "",
-          userId: data.userId,
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt
+            custoCompra: data.custoCompra || 0,
+            custoTransporte: data.custoTransporte || 0,
+            custoEmbalagem: data.custoEmbalagem || 0,
+            outrosCustos: data.outrosCustos || 0,
+
+            comissaoVenda: data.comissaoVenda || 0,
+            taxaBancaria: data.taxaBancaria || 0,
+            taxaMarketplace: data.taxaMarketplace || 0,
+            custoPublicidade: data.custoPublicidade || 0,
+            custoEntrega: data.custoEntrega || 0,
+            combustivel: data.combustivel || 0,
+            impostoTaxa: data.impostoTaxa || 0,
+            perdasDesperdicios: data.perdasDesperdicios || 0,
+
+            energia: data.energia || 0,
+            internet: data.internet || 0,
+            renda: data.renda || 0,
+            salario: data.salario || 0,
+            agua: data.agua || 0,
+            contabilidade: data.contabilidade || 0,
+            seguranca: data.seguranca || 0,
+            outrosCustosFixos: data.outrosCustosFixos || 0,
+
+            margemDesejada: data.margemDesejada || 0,
+            precoVendaRecomendado: data.precoVendaRecomendado || 0,
+            lucroEstimado: data.lucroEstimado || 0,
+            margemReal: data.margemReal || 0,
+            roi: data.roi || 0,
+            observacoes: data.observacoes || "",
+
+            userId: data.userId,
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt
+          });
         });
-      });
 
-      // Sort client-side to ensure index-free 100% operation
-      productsData.sort((a, b) => {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
+        productsData.sort((a, b) => {
+          return (
+            new Date(b.createdAt).getTime() -
+            new Date(a.createdAt).getTime()
+          );
+        });
 
-      setProducts(productsData);
-      setProductsLoading(false);
-    }, (error) => {
-      setProductsLoading(false);
-      handleFirestoreError(error, OperationType.GET, "products");
-    });
+        setProducts(productsData);
+        setProductsLoading(false);
+      },
+      (error) => {
+        setProductsLoading(false);
+        handleFirestoreError(
+          error,
+          OperationType.GET,
+          "products"
+        );
+      }
+    );
 
     return () => unsubscribe();
-  }, [currentStore?.storeId, userStores.length]);
+  }, [user, currentStore?.storeId, userStores.length]);
 
   // Logout handler
   const handleLogout = async () => {
