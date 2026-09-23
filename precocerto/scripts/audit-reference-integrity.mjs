@@ -137,7 +137,7 @@ async function diagnoseCounts(collectionNames) {
 // DIAGNÓSTICO 3: Referências storeId
 // ============================================================
 
-async function diagnoseStoreIdReferences(validStoreIds, storesDocData = null) {
+async function diagnoseStoreIdReferences(validStoreIds) {
   assertReadOnly('read');
   log('Diagnóstico 3: Analisando referências storeId...');
 
@@ -145,8 +145,7 @@ async function diagnoseStoreIdReferences(validStoreIds, storesDocData = null) {
     distinctStoreIds: new Set(),
     foundInStores: [],
     foundInLegacy: [],
-    notFound: [],
-    multipleMatches: []
+    notFound: []
   };
 
   try {
