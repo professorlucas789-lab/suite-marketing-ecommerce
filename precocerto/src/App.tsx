@@ -336,7 +336,7 @@ export default function App() {
 
   // Real-time products listener (filtered by store ID - tenant isolation)
   useEffect(() => {
-    if (!user || !currentStore?.storeId) return;
+    if (!currentStore?.storeId) return;
 
     setProductsLoading(true);
     const q = query(
@@ -406,7 +406,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user, currentStore?.storeId, userStores.length]);
+  }, [currentStore?.storeId, userStores.length]);
 
   // Logout handler
   const handleLogout = async () => {
