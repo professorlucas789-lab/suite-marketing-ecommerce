@@ -198,9 +198,9 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Real-time business settings listener
+  // Real-time business settings listener (filtered by store ID - tenant isolation)
   useEffect(() => {
-    if (!user) {
+    if (!currentStore?.storeId) {
       setBusinessSettings(null);
       setSettingsLoading(false);
       return;
@@ -209,7 +209,7 @@ export default function App() {
     setSettingsLoading(true);
     const q = query(
       collection(db, "businessSettings"),
-      where("userId", "==", user.uid)
+      where("storeId", "==", currentStore.storeId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -219,13 +219,9 @@ export default function App() {
         moduleId: currentStore.moduleId,
       } : null));
 
-      const storeSettingsDoc = currentStore
-        ? snapshot.docs.find((item) => item.data().storeId === currentStore.storeId)
-        : undefined;
-      const legacySettingsDoc = snapshot.docs.find((item) => !item.data().storeId);
-      const docSnap = storeSettingsDoc || legacySettingsDoc;
+      const docSnap = snapshot.docs[0];
       const data = docSnap?.data() || {};
-      const hasStoreSettings = !!storeSettingsDoc;
+      const hasStoreSettings = !!docSnap;
       const segmentConfig = mergeBusinessSegmentConfig(
         currentStore?.businessSegmentId,
         data.segmentConfig
@@ -266,7 +262,6 @@ export default function App() {
 
     return () => unsubscribe();
   }, [
-    user,
     currentStore?.storeId,
     currentStore?.storeName,
     currentStore?.storeType,
