@@ -279,43 +279,74 @@ async function diagnoseProductPatterns() {
   let bothProblematicCount = 0;
 
   try {
+    // Carregar referências válidas
+    const storesSnapshot = await db.collection('stores').get();
+    const usersSnapshot = await db.collection('users').get();
+    const validStoreIds = new Set(storesSnapshot.docs.map(d => d.id));
+    const validUserIds = new Set(usersSnapshot.docs.map(d => d.id));
+
+    log(`  Referências válidas: ${validStoreIds.size} stores, ${validUserIds.size} users`);
+
+    // Processar produtos
     const productsSnapshot = await db.collection('products').get();
+    let storeRefExists = 0;
+    let storeRefMissing = 0;
+    let userRefExists = 0;
+    let userRefMissing = 0;
 
     for (const doc of productsSnapshot.docs) {
       const data = doc.data();
       const productId = doc.id;
 
-      // Validar storeId e userId
-      const hasValidStore = data.storeId && typeof data.storeId === 'string' && data.storeId.trim() !== '';
-      const hasValidUser = data.userId && typeof data.userId === 'string' && data.userId.trim() !== '';
+      // Validar presença de valores
+      const hasStoreIdValue = data.storeId && typeof data.storeId === 'string' && data.storeId.trim() !== '';
+      const hasUserIdValue = data.userId && typeof data.userId === 'string' && data.userId.trim() !== '';
 
-      // Categorizar produtos por problemas de referência
-      if (!hasValidStore && !hasValidUser) {
-        bothProblematicCount++;
-      } else if (!hasValidStore) {
-        noStoreIdCount++;
-      } else if (!hasValidUser) {
-        noUserIdCount++;
+      // Validar existência em collections
+      const storeIdExists = hasStoreIdValue && validStoreIds.has(data.storeId);
+      const userIdExists = hasUserIdValue && validUserIds.has(data.userId);
+
+      // Contar referências
+      if (hasStoreIdValue) {
+        if (storeIdExists) storeRefExists++;
+        else storeRefMissing++;
+      }
+      if (hasUserIdValue) {
+        if (userIdExists) userRefExists++;
+        else userRefMissing++;
       }
 
-      // Registar produtos com qualquer problema
-      if (!hasValidStore || !hasValidUser) {
+      // Categorizar produto problemático
+      const isProblematic = !storeIdExists || !userIdExists;
+
+      if (isProblematic) {
+        if (!storeIdExists && !userIdExists) {
+          bothProblematicCount++;
+        } else if (!storeIdExists) {
+          noStoreIdCount++;
+        } else if (!userIdExists) {
+          noUserIdCount++;
+        }
+
+        // Registar detalhes do produto problemático
         problematicProducts.push({
           productId,
           storeId: data.storeId || null,
+          storeIdExists: storeIdExists,
           userId: data.userId || null,
-          problemType: !hasValidStore && !hasValidUser ? 'NO_STORE_NO_USER' : !hasValidStore ? 'NO_STORE' : 'NO_USER',
+          userIdExists: userIdExists,
+          problemType: !storeIdExists && !userIdExists ? 'NO_STORE_NO_USER' : !storeIdExists ? 'NO_STORE' : 'NO_USER',
           createdAt: data.createdAt ? data.createdAt.toDate?.().toISOString() : null,
           updatedAt: data.updatedAt ? data.updatedAt.toDate?.().toISOString() : null
         });
       }
 
-      // Distribuição (todos os produtos)
-      if (hasValidStore) {
+      // Distribuição (todos os produtos com referência válida)
+      if (storeIdExists) {
         storeIdDistribution[data.storeId] = (storeIdDistribution[data.storeId] || 0) + 1;
       }
 
-      if (hasValidUser) {
+      if (userIdExists) {
         userIdDistribution[data.userId] = (userIdDistribution[data.userId] || 0) + 1;
       }
 
@@ -329,12 +360,15 @@ async function diagnoseProductPatterns() {
       }
     }
 
+    log(`Integridade referencial:`);
+    log(`  - Referências de store: ${storeRefExists} encontradas, ${storeRefMissing} órfãs`);
+    log(`  - Referências de user: ${userRefExists} encontradas, ${userRefMissing} órfãs`);
     log(`Produtos problemáticos: ${problematicProducts.length}`);
-    log(`  - Sem storeId: ${noStoreIdCount}`);
-    log(`  - Sem userId: ${noUserIdCount}`);
-    log(`  - Sem storeId E userId: ${bothProblematicCount}`);
-    log(`StoreIds distintos (com produtos): ${Object.keys(storeIdDistribution).length}`);
-    log(`UserIds distintos (com produtos): ${Object.keys(userIdDistribution).length}`);
+    log(`  - Sem store válido: ${noStoreIdCount}`);
+    log(`  - Sem user válido: ${noUserIdCount}`);
+    log(`  - Sem store E user: ${bothProblematicCount}`);
+    log(`StoreIds distintos (válidos): ${Object.keys(storeIdDistribution).length}`);
+    log(`UserIds distintos (válidos): ${Object.keys(userIdDistribution).length}`);
 
     if (minCreatedAt && maxCreatedAt) {
       const minDate = new Date(minCreatedAt).toISOString();
@@ -355,6 +389,16 @@ async function diagnoseProductPatterns() {
       noUserId: noUserIdCount,
       bothProblematic: bothProblematicCount,
       total: problematicProducts.length
+    },
+    referentialIntegrity: {
+      storeReferences: {
+        found: storeRefExists,
+        missing: storeRefMissing
+      },
+      userReferences: {
+        found: userRefExists,
+        missing: userRefMissing
+      }
     },
     temporalRange: { minCreatedAt, maxCreatedAt }
   };
@@ -459,6 +503,7 @@ async function main() {
       patterns: {
         problematicProductsCount: patterns.problematicProducts.length,
         categorization: patterns.categorization,
+        referentialIntegrity: patterns.referentialIntegrity,
         problematicProducts: patterns.problematicProducts,
         storeIdDistribution: patterns.storeIdDistribution,
         userIdDistribution: patterns.userIdDistribution,
