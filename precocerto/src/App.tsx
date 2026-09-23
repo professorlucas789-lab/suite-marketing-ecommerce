@@ -813,7 +813,16 @@ export default function App() {
   const handleSaveBatchProducts = async (
     productsData: Omit<Product, "id" | "userId" | "createdAt" | "updatedAt">[]
   ) => {
-    if (!user) return;
+    // Validações de tenant
+    if (!user) {
+      triggerNotification("Utilizador não autenticado.", "error");
+      return;
+    }
+
+    if (!currentStore?.storeId) {
+      triggerNotification("Erro: Nenhuma loja selecionada. Por favor, seleccione uma loja antes de importar produtos.", "error");
+      return;
+    }
 
     const timestamp = new Date().toISOString();
     const savedProducts: string[] = [];
@@ -823,13 +832,11 @@ export default function App() {
     try {
       for (const productData of productsData) {
         try {
-          const productDataWithStore = currentStore
-            ? {
-                ...productData,
-                storeId: productData.storeId || currentStore.storeId,
-                storeName: productData.storeName || currentStore.storeName,
-              }
-            : productData;
+          const productDataWithStore = {
+            ...productData,
+            storeId: currentStore.storeId,
+            storeName: currentStore.storeName,
+          };
 
           // Create product document
           const docRef = await addDoc(collection(db, "products"), {
@@ -858,7 +865,7 @@ export default function App() {
             productId: docRef.id,
             productName: productData.nome,
             productCategory: productData.categoria || "Outros",
-            storeId: currentStore?.storeId,
+            storeId: currentStore.storeId,
             userId: user.uid,
             previousPrice: 0,
             newPrice: Math.round((initialPrice || 0) * 100) / 100,
