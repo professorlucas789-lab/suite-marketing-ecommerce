@@ -334,29 +334,20 @@ export default function App() {
     }
   };
 
-  // Real-time products listener (filtered by authenticated user ID)
+  // Real-time products listener (filtered by store ID - tenant isolation)
   useEffect(() => {
-    if (!user) return;
+    if (!user || !currentStore?.storeId) return;
 
     setProductsLoading(true);
     const q = query(
       collection(db, "products"),
-      where("userId", "==", user.uid)
+      where("storeId", "==", currentStore.storeId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const productsData: Product[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        const productStoreId = data.storeId || "";
-
-        if (currentStore && productStoreId && productStoreId !== currentStore.storeId) {
-          return;
-        }
-
-        if (currentStore && !productStoreId && userStores.length > 1) {
-          return;
-        }
 
         productsData.push({
           ...data,
@@ -366,7 +357,7 @@ export default function App() {
           fornecedor: data.fornecedor,
           numeroFatura: data.numeroFatura || "",
           dataEmissaoFatura: data.dataEmissaoFatura || "",
-          storeId: productStoreId,
+          storeId: data.storeId,
           custoCompra: data.custoCompra || 0,
           custoTransporte: data.custoTransporte || 0,
           custoEmbalagem: data.custoEmbalagem || 0,
