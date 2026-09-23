@@ -75,7 +75,7 @@ async function initFirebase() {
     return db;
   } catch (err) {
     logError('Falha ao inicializar Firebase:', err.message);
-    return null;
+    throw new Error(`Falha ao inicializar Firebase: ${err.message}`);
   }
 }
 
@@ -97,7 +97,7 @@ async function diagnoseCollections() {
     return collectionNames;
   } catch (err) {
     logError('Falha ao listar coleções:', err.message);
-    return [];
+    throw new Error(`Falha ao listar coleções: ${err.message}`);
   }
 }
 
@@ -127,7 +127,13 @@ async function diagnoseCounts(collectionNames) {
   const missing = requiredCollections.filter(c => !collectionNames.includes(c));
 
   if (missing.length > 0) {
-    log(`Aviso: Coleções obrigatórias não encontradas: ${missing.join(', ')}`);
+    throw new Error(`Coleções obrigatórias não encontradas: ${missing.join(', ')}`);
+  }
+
+  // Validar que coleções obrigatórias foram contadas sem erro
+  const failedCounts = requiredCollections.filter(c => counts[c] === 'ERROR');
+  if (failedCounts.length > 0) {
+    throw new Error(`Falha ao contar coleções obrigatórias: ${failedCounts.join(', ')}`);
   }
 
   return counts;
@@ -253,6 +259,7 @@ async function diagnoseStoreIdReferences(validStoreIds, collectionNames) {
 
   } catch (err) {
     logError('Falha ao analisar referências storeId:', err.message);
+    throw new Error(`Falha ao analisar referências storeId: ${err.message}`);
   }
 
   return {
@@ -304,6 +311,7 @@ async function diagnoseUserIdReferences(validUserIds, totalUsersInCollection) {
 
   } catch (err) {
     logError('Falha ao analisar referências userId:', err.message);
+    throw new Error(`Falha ao analisar referências userId: ${err.message}`);
   }
 
   return result;
@@ -420,6 +428,7 @@ async function diagnoseProductPatterns(validStoreIds, validUserIds) {
 
   } catch (err) {
     logError('Falha ao analisar padrões:', err.message);
+    throw new Error(`Falha ao analisar padrões: ${err.message}`);
   }
 
   return {
@@ -488,13 +497,7 @@ async function main() {
   console.log('=====================================================');
   console.log('');
 
-  const db_init = await initFirebase();
-
-  if (!db_init) {
-    log('AUTENTICAÇÃO ADMINISTRATIVA INDISPONÍVEL');
-    console.log('');
-    process.exit(0);
-  }
+  await initFirebase();
 
   // Carregamento centralizado de referências (evita leituras redundantes)
   log('Pré-carregando referências válidas...');
@@ -633,6 +636,7 @@ async function main() {
     console.log(`[INFO] Relatório completo salvo em: ${REPORT_FILE}`);
   } catch (err) {
     logError(`Falha ao escrever relatório: ${err.message}`);
+    throw new Error(`Falha ao escrever relatório: ${err.message}`);
   }
 
   console.log('');
