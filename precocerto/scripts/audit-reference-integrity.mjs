@@ -137,7 +137,7 @@ async function diagnoseCounts(collectionNames) {
 // DIAGNÓSTICO 3: Referências storeId
 // ============================================================
 
-async function diagnoseStoreIdReferences() {
+async function diagnoseStoreIdReferences(validStoreIds, storesDocData = null) {
   assertReadOnly('read');
   log('Diagnóstico 3: Analisando referências storeId...');
 
@@ -162,12 +162,9 @@ async function diagnoseStoreIdReferences() {
 
     log(`Encontrados ${result.distinctStoreIds.size} storeId distintos`);
 
-    // Verificar cada storeId em /stores
-    const storesSnapshot = await db.collection('stores').get();
-    const storesMap = new Set(storesSnapshot.docs.map(d => d.id));
-
+    // Usar o conjunto pré-carregado validStoreIds para análise
     for (const storeId of result.distinctStoreIds) {
-      if (storesMap.has(storeId)) {
+      if (validStoreIds.has(storeId)) {
         result.foundInStores.push(storeId);
       } else {
         result.notFound.push(storeId);
@@ -212,7 +209,7 @@ async function diagnoseStoreIdReferences() {
 // DIAGNÓSTICO 4: Referências userId
 // ============================================================
 
-async function diagnoseUserIdReferences() {
+async function diagnoseUserIdReferences(validUserIds, totalUsersInCollection) {
   assertReadOnly('read');
   log('Diagnóstico 4: Analisando referências userId...');
 
@@ -220,7 +217,7 @@ async function diagnoseUserIdReferences() {
     distinctUserIds: new Set(),
     found: [],
     notFound: [],
-    totalUsersInCollection: 0
+    totalUsersInCollection: totalUsersInCollection
   };
 
   try {
@@ -235,16 +232,11 @@ async function diagnoseUserIdReferences() {
     });
 
     log(`Encontrados ${result.distinctUserIds.size} userId distintos`);
-
-    // Verificar se /users existe e contar
-    const usersSnapshot = await db.collection('users').get();
-    result.totalUsersInCollection = usersSnapshot.size;
-    const usersMap = new Set(usersSnapshot.docs.map(d => d.id));
-
     log(`  - Documentos em /users: ${result.totalUsersInCollection}`);
 
+    // Usar o conjunto pré-carregado validUserIds para análise
     for (const userId of result.distinctUserIds) {
-      if (usersMap.has(userId)) {
+      if (validUserIds.has(userId)) {
         result.found.push(userId);
       } else {
         result.notFound.push(userId);
@@ -265,7 +257,7 @@ async function diagnoseUserIdReferences() {
 // DIAGNÓSTICO 5: Padrões dos Produtos
 // ============================================================
 
-async function diagnoseProductPatterns() {
+async function diagnoseProductPatterns(validStoreIds, validUserIds) {
   assertReadOnly('read');
   log('Diagnóstico 5: Analisando padrões dos produtos problemáticos...');
 
@@ -283,12 +275,6 @@ async function diagnoseProductPatterns() {
   let userRefMissing = 0;
 
   try {
-    // Carregar referências válidas
-    const storesSnapshot = await db.collection('stores').get();
-    const usersSnapshot = await db.collection('users').get();
-    const validStoreIds = new Set(storesSnapshot.docs.map(d => d.id));
-    const validUserIds = new Set(usersSnapshot.docs.map(d => d.id));
-
     log(`  Referências válidas: ${validStoreIds.size} stores, ${validUserIds.size} users`);
 
     // Processar produtos
@@ -454,6 +440,27 @@ async function main() {
     process.exit(0);
   }
 
+  // Carregamento centralizado de referências (evita leituras redundantes)
+  log('Pré-carregando referências válidas...');
+  let validStoreIds = new Set();
+  let validUserIds = new Set();
+  let totalUsersInCollection = 0;
+
+  try {
+    const storesSnapshot = await db.collection('stores').get();
+    validStoreIds = new Set(storesSnapshot.docs.map(d => d.id));
+    log(`  - Stores carregados: ${validStoreIds.size}`);
+
+    const usersSnapshot = await db.collection('users').get();
+    validUserIds = new Set(usersSnapshot.docs.map(d => d.id));
+    totalUsersInCollection = usersSnapshot.size;
+    log(`  - Users carregados: ${validUserIds.size}`);
+  } catch (err) {
+    logError('Falha ao pré-carregar referências:', err.message);
+    process.exit(1);
+  }
+  console.log('');
+
   // Executar diagnósticos
   const collections = await diagnoseCollections();
   console.log('');
@@ -461,13 +468,13 @@ async function main() {
   const counts = await diagnoseCounts(collections);
   console.log('');
 
-  const storeRefs = await diagnoseStoreIdReferences();
+  const storeRefs = await diagnoseStoreIdReferences(validStoreIds);
   console.log('');
 
-  const userRefs = await diagnoseUserIdReferences();
+  const userRefs = await diagnoseUserIdReferences(validUserIds, totalUsersInCollection);
   console.log('');
 
-  const patterns = await diagnoseProductPatterns();
+  const patterns = await diagnoseProductPatterns(validStoreIds, validUserIds);
   console.log('');
 
   const distribution = generateDistribution(
