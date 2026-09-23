@@ -131,18 +131,13 @@ async function diagnoseCounts(collectionNames) {
   }
 
   // 'stores' e 'users' podem estar vazias (não aparecem em listCollections)
-  // Tentar contar mesmo que não estejam listadas
+  // O pré-carregamento já garantiu que podemos lê-las
+  // Se não estão listadas, assumir que estão vazias
   const optionalCollections = ['stores', 'users'];
   for (const collName of optionalCollections) {
     if (!collectionNames.includes(collName) && !counts[collName]) {
-      try {
-        const snapshot = await db.collection(collName).count().get();
-        counts[collName] = snapshot.data().count;
-        log(`  ${collName}: ${counts[collName]} documentos (não listada, mas consultada)`);
-      } catch (err) {
-        counts[collName] = 0;
-        log(`  ${collName}: 0 documentos (não encontrada, assumida vazia)`);
-      }
+      counts[collName] = 0;
+      log(`  ${collName}: 0 documentos (não listada, portanto vazia)`);
     }
   }
 
