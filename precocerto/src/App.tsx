@@ -449,12 +449,11 @@ export default function App() {
 
     const timestamp = new Date().toISOString();
 
-    // Validar que temos um storeId válido
-    const finalStoreId = currentStore?.storeId || productData.storeId;
+    // Validar que temos um storeId válido (tenant canónico)
+    const finalStoreId = currentStore?.storeId;
     if (!finalStoreId || finalStoreId === "default") {
       console.error("StoreId inválido:", finalStoreId);
       console.error("CurrentStore:", currentStore);
-      console.error("ProductData.storeId:", productData.storeId);
       triggerNotification("Erro: Loja não selecionada. Por favor, seleccione uma loja antes de gravar o produto.", "error");
       return;
     }
@@ -462,7 +461,7 @@ export default function App() {
     const productDataWithStore = {
       ...productData,
       storeId: finalStoreId,
-      storeName: currentStore?.storeName || productData.storeName || "Loja Padrão",
+      storeName: currentStore?.storeName || "Loja Padrão",
     };
 
     try {
