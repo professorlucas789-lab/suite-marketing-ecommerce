@@ -653,19 +653,35 @@ export default function App() {
 
   // Duplicate Product Handler
   const handleDuplicateProduct = async (product: Product) => {
-    if (!user) return;
+    // Validações de tenant
+    if (!user) {
+      triggerNotification("Utilizador não autenticado.", "error");
+      return;
+    }
+
+    if (!currentStore?.storeId) {
+      triggerNotification("Erro: Nenhuma loja selecionada.", "error");
+      return;
+    }
+
+    // Bloquear duplicação cross-store
+    if (product.storeId !== currentStore.storeId) {
+      console.error("Tentativa de duplicação cross-store:", {
+        productStoreId: product.storeId,
+        activeStoreId: currentStore.storeId
+      });
+      triggerNotification("Erro: Não pode duplicar um produto de outra loja.", "error");
+      return;
+    }
+
     const timestamp = new Date().toISOString();
     try {
       const { id, ...originalProductWithoutId } = product;
       const duplicatedProduct = {
         ...originalProductWithoutId,
         nome: `${originalProductWithoutId.nome} Cópia`,
-        ...(currentStore
-          ? {
-              storeId: originalProductWithoutId.storeId || currentStore.storeId,
-              storeName: originalProductWithoutId.storeName || currentStore.storeName,
-            }
-          : {}),
+        storeId: currentStore.storeId,
+        storeName: currentStore.storeName,
         createdAt: timestamp,
         updatedAt: timestamp,
         userId: user.uid,
