@@ -466,6 +466,16 @@ export default function App() {
 
     try {
       if (editingProduct && editingProduct.id) {
+        // Bloquear atualização cross-store (tenant isolation)
+        if (editingProduct.storeId !== finalStoreId) {
+          console.error("Tentativa de edição cross-store:", {
+            editingStoreId: editingProduct.storeId,
+            activeStoreId: finalStoreId
+          });
+          triggerNotification("Erro: Não pode editar um produto de outra loja. Seleccione a loja correcta.", "error");
+          return;
+        }
+
         // Check if there are relevant changes in price, cost, margin, etc.
         const prevQ = editingProduct.quantidade || 1;
         const prevPrice = editingProduct.venderEmbalagemInteira === false && editingProduct.precoRecomendadoUnidadeVenda !== undefined
