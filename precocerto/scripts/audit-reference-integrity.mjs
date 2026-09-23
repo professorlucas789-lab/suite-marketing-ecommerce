@@ -149,6 +149,8 @@ async function diagnoseStoreIdReferences(validStoreIds, collectionNames) {
     multipleMatches: []
   };
 
+  let legacyCandidateCollections = [];
+
   try {
     const productsSnapshot = await db.collection('products').get();
 
@@ -178,7 +180,7 @@ async function diagnoseStoreIdReferences(validStoreIds, collectionNames) {
     // Descobrir dinamicamente coleções legacy
     const excluded = new Set(['products', 'users', 'stores']);
 
-    const legacyCandidateCollections = collectionNames.filter((name) => {
+    legacyCandidateCollections = collectionNames.filter((name) => {
       const normalized = name
         .normalize('NFD')
         .replace(/[̀-ͯ]/g, '')
@@ -213,12 +215,19 @@ async function diagnoseStoreIdReferences(validStoreIds, collectionNames) {
           if (snap.exists) {
             matches.push(collectionName);
           }
-        } catch {
-          // Documento não existe nesta coleção, continuar
+        } catch (err) {
+          logError(
+            `Falha ao consultar ${collectionName}/${storeId}:`,
+            err.message
+          );
+
+          throw new Error(
+            `Falha de leitura Firestore em ${collectionName}/${storeId}: ${err.message}`
+          );
         }
       }
 
-      // Classificar resultado
+      // Classificar resultado (só ocorre se TODAS as consultas tiverem sucesso)
       if (matches.length === 0) {
         result.notFound.push(storeId);
       } else if (matches.length === 1) {
@@ -533,11 +542,11 @@ async function main() {
     }
   };
 
-  if (counts.stores === 0) {
+  if (validStoreIds.size === 0) {
     addFinding('STORES_COLLECTION_EMPTY');
   }
 
-  if (counts.users === 0) {
+  if (totalUsersInCollection === 0) {
     addFinding('USERS_COLLECTION_EMPTY');
   }
 
