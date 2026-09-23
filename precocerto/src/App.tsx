@@ -12,7 +12,8 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  doc
+  doc,
+  getDoc
 } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType } from "./firebase";
 import { Product, ActiveTab, BusinessSettings } from "./types";
@@ -617,8 +618,33 @@ export default function App() {
 
   // Delete Product Handler
   const handleDeleteProduct = async (id: string) => {
+    if (!currentStore?.storeId) {
+      triggerNotification("Erro: Nenhuma loja selecionada.", "error");
+      return;
+    }
+
     try {
-      await deleteDoc(doc(db, "products", id));
+      // Validar tenant: verificar que o produto pertence à loja ativa
+      const productRef = doc(db, "products", id);
+      const productSnap = await getDoc(productRef);
+
+      if (!productSnap.exists()) {
+        triggerNotification("Erro: Produto não encontrado.", "error");
+        return;
+      }
+
+      const productData = productSnap.data() as Product;
+      if (productData.storeId !== currentStore.storeId) {
+        console.error("Tentativa de exclusão cross-store:", {
+          productStoreId: productData.storeId,
+          activeStoreId: currentStore.storeId
+        });
+        triggerNotification("Erro: Não pode eliminar um produto de outra loja.", "error");
+        return;
+      }
+
+      // Exclusão permitida: produto pertence à loja ativa
+      await deleteDoc(productRef);
       triggerNotification("Produto removido com sucesso.");
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
