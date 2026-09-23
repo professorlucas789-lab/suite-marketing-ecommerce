@@ -15,6 +15,7 @@ import {
 import { db, handleFirestoreError, OperationType } from "../firebase";
 import { calculateProductFields } from "../utils/pricing";
 import { motion, AnimatePresence } from "motion/react";
+import { useStore } from "../contexts/StoreContext";
 import { 
   Database, 
   Download, 
@@ -62,6 +63,7 @@ interface CSVRowPreview {
 }
 
 export default function BackupView({ products, settings, userId }: BackupViewProps) {
+  const { currentStore } = useStore();
   // Activity logs from Firestore
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [logsLoading, setLogsLoading] = useState<boolean>(true);
@@ -106,14 +108,14 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
     setTimeout(() => setViewAlert(null), 5000);
   };
 
-  // Fetch price history and backup logs in real-time
+  // Fetch price history and backup logs in real-time (filtered by store ID - tenant isolation)
   useEffect(() => {
-    if (!userId) return;
+    if (!currentStore?.storeId) return;
 
     setLogsLoading(true);
 
     // Logs query
-    const qLogs = query(collection(db, "backupLogs"), where("userId", "==", userId));
+    const qLogs = query(collection(db, "backupLogs"), where("storeId", "==", currentStore.storeId));
     const unsubscribeLogs = onSnapshot(qLogs, (snapshot) => {
       const logList: BackupLog[] = [];
       snapshot.forEach((docSnap) => {
@@ -129,7 +131,7 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
     });
 
     // Price History query for exporting
-    const qHistory = query(collection(db, "priceHistory"), where("userId", "==", userId));
+    const qHistory = query(collection(db, "priceHistory"), where("storeId", "==", currentStore.storeId));
     const unsubscribeHistory = onSnapshot(qHistory, (snapshot) => {
       const historyList: PriceHistory[] = [];
       snapshot.forEach((docSnap) => {
@@ -144,7 +146,7 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
       unsubscribeLogs();
       unsubscribeHistory();
     };
-  }, [userId]);
+  }, [currentStore?.storeId]);
 
   // Log function
   const createBackupLog = async (log: Omit<BackupLog, "userId" | "createdAt">) => {
@@ -846,20 +848,20 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
 
           if (restoreMode === "replace") {
             // Delete all current products
-            const productsSnap = await getDocs(query(collection(db, "products"), where("userId", "==", userId)));
+            const productsSnap = await getDocs(query(collection(db, "products"), where("storeId", "==", currentStore.storeId)));
             for (const docSnap of productsSnap.docs) {
               await deleteDoc(doc(db, "products", docSnap.id));
             }
 
             // Delete all history
-            const historySnap = await getDocs(query(collection(db, "priceHistory"), where("userId", "==", userId)));
+            const historySnap = await getDocs(query(collection(db, "priceHistory"), where("storeId", "==", currentStore.storeId)));
             for (const docSnap of historySnap.docs) {
               await deleteDoc(doc(db, "priceHistory", docSnap.id));
             }
 
             // Write backup settings if found, or update
             if (importSettings) {
-              const settingsSnap = await getDocs(query(collection(db, "businessSettings"), where("userId", "==", userId)));
+              const settingsSnap = await getDocs(query(collection(db, "businessSettings"), where("storeId", "==", currentStore.storeId)));
               if (!settingsSnap.empty) {
                 await updateDoc(doc(db, "businessSettings", settingsSnap.docs[0].id), {
                   ...importSettings,
@@ -929,7 +931,7 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
                 ...(settings.customCategories || []),
                 ...importSettings.customCategories
               ]));
-              const settingsSnap = await getDocs(query(collection(db, "businessSettings"), where("userId", "==", userId)));
+              const settingsSnap = await getDocs(query(collection(db, "businessSettings"), where("storeId", "==", currentStore.storeId)));
               if (!settingsSnap.empty) {
                 await updateDoc(doc(db, "businessSettings", settingsSnap.docs[0].id), {
                   customCategories: combinedCats,
@@ -971,7 +973,7 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
           } else if (restoreMode === "settings") {
             // Restore only settings
             if (importSettings) {
-              const settingsSnap = await getDocs(query(collection(db, "businessSettings"), where("userId", "==", userId)));
+              const settingsSnap = await getDocs(query(collection(db, "businessSettings"), where("storeId", "==", currentStore.storeId)));
               if (!settingsSnap.empty) {
                 await updateDoc(doc(db, "businessSettings", settingsSnap.docs[0].id), {
                   ...importSettings,

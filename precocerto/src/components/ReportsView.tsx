@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Product, BusinessSettings, PriceHistory } from "../types";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../firebase";
+import { useStore } from "../contexts/StoreContext";
 import { formatKz, getPriceHealth, formatDate } from "../utils";
 import { motion } from "motion/react";
 import { jsPDF } from "jspdf";
@@ -44,6 +45,7 @@ type ReportType =
   | "historico";
 
 export default function ReportsView({ products, settings, userId }: ReportsViewProps) {
+  const { currentStore } = useStore();
   const [activeReport, setActiveReport] = useState<ReportType>("geral");
   const [history, setHistory] = useState<PriceHistory[]>([]);
   const [historyLoading, setHistoryLoading] = useState<boolean>(true);
@@ -94,13 +96,13 @@ export default function ReportsView({ products, settings, userId }: ReportsViewP
     }
   }, [businessType, activeReport]);
 
-  // Fetch price history in real-time
+  // Fetch price history in real-time (filtered by store ID - tenant isolation)
   useEffect(() => {
-    if (!userId) return;
+    if (!currentStore?.storeId) return;
     setHistoryLoading(true);
     const q = query(
       collection(db, "priceHistory"),
-      where("userId", "==", userId)
+      where("storeId", "==", currentStore.storeId)
     );
     const unsubscribe = onSnapshot(
       q,
@@ -118,7 +120,7 @@ export default function ReportsView({ products, settings, userId }: ReportsViewP
       }
     );
     return () => unsubscribe();
-  }, [userId]);
+  }, [currentStore?.storeId]);
 
   // Extract unique categories and suppliers from existing products for filtering options
   const uniqueCategories = useMemo(() => {

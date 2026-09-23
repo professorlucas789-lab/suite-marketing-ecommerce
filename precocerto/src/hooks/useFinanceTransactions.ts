@@ -9,20 +9,19 @@ export function useFinanceTransactions(userId?: string, storeId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) {
+    if (!storeId) {
       setTransactions([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    const transactionsQuery = query(collection(db, 'financialTransactions'), where('userId', '==', userId));
+    const transactionsQuery = query(collection(db, 'financialTransactions'), where('storeId', '==', storeId));
     const unsubscribe = onSnapshot(
       transactionsQuery,
       (snapshot) => {
         const nextTransactions = snapshot.docs
           .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as FinancialTransaction))
-          .filter((transaction) => !storeId || transaction.storeId === storeId)
           .sort((a, b) => new Date(b.occurredAt || b.createdAt).getTime() - new Date(a.occurredAt || a.createdAt).getTime());
 
         setTransactions(nextTransactions);
@@ -36,7 +35,7 @@ export function useFinanceTransactions(userId?: string, storeId?: string) {
     );
 
     return () => unsubscribe();
-  }, [userId, storeId]);
+  }, [storeId]);
 
   return { transactions, loading, error };
 }

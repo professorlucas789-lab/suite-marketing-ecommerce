@@ -9,20 +9,19 @@ export function useSuppliers(userId?: string, storeId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) {
+    if (!storeId) {
       setSuppliers([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
+    const suppliersQuery = query(collection(db, 'suppliers'), where('storeId', '==', storeId));
     const unsubscribe = onSnapshot(
       suppliersQuery,
       (snapshot) => {
         const nextSuppliers = snapshot.docs
           .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as Supplier))
-          .filter((supplier) => !storeId || supplier.storeId === storeId)
           .sort((a, b) => a.name.localeCompare(b.name));
 
         setSuppliers(nextSuppliers);
@@ -36,7 +35,7 @@ export function useSuppliers(userId?: string, storeId?: string) {
     );
 
     return () => unsubscribe();
-  }, [userId, storeId]);
+  }, [storeId]);
 
   const activeSuppliers = useMemo(
     () => suppliers.filter((supplier) => supplier.status === 'active'),

@@ -4,6 +4,7 @@ import { formatKz, getPriceHealth, evaluateAlternativePrice } from "../utils";
 import { BUSINESS_MODULES } from "../utils/modules";
 import { db, auth, handleFirestoreError, OperationType } from "../firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { useStore } from "../contexts/StoreContext";
 import { motion } from "motion/react";
 import { 
   X, 
@@ -23,6 +24,7 @@ interface ProductDetailsModalProps {
 }
 
 export default function ProductDetailsModal({ product, onClose }: ProductDetailsModalProps) {
+  const { currentStore } = useStore();
   // Navigation tab for the modal
   const [activeModalTab, setActiveModalTab] = useState<"details" | "history">("details");
 
@@ -31,20 +33,13 @@ export default function ProductDetailsModal({ product, onClose }: ProductDetails
   const [historyLoading, setHistoryLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    if (!product.id) return;
+    if (!product.id || !currentStore?.storeId) return;
     setHistoryLoading(true);
-    
-    const uid = auth.currentUser?.uid;
-    if (!uid) {
-      setHistory([]);
-      setHistoryLoading(false);
-      return;
-    }
 
     const q = query(
       collection(db, "priceHistory"),
       where("productId", "==", product.id),
-      where("userId", "==", uid)
+      where("storeId", "==", currentStore.storeId)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const historyData: PriceHistory[] = [];
@@ -60,7 +55,7 @@ export default function ProductDetailsModal({ product, onClose }: ProductDetails
       handleFirestoreError(err, OperationType.GET, `priceHistory (productId: ${product.id})`);
     });
     return () => unsubscribe();
-  }, [product.id]);
+  }, [product.id, currentStore?.storeId]);
 
   // Simulator state (Section E)
   const [testPrice, setTestPrice] = useState<string>("");

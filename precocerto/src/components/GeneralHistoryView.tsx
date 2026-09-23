@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { PriceHistory, Product, BusinessSettings } from "../types";
 import { collection, query, where, onSnapshot, addDoc } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../firebase";
+import { useStore } from "../contexts/StoreContext";
 import { formatKz } from "../utils";
 import { motion } from "motion/react";
 import { 
@@ -24,6 +25,7 @@ interface GeneralHistoryViewProps {
 }
 
 export default function GeneralHistoryView({ products, settings, userId }: GeneralHistoryViewProps) {
+  const { currentStore } = useStore();
   const [history, setHistory] = useState<PriceHistory[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -92,13 +94,13 @@ export default function GeneralHistoryView({ products, settings, userId }: Gener
     }
   };
 
-  // Fetch full history for user in real-time
+  // Fetch full history for store in real-time (filtered by store ID - tenant isolation)
   useEffect(() => {
-    if (!userId) return;
+    if (!currentStore?.storeId) return;
     setLoading(true);
     const q = query(
       collection(db, "priceHistory"),
-      where("userId", "==", userId)
+      where("storeId", "==", currentStore.storeId)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const historyList: PriceHistory[] = [];
@@ -112,7 +114,7 @@ export default function GeneralHistoryView({ products, settings, userId }: Gener
       handleFirestoreError(err, OperationType.GET, "priceHistory");
     });
     return () => unsubscribe();
-  }, [userId]);
+  }, [currentStore?.storeId]);
 
   // Extract unique change reasons for filtering dropdown
   const uniqueReasons = Array.from(new Set(history.map(h => h.changeReason).filter(Boolean)));

@@ -9,20 +9,19 @@ export function useCustomers(userId?: string, storeId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) {
+    if (!storeId) {
       setCustomers([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
+    const customersQuery = query(collection(db, 'customers'), where('storeId', '==', storeId));
     const unsubscribe = onSnapshot(
       customersQuery,
       (snapshot) => {
         const nextCustomers = snapshot.docs
           .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as Customer))
-          .filter((customer) => !storeId || customer.storeId === storeId)
           .sort((a, b) => {
             if ((b.currentBalance || 0) !== (a.currentBalance || 0)) {
               return (b.currentBalance || 0) - (a.currentBalance || 0);
