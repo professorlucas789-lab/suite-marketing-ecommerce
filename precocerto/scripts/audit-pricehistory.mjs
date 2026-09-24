@@ -242,7 +242,7 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
         } else if (classification === 'DETERMINÍSTICO_USER_SINGLE_STORE') {
           result.inferenceAnalysis.push({
             documentId: docId,
-            method: 'userId',
+            method: 'user',
             userId,
             inferredStoreId,
             couldInferStoreId: true
