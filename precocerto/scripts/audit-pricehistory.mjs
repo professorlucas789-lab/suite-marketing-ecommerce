@@ -166,7 +166,7 @@ async function auditPriceHistory(validStoreIds, productStoreMap) {
         const isProductStoreIdValid = productStoreId && validStoreIds.has(productStoreId);
 
         if (isProductStoreIdValid) {
-          classification = 'DETERMINÍSTICO';
+          classification = 'DETERMINÍSTICO_PRODUCT';
         } else if (userId) {
           classification = 'AMBÍGUO';
         } else {
@@ -179,6 +179,7 @@ async function auditPriceHistory(validStoreIds, productStoreMap) {
           productId: productId || null,
           userId: userId || null,
           storeId: storeIdField || null,
+          inferredStoreId: isProductStoreIdValid ? productStoreId : null,
           problemType,
           classification,
           createdAt: data.createdAt ? data.createdAt.toDate?.().toISOString() : null,
@@ -186,7 +187,7 @@ async function auditPriceHistory(validStoreIds, productStoreMap) {
         });
 
         // Registar análise de inferência
-        if (classification === 'DETERMINÍSTICO') {
+        if (classification === 'DETERMINÍSTICO_PRODUCT') {
           result.inferenceAnalysis.push({
             documentId: docId,
             method: 'productId',
@@ -281,7 +282,7 @@ async function main() {
     productStoreMap = new Map();
     productsSnapshot.docs.forEach(d => {
       const storeId = d.data().storeId;
-      if (storeId && typeof storeId === 'string' && storeId.trim() !== '') {
+      if (storeId && typeof storeId === 'string' && storeId.trim() !== '' && validStoreIds.has(storeId)) {
         productStoreMap.set(d.id, storeId);
       }
     });
