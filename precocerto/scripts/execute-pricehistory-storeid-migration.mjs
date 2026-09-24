@@ -650,6 +650,76 @@ function buildMigrationBatch(precommitCandidates) {
 }
 
 // ============================================================
+// CONSTRUIR RELATÓRIO EXECUTIVO
+// ============================================================
+
+function buildExecutionReport(
+  analysis,
+  validation,
+  precommitStateValid,
+  finalResult,
+  finalError,
+  resultState
+) {
+  const safeAnalysis = analysis || {
+    totalDocuments: 0,
+    alreadyValid: 0,
+    migrationCandidates: 0,
+    deterministicProduct: 0,
+    deterministicUserSingleStore: 0,
+    ambiguous: 0,
+    noEvidence: 0,
+    userStoreConflict: 0,
+    unexpectedStoreIdState: 0,
+    blockers: [],
+    inferredStoreDistribution: {}
+  };
+
+  const safeValidation = validation || {
+    zeroBlockers: false,
+    baselineMatches: false,
+    allCandidateStoreIdsValid: false,
+    uniqueCandidateDocumentIds: false
+  };
+
+  return {
+    timestamp: new Date().toISOString(),
+    projectId: PRODUCTION_PROJECT_ID,
+    executeMigration: EXECUTE_MIGRATION,
+    allowWrites: ALLOW_WRITES,
+
+    summary: {
+      totalDocuments: safeAnalysis.totalDocuments,
+      alreadyValid: safeAnalysis.alreadyValid,
+      migrationCandidates: safeAnalysis.migrationCandidates,
+      deterministicProduct: safeAnalysis.deterministicProduct,
+      deterministicUserSingleStore: safeAnalysis.deterministicUserSingleStore,
+      ambiguous: safeAnalysis.ambiguous,
+      noEvidence: safeAnalysis.noEvidence,
+      userStoreConflict: safeAnalysis.userStoreConflict,
+      unexpectedStoreIdState: safeAnalysis.unexpectedStoreIdState
+    },
+
+    inferredStoreDistribution: safeAnalysis.inferredStoreDistribution || {},
+
+    validation: {
+      zeroBlockers: safeValidation.zeroBlockers,
+      baselineMatches: safeValidation.baselineMatches,
+      allCandidateStoreIdsValid: safeValidation.allCandidateStoreIdsValid,
+      uniqueCandidateDocumentIds: safeValidation.uniqueCandidateDocumentIds,
+      precommitStateValid: precommitStateValid,
+      executionAuthorized: EXECUTE_MIGRATION === true && ALLOW_WRITES === true
+    },
+
+    blockers: safeAnalysis.blockers || [],
+
+    result: finalResult || resultState || 'UNKNOWN',
+
+    error: finalError
+  };
+}
+
+// ============================================================
 // MAIN
 // ============================================================
 
@@ -662,6 +732,9 @@ async function main() {
 
   let finalResult = null;
   let finalError = null;
+  let precommitStateValid = false;
+  let currentAnalysis = null;
+  let currentValidation = null;
 
   try {
     // PASSO 61 — Confirmar flags bloqueadas
@@ -683,6 +756,8 @@ async function main() {
     // BLOCO 2/4 — Analisar priceHistory
     const analysisResult = await analyzeCurrentPriceHistory(references);
     const { analysis, validation, resultState } = analysisResult;
+    currentAnalysis = analysis;
+    currentValidation = validation;
 
     console.log('');
     log('Análise de priceHistory (BLOCO 2/4):');
@@ -734,6 +809,7 @@ async function main() {
 
       // PASSO 71.8 — Se precommit falha
       if (precommitResult.valid === false) {
+        precommitStateValid = false;
         finalResult = 'PRECOMMIT_STATE_CHANGED';
         console.log('');
         log('⚠ Precommit falhou — estado mudou desde análise');
@@ -741,6 +817,7 @@ async function main() {
       }
       // PASSO 71.9 — Calcular executionAuthorized
       else {
+        precommitStateValid = true;
         const executionAuthorized = EXECUTE_MIGRATION === true && ALLOW_WRITES === true;
 
         // PASSO 71.10 — Se não autorizado
@@ -753,11 +830,8 @@ async function main() {
         }
         // PASSO 71.11-14 — Caminho autorizado
         else {
-          // Chamada a assertExecutionAuthorized IMEDIATAMENTE ANTES DA ESCRITA
-          assertExecutionAuthorized();
-
           console.log('');
-          log('🔒 AUTORIZAÇÃO CONCEDIDA — Iniciando migração real...');
+          log('Preparando migração real...');
           console.log('');
 
           // PASSO 71.12 — Construir batch
@@ -766,6 +840,8 @@ async function main() {
           try {
             // PASSO 71.13 — Executar único batch.commit()
             log('Executando batch.commit()...');
+            // PASSO 71.13.1 — Autorização IMEDIATAMENTE ANTES DO COMMIT
+            assertExecutionAuthorized();
             await migrationBatch.commit();
 
             finalResult = 'MIGRATION_COMPLETED';
@@ -789,41 +865,14 @@ async function main() {
     }
 
     // PASSO 73 — Criar estrutura de relatório
-    const report = {
-      timestamp: new Date().toISOString(),
-      projectId: PRODUCTION_PROJECT_ID,
-      executeMigration: EXECUTE_MIGRATION,
-      allowWrites: ALLOW_WRITES,
-
-      summary: {
-        totalDocuments: analysis.totalDocuments,
-        alreadyValid: analysis.alreadyValid,
-        migrationCandidates: analysis.migrationCandidates,
-        deterministicProduct: analysis.deterministicProduct,
-        deterministicUserSingleStore: analysis.deterministicUserSingleStore,
-        ambiguous: analysis.ambiguous,
-        noEvidence: analysis.noEvidence,
-        userStoreConflict: analysis.userStoreConflict,
-        unexpectedStoreIdState: analysis.unexpectedStoreIdState
-      },
-
-      inferredStoreDistribution: analysis.inferredStoreDistribution,
-
-      validation: {
-        zeroBlockers: validation.zeroBlockers,
-        baselineMatches: validation.baselineMatches,
-        allCandidateStoreIdsValid: validation.allCandidateStoreIdsValid,
-        uniqueCandidateDocumentIds: validation.uniqueCandidateDocumentIds,
-        precommitStateValid: validation.precommitStateValid || false,
-        executionAuthorized: EXECUTE_MIGRATION === true && ALLOW_WRITES === true
-      },
-
-      blockers: analysis.blockers,
-
-      result: finalResult || resultState,
-
-      error: finalError
-    };
+    const report = buildExecutionReport(
+      analysis,
+      validation,
+      precommitStateValid,
+      finalResult,
+      finalError,
+      resultState
+    );
 
     // PASSO 74 — Salvar relatório JSON
     saveExecutionReport(report);
@@ -853,7 +902,7 @@ async function main() {
     log(`Baseline match: ${validation.baselineMatches ? 'SIM' : 'NÃO'}`);
     log(`Candidate storeIds valid: ${validation.allCandidateStoreIdsValid ? 'SIM' : 'NÃO'}`);
     log(`Candidate IDs unique: ${validation.uniqueCandidateDocumentIds ? 'SIM' : 'NÃO'}`);
-    log(`Precommit state valid: ${validation.precommitStateValid ? 'SIM' : 'NÃO'}`);
+    log(`Precommit state valid: ${precommitStateValid ? 'SIM' : 'NÃO'}`);
     log(`Execution authorized: ${report.validation.executionAuthorized ? 'SIM' : 'NÃO'}`);
     console.log('');
     log(`Resultado: ${report.result}`);
@@ -865,6 +914,17 @@ async function main() {
     };
     finalResult = 'MIGRATION_FAILED';
     logError('Erro fatal:', err.message);
+
+    // Gerar e salvar relatório mesmo em caso de erro
+    const errorReport = buildExecutionReport(
+      currentAnalysis,
+      currentValidation,
+      precommitStateValid,
+      finalResult,
+      finalError,
+      null
+    );
+    saveExecutionReport(errorReport);
   }
 }
 
