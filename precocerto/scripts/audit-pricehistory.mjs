@@ -83,7 +83,7 @@ async function initFirebase() {
 // AUDITORIA: priceHistory
 // ============================================================
 
-async function auditPriceHistory(validStoreIds, validProductIds) {
+async function auditPriceHistory(validStoreIds, productStoreMap) {
   assertReadOnly('read');
   log('Auditoria: Analisando todos os documentos em /priceHistory...');
 
@@ -112,6 +112,8 @@ async function auditPriceHistory(validStoreIds, validProductIds) {
     for (const doc of snapshot.docs) {
       const docId = doc.id;
       const data = doc.data();
+      const productId = data.productId;
+      const userId = data.userId;
 
       // Análise de storeId
       const storeIdField = data.storeId;
@@ -120,6 +122,14 @@ async function auditPriceHistory(validStoreIds, validProductIds) {
       const isEmpty = hasField && storeIdField !== null && storeIdField === '';
       const isValid = hasField && storeIdField !== null && storeIdField !== '' && typeof storeIdField === 'string';
       const storeIdExistsInStores = isValid && validStoreIds.has(storeIdField);
+
+      // Rastrear valores distintos (SEMPRE, independentemente do estado de storeId)
+      if (userId && typeof userId === 'string' && userId.trim() !== '') {
+        result.distinctUserIds.add(userId);
+      }
+      if (productId && typeof productId === 'string' && productId.trim() !== '') {
+        result.distinctProductIds.add(productId);
+      }
 
       // Classificar
       if (isValid && storeIdExistsInStores) {
@@ -151,11 +161,11 @@ async function auditPriceHistory(validStoreIds, validProductIds) {
           result.distinctStoreIds.add(storeIdField);
         }
 
-        // Tentar inferência segura
-        const productId = data.productId;
-        const userId = data.userId;
+        // Determinar classificação baseada em inferência segura
+        const productStoreId = productStoreMap.get(productId);
+        const isProductStoreIdValid = productStoreId && validStoreIds.has(productStoreId);
 
-        if (productId && validProductIds.has(productId)) {
+        if (isProductStoreIdValid) {
           classification = 'DETERMINÍSTICO';
         } else if (userId) {
           classification = 'AMBÍGUO';
@@ -181,17 +191,10 @@ async function auditPriceHistory(validStoreIds, validProductIds) {
             documentId: docId,
             method: 'productId',
             productId,
+            inferredStoreId: productStoreId,
             couldInferStoreId: true
           });
         }
-      }
-
-      // Rastrear valores distintos
-      if (userId && typeof userId === 'string' && userId.trim() !== '') {
-        result.distinctUserIds.add(userId);
-      }
-      if (productId && typeof productId === 'string' && productId.trim() !== '') {
-        result.distinctProductIds.add(productId);
       }
     }
 
@@ -267,7 +270,7 @@ async function main() {
   // Pré-carregar referências válidas
   log('Pré-carregando referências válidas...');
   let validStoreIds = new Set();
-  let validProductIds = new Set();
+  let productStoreMap = new Map();
 
   try {
     const storesSnapshot = await db.collection('stores').get();
@@ -275,8 +278,14 @@ async function main() {
     log(`  - Stores carregados: ${validStoreIds.size}`);
 
     const productsSnapshot = await db.collection('products').get();
-    validProductIds = new Set(productsSnapshot.docs.map(d => d.id));
-    log(`  - Products carregados: ${validProductIds.size}`);
+    productStoreMap = new Map();
+    productsSnapshot.docs.forEach(d => {
+      const storeId = d.data().storeId;
+      if (storeId && typeof storeId === 'string' && storeId.trim() !== '') {
+        productStoreMap.set(d.id, storeId);
+      }
+    });
+    log(`  - Products com storeId válido: ${productStoreMap.size} / ${productsSnapshot.size}`);
   } catch (err) {
     logError('Falha ao pré-carregar referências:', err.message);
     process.exit(1);
@@ -284,7 +293,7 @@ async function main() {
   console.log('');
 
   // Executar auditoria
-  const auditResult = await auditPriceHistory(validStoreIds, validProductIds);
+  const auditResult = await auditPriceHistory(validStoreIds, productStoreMap);
   console.log('');
 
   // Analisar readiness
