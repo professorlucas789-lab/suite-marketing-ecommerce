@@ -83,7 +83,7 @@ async function initFirebase() {
 // AUDITORIA: priceHistory
 // ============================================================
 
-async function auditPriceHistory(validStoreIds, productStoreMap) {
+async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) {
   assertReadOnly('read');
   log('Auditoria: Analisando todos os documentos em /priceHistory...');
 
@@ -99,7 +99,14 @@ async function auditPriceHistory(validStoreIds, productStoreMap) {
     distinctProductIds: new Set(),
     problematicDocuments: [],
     storeIdDistribution: {},
-    inferenceAnalysis: []
+    inferenceAnalysis: [],
+    classificationCounts: {
+      deterministicProduct: 0,
+      deterministicUser: 0,
+      ambiguousMultistore: 0,
+      ambiguous: 0,
+      noEvidence: 0
+    }
   };
 
   try {
@@ -165,8 +172,18 @@ async function auditPriceHistory(validStoreIds, productStoreMap) {
         const productStoreId = productStoreMap.get(productId);
         const isProductStoreIdValid = productStoreId && validStoreIds.has(productStoreId);
 
+        const userLojas = userId ? userStoresMap.get(userId) : null;
+        let inferredUserStoreId = null;
+        if (userLojas && userLojas.length === 1) {
+          inferredUserStoreId = userLojas[0];
+        }
+
         if (isProductStoreIdValid) {
           classification = 'DETERMINÍSTICO_PRODUCT';
+        } else if (inferredUserStoreId) {
+          classification = 'DETERMINÍSTICO_USER';
+        } else if (userLojas && userLojas.length > 1) {
+          classification = 'AMBÍGUO_MULTISTORE';
         } else if (userId) {
           classification = 'AMBÍGUO';
         } else {
@@ -179,7 +196,7 @@ async function auditPriceHistory(validStoreIds, productStoreMap) {
           productId: productId || null,
           userId: userId || null,
           storeId: storeIdField || null,
-          inferredStoreId: isProductStoreIdValid ? productStoreId : null,
+          inferredStoreId: isProductStoreIdValid ? productStoreId : inferredUserStoreId,
           problemType,
           classification,
           createdAt: data.createdAt ? data.createdAt.toDate?.().toISOString() : null,
@@ -198,6 +215,21 @@ async function auditPriceHistory(validStoreIds, productStoreMap) {
         }
       }
     }
+
+    // Contar classificações
+    result.problematicDocuments.forEach(doc => {
+      if (doc.classification === 'DETERMINÍSTICO_PRODUCT') {
+        result.classificationCounts.deterministicProduct++;
+      } else if (doc.classification === 'DETERMINÍSTICO_USER') {
+        result.classificationCounts.deterministicUser++;
+      } else if (doc.classification === 'AMBÍGUO_MULTISTORE') {
+        result.classificationCounts.ambiguousMultistore++;
+      } else if (doc.classification === 'AMBÍGUO') {
+        result.classificationCounts.ambiguous++;
+      } else if (doc.classification === 'SEM_EVIDÊNCIA') {
+        result.classificationCounts.noEvidence++;
+      }
+    });
 
     log(`  ✓ Documentos com storeId válido: ${result.withStoreIdValid}`);
     log(`  ✗ Documentos sem campo storeId: ${result.withoutField}`);
@@ -272,6 +304,7 @@ async function main() {
   log('Pré-carregando referências válidas...');
   let validStoreIds = new Set();
   let productStoreMap = new Map();
+  let userStoresMap = new Map();
 
   try {
     const storesSnapshot = await db.collection('stores').get();
@@ -287,6 +320,20 @@ async function main() {
       }
     });
     log(`  - Products com storeId válido: ${productStoreMap.size} / ${productsSnapshot.size}`);
+
+    const usersSnapshot = await db.collection('users').get();
+    usersSnapshot.docs.forEach(d => {
+      const lojas = d.data().lojas;
+      if (lojas && Array.isArray(lojas)) {
+        const validLojas = lojas.filter(loja =>
+          loja && typeof loja === 'string' && loja.trim() !== '' && validStoreIds.has(loja)
+        );
+        if (validLojas.length > 0) {
+          userStoresMap.set(d.id, validLojas);
+        }
+      }
+    });
+    log(`  - Users com lojas válidas: ${userStoresMap.size} / ${usersSnapshot.size}`);
   } catch (err) {
     logError('Falha ao pré-carregar referências:', err.message);
     process.exit(1);
@@ -294,7 +341,7 @@ async function main() {
   console.log('');
 
   // Executar auditoria
-  const auditResult = await auditPriceHistory(validStoreIds, productStoreMap);
+  const auditResult = await auditPriceHistory(validStoreIds, productStoreMap, userStoresMap);
   console.log('');
 
   // Analisar readiness
