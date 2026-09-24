@@ -35,7 +35,7 @@ const DRY_RUN = true;
 const ALLOW_WRITES = false;
 const MIGRATION_PLAN_FILE = path.join(
   os.tmpdir(),
-  'precocerto-pricehistory-migration-plan.json'
+  'precocerto-pricehistory-migration-dry-run.json'
 );
 
 function log(...args) {
@@ -53,9 +53,11 @@ function assertReadOnly(operation) {
   }
 }
 
-function assertDryRun() {
-  if (!DRY_RUN) {
-    throw new Error('[SECURITY] DRY_RUN deve estar ativo para validação segura.');
+function assertDryRunSafety() {
+  if (DRY_RUN !== true || ALLOW_WRITES !== false) {
+    throw new Error(
+      '[SECURITY] Script autorizado somente com DRY_RUN=true e ALLOW_WRITES=false.'
+    );
   }
 }
 
@@ -94,31 +96,41 @@ async function initFirebase() {
 
 async function generateMigrationPlan(validStoreIds, productStoreMap, userStoresMap) {
   assertReadOnly('read');
-  assertDryRun();
+  assertDryRunSafety();
   log('Gerando plano de migração (DRY-RUN)...');
 
   const plan = {
     totalDocuments: 0,
-    migratable: 0,
-    nonMigratable: 0,
-    updates: [],
+    alreadyValid: 0,
+    migrationCandidates: 0,
+
+    classificationCounts: {
+      deterministicProduct: 0,
+      deterministicUserSingleStore: 0,
+      ambiguous: 0,
+      noEvidence: 0,
+      userStoreConflict: 0,
+      unexpectedStoreIdState: 0
+    },
+
+    candidates: [],
+    blockers: [],
+    inferredStoreDistribution: {},
+
     validation: {
-      allInferredStoreIdsValid: false,
-      noConflicts: false,
-      deterministic: false,
+      allCandidateStoreIdsValid: false,
+      uniqueCandidateDocumentIds: false,
+      zeroBlockers: false,
       safeToExecute: false
     },
-    warnings: []
+
+    result: null
   };
 
   try {
     const snapshot = await db.collection('priceHistory').get();
     log(`Leitura de ${snapshot.size} documentos em /priceHistory`);
     plan.totalDocuments = snapshot.size;
-
-    const storeIdMap = new Map(); // para detectar conflitos
-    const productIdConflicts = new Map();
-    const userIdConflicts = new Map();
 
     for (const doc of snapshot.docs) {
       const docId = doc.id;
@@ -127,130 +139,173 @@ async function generateMigrationPlan(validStoreIds, productStoreMap, userStoresM
       const userId = data.userId;
       const currentStoreId = data.storeId;
 
-      // Validar: campo storeId deve estar AUSENTE (conforme auditoria)
+      // Classificar estado atual de storeId
       const hasStoreIdField = Object.prototype.hasOwnProperty.call(data, 'storeId');
-      if (hasStoreIdField && currentStoreId !== undefined && currentStoreId !== null) {
-        plan.warnings.push({
+      const isStoreIdString = typeof currentStoreId === 'string';
+      const isCurrentStoreIdValid =
+        hasStoreIdField &&
+        isStoreIdString &&
+        currentStoreId.trim() !== '' &&
+        validStoreIds.has(currentStoreId);
+
+      // Caso 1: já válido
+      if (isCurrentStoreIdValid) {
+        plan.alreadyValid++;
+        continue;
+      }
+
+      // Caso 2: campo existe mas é inválido
+      if (hasStoreIdField) {
+        plan.classificationCounts.unexpectedStoreIdState++;
+        plan.blockers.push({
           documentId: docId,
-          warning: `storeId já presente (${currentStoreId}), não será sobrescrito`
+          productId: productId || null,
+          userId: userId || null,
+          currentStoreId: currentStoreId ?? null,
+          type: 'BLOCKING_UNEXPECTED_STOREID_STATE'
         });
         continue;
       }
 
-      // Inferir storeId
+      // Caso 3: campo AUSENTE - proceder com inferência
       let inferredStoreId = null;
       let method = null;
+      let classification = null;
 
+      // Prioridade 1: productId
       if (productId && productStoreMap.has(productId)) {
         inferredStoreId = productStoreMap.get(productId);
         method = 'productId';
-      } else {
+        classification = 'DETERMINÍSTICO_PRODUCT';
+      }
+      // Prioridade 2: user single-store
+      else {
         const userStores = userId ? (userStoresMap.get(userId) || []) : [];
+
         if (userStores.length === 1) {
           inferredStoreId = userStores[0];
           method = 'userId-single-store';
+          classification = 'DETERMINÍSTICO_USER_SINGLE_STORE';
+        }
+        else if (userStores.length > 1) {
+          plan.classificationCounts.ambiguous++;
+          plan.blockers.push({
+            documentId: docId,
+            productId: productId || null,
+            userId: userId || null,
+            type: 'AMBÍGUO'
+          });
+          continue;
+        }
+        else {
+          plan.classificationCounts.noEvidence++;
+          plan.blockers.push({
+            documentId: docId,
+            productId: productId || null,
+            userId: userId || null,
+            type: 'SEM_EVIDÊNCIA'
+          });
+          continue;
         }
       }
 
-      // Validar inferência
-      if (!inferredStoreId || !validStoreIds.has(inferredStoreId)) {
-        plan.nonMigratable++;
-        plan.warnings.push({
+      // Validar user ↔ inferredStoreId (mesmo para produto)
+      if (userId) {
+        const userStores = userStoresMap.get(userId) || [];
+        if (
+          userStores.length > 0 &&
+          !userStores.includes(inferredStoreId)
+        ) {
+          plan.classificationCounts.userStoreConflict++;
+          plan.blockers.push({
+            documentId: docId,
+            productId: productId || null,
+            userId: userId || null,
+            inferredStoreId,
+            userStores,
+            type: 'USER_STORE_CONFLICT'
+          });
+          continue;
+        }
+      }
+
+      // Validar storeId inferida
+      if (
+        !inferredStoreId ||
+        !validStoreIds.has(inferredStoreId)
+      ) {
+        plan.classificationCounts.noEvidence++;
+        plan.blockers.push({
           documentId: docId,
-          warning: `Não foi possível inferir storeId válido`
+          productId: productId || null,
+          userId: userId || null,
+          type: 'SEM_EVIDÊNCIA'
         });
         continue;
       }
 
-      // Registar plano de atualização
-      plan.updates.push({
+      // Criar candidato aprovado
+      const candidate = {
         documentId: docId,
         productId: productId || null,
         userId: userId || null,
+        currentStoreId: null,
         inferredStoreId,
         method,
+        classification,
         updatePayload: {
-          storeId: inferredStoreId,
-          updatedAt: new Date().toISOString(), // será serverTimestamp em execução real
-          migratedAt: new Date().toISOString()  // marcador de migração
+          storeId: inferredStoreId
         }
-      });
+      };
 
-      plan.migratable++;
+      plan.candidates.push(candidate);
+      plan.migrationCandidates++;
 
-      // Rastrear para detectar conflitos
-      if (!storeIdMap.has(inferredStoreId)) {
-        storeIdMap.set(inferredStoreId, []);
+      // Incrementar contadores de classificação
+      if (classification === 'DETERMINÍSTICO_PRODUCT') {
+        plan.classificationCounts.deterministicProduct++;
+      } else if (classification === 'DETERMINÍSTICO_USER_SINGLE_STORE') {
+        plan.classificationCounts.deterministicUserSingleStore++;
       }
-      storeIdMap.get(inferredStoreId).push(docId);
 
-      if (method === 'productId') {
-        if (!productIdConflicts.has(productId)) {
-          productIdConflicts.set(productId, []);
-        }
-        productIdConflicts.get(productId).push(inferredStoreId);
-      } else if (method === 'userId-single-store') {
-        if (!userIdConflicts.has(userId)) {
-          userIdConflicts.set(userId, []);
-        }
-        userIdConflicts.get(userId).push(inferredStoreId);
+      // Distribuição por inferredStoreId
+      if (!plan.inferredStoreDistribution[inferredStoreId]) {
+        plan.inferredStoreDistribution[inferredStoreId] = 0;
       }
+      plan.inferredStoreDistribution[inferredStoreId]++;
     }
 
-    // Validação de Conflitos
-    let hasConflicts = false;
+    // Validar documentIds únicos
+    const candidateIds = plan.candidates.map(c => c.documentId);
+    const uniqueCandidateIds = new Set(candidateIds);
+    plan.validation.uniqueCandidateDocumentIds = uniqueCandidateIds.size === candidateIds.length;
 
-    // Validar cada produto mapeia a uma ÚNICA store
-    productIdConflicts.forEach((storeIds, productId) => {
-      const uniqueStores = new Set(storeIds);
-      if (uniqueStores.size > 1) {
-        hasConflicts = true;
-        plan.warnings.push({
-          type: 'CONFLICT',
-          productId,
-          storeIds: Array.from(uniqueStores),
-          warning: `Produto mapeia a múltiplas stores`
-        });
-      }
-    });
+    // Validar inferredStoreIds
+    plan.validation.allCandidateStoreIdsValid = plan.candidates.every(candidate =>
+      typeof candidate.inferredStoreId === 'string' &&
+      candidate.inferredStoreId.trim() !== '' &&
+      validStoreIds.has(candidate.inferredStoreId)
+    );
 
-    // Validar cada utilizador com 1 loja
-    userIdConflicts.forEach((storeIds, userId) => {
-      const uniqueStores = new Set(storeIds);
-      if (uniqueStores.size > 1) {
-        hasConflicts = true;
-        plan.warnings.push({
-          type: 'CONFLICT',
-          userId,
-          storeIds: Array.from(uniqueStores),
-          warning: `Utilizador mapeia a múltiplas stores (não-single-store?)`
-        });
-      }
-    });
+    // Validar blockers
+    plan.validation.zeroBlockers = plan.blockers.length === 0;
 
-    // Distribuição por store
-    const distribution = {};
-    storeIdMap.forEach((docIds, storeId) => {
-      distribution[storeId] = docIds.length;
-    });
-
-    plan.distribution = distribution;
-
-    // Validação Final
-    plan.validation.allInferredStoreIdsValid = plan.updates.every(u => validStoreIds.has(u.inferredStoreId));
-    plan.validation.noConflicts = !hasConflicts;
-    plan.validation.deterministic = plan.migratable === plan.totalDocuments && plan.updates.length === plan.totalDocuments;
+    // Critério correto de safeToExecute
     plan.validation.safeToExecute =
-      plan.validation.allInferredStoreIdsValid &&
-      plan.validation.noConflicts &&
-      plan.validation.deterministic &&
-      DRY_RUN &&
-      !ALLOW_WRITES;
+      DRY_RUN === true &&
+      ALLOW_WRITES === false &&
+      plan.validation.allCandidateStoreIdsValid &&
+      plan.validation.uniqueCandidateDocumentIds &&
+      plan.validation.zeroBlockers;
 
-    log(`  ✓ Documentos migráveis: ${plan.migratable}`);
-    log(`  ✗ Documentos não-migráveis: ${plan.nonMigratable}`);
-    log(`  ✓ Inferência DETERMINÍSTICA: ${plan.validation.deterministic ? 'SIM' : 'NÃO'}`);
-    log(`  ✓ Sem conflitos: ${plan.validation.noConflicts ? 'SIM' : 'NÃO'}`);
+    // Resultado final
+    plan.result = plan.validation.safeToExecute
+      ? 'DRY_RUN_MIGRATION_APPROVED'
+      : 'DRY_RUN_MIGRATION_BLOCKED';
+
+    log(`  ✓ Candidatos de migração: ${plan.migrationCandidates}`);
+    log(`  ✓ Já com storeId válido: ${plan.alreadyValid}`);
+    log(`  ✗ Blockers encontrados: ${plan.blockers.length}`);
     log(`  ✓ Seguro executar: ${plan.validation.safeToExecute ? 'SIM' : 'NÃO'}`);
 
   } catch (err) {
@@ -330,41 +385,68 @@ async function main() {
   }
 
   console.log('');
-  console.log('RESUMO DO PLANO DE MIGRAÇÃO:');
-  console.log('============================');
-  console.log(`  Total de documentos: ${migrationPlan.totalDocuments}`);
-  console.log(`  Migráveis: ${migrationPlan.migratable}`);
-  console.log(`  Não-migráveis: ${migrationPlan.nonMigratable}`);
+  console.log('Total atual:');
+  console.log(`  ${migrationPlan.totalDocuments}`);
   console.log('');
+
+  console.log('Already valid:');
+  console.log(`  ${migrationPlan.alreadyValid}`);
+  console.log('');
+
+  console.log('Migration candidates:');
+  console.log(`  ${migrationPlan.migrationCandidates}`);
+  console.log('');
+
+  console.log('DETERMINÍSTICO_PRODUCT:');
+  console.log(`  ${migrationPlan.classificationCounts.deterministicProduct}`);
+  console.log('');
+
+  console.log('DETERMINÍSTICO_USER_SINGLE_STORE:');
+  console.log(`  ${migrationPlan.classificationCounts.deterministicUserSingleStore}`);
+  console.log('');
+
+  console.log('AMBÍGUO:');
+  console.log(`  ${migrationPlan.classificationCounts.ambiguous}`);
+  console.log('');
+
+  console.log('SEM_EVIDÊNCIA:');
+  console.log(`  ${migrationPlan.classificationCounts.noEvidence}`);
+  console.log('');
+
+  console.log('USER_STORE_CONFLICT:');
+  console.log(`  ${migrationPlan.classificationCounts.userStoreConflict}`);
+  console.log('');
+
+  console.log('BLOCKING_UNEXPECTED_STOREID_STATE:');
+  console.log(`  ${migrationPlan.classificationCounts.unexpectedStoreIdState}`);
+  console.log('');
+
+  console.log('Blockers:');
+  console.log(`  ${migrationPlan.blockers.length}`);
+  console.log('');
+
+  if (Object.keys(migrationPlan.inferredStoreDistribution).length > 0) {
+    console.log('Distribuição por inferredStoreId:');
+    Object.entries(migrationPlan.inferredStoreDistribution).forEach(([storeId, count]) => {
+      console.log(`  ${storeId}: ${count}`);
+    });
+    console.log('');
+  }
 
   console.log('VALIDAÇÃO:');
   console.log('==========');
-  console.log(`  ✓ Todos os storeIds válidos: ${migrationPlan.validation.allInferredStoreIdsValid ? 'SIM' : 'NÃO'}`);
-  console.log(`  ✓ Sem conflitos: ${migrationPlan.validation.noConflicts ? 'SIM' : 'NÃO'}`);
-  console.log(`  ✓ Determinístico: ${migrationPlan.validation.deterministic ? 'SIM' : 'NÃO'}`);
-  console.log(`  ✓ Seguro executar: ${migrationPlan.validation.safeToExecute ? 'SIM' : 'NÃO'}`);
+  console.log(`  ✓ Todos os storeIds válidos: ${migrationPlan.validation.allCandidateStoreIdsValid ? 'SIM' : 'NÃO'}`);
+  console.log(`  ✓ DocumentIds únicos: ${migrationPlan.validation.uniqueCandidateDocumentIds ? 'SIM' : 'NÃO'}`);
+  console.log(`  ✓ Zero blockers: ${migrationPlan.validation.zeroBlockers ? 'SIM' : 'NÃO'}`);
   console.log('');
 
-  if (migrationPlan.distribution && Object.keys(migrationPlan.distribution).length > 0) {
-    console.log('DISTRIBUIÇÃO POR STORE:');
-    console.log('=======================');
-    Object.entries(migrationPlan.distribution).forEach(([storeId, count]) => {
-      console.log(`  ${storeId}: ${count} documentos`);
-    });
-    console.log('');
-  }
+  console.log('safeToExecute:');
+  console.log(`  ${migrationPlan.validation.safeToExecute}`);
+  console.log('');
 
-  if (migrationPlan.warnings && migrationPlan.warnings.length > 0) {
-    console.log('AVISOS:');
-    console.log('=======');
-    migrationPlan.warnings.slice(0, 20).forEach(w => {
-      console.log(`  ⚠️  ${w.documentId || w.productId || w.userId || 'N/A'}: ${w.warning}`);
-    });
-    if (migrationPlan.warnings.length > 20) {
-      console.log(`  ... e ${migrationPlan.warnings.length - 20} mais`);
-    }
-    console.log('');
-  }
+  console.log('Resultado:');
+  console.log(`  ${migrationPlan.result}`);
+  console.log('');
 
   console.log('RESULTADO FINAL:');
   console.log('================');
@@ -374,9 +456,9 @@ async function main() {
   console.log('');
 
   if (migrationPlan.validation.safeToExecute) {
-    console.log('✅ PLANO APROVADO PARA EXECUÇÃO');
+    console.log('✅ DRY-RUN APROVADO — Migração segura para executar');
   } else {
-    console.log('❌ PLANO NÃO SEGURO — Revisar avisos acima');
+    console.log('❌ DRY-RUN BLOQUEADO — Revisar blockers acima');
   }
   console.log('');
 }
