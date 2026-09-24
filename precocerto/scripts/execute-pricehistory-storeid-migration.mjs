@@ -657,6 +657,7 @@ function buildExecutionReport(
   analysis,
   validation,
   precommitStateValid,
+  executionAuthorized,
   finalResult,
   finalError,
   resultState
@@ -708,7 +709,7 @@ function buildExecutionReport(
       allCandidateStoreIdsValid: safeValidation.allCandidateStoreIdsValid,
       uniqueCandidateDocumentIds: safeValidation.uniqueCandidateDocumentIds,
       precommitStateValid: precommitStateValid,
-      executionAuthorized: EXECUTE_MIGRATION === true && ALLOW_WRITES === true
+      executionAuthorized: executionAuthorized
     },
 
     blockers: safeAnalysis.blockers || [],
@@ -735,6 +736,7 @@ async function main() {
   let precommitStateValid = false;
   let currentAnalysis = null;
   let currentValidation = null;
+  let executionAuthorized = false;
 
   try {
     // PASSO 61 — Confirmar flags bloqueadas
@@ -818,7 +820,7 @@ async function main() {
       // PASSO 71.9 — Calcular executionAuthorized
       else {
         precommitStateValid = true;
-        const executionAuthorized = EXECUTE_MIGRATION === true && ALLOW_WRITES === true;
+        executionAuthorized = EXECUTE_MIGRATION === true && ALLOW_WRITES === true;
 
         // PASSO 71.10 — Se não autorizado
         if (executionAuthorized === false) {
@@ -869,6 +871,7 @@ async function main() {
       analysis,
       validation,
       precommitStateValid,
+      executionAuthorized,
       finalResult,
       finalError,
       resultState
@@ -920,6 +923,7 @@ async function main() {
       currentAnalysis,
       currentValidation,
       precommitStateValid,
+      executionAuthorized,
       finalResult,
       finalError,
       null
