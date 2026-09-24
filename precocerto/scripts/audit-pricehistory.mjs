@@ -287,7 +287,10 @@ function analyzeReadiness(auditResult) {
     readyExplanation = '✅ priceHistory ESTÁ PRONTA: todos os 100% dos documentos possuem storeId válido.';
   } else {
     readyForStoreIdQuery = false;
-    const percentageProblematic = ((totalProblematic / auditResult.totalDocuments) * 100).toFixed(2);
+    const percentageProblematic =
+      auditResult.totalDocuments > 0
+        ? ((totalProblematic / auditResult.totalDocuments) * 100).toFixed(2)
+        : "0.00";
     const percentageDeterministic = ((totalDeterministic / totalProblematic) * 100).toFixed(2);
     readyExplanation = `⚠️ priceHistory NÃO ESTÁ PRONTA: ${totalProblematic} documentos (${percentageProblematic}%) problemáticos. Desses, apenas ${totalDeterministic} (${percentageDeterministic}%) podem ser corrigidos automaticamente.`;
   }
@@ -299,7 +302,7 @@ function analyzeReadiness(auditResult) {
     explanation: readyExplanation,
     problemDocumentsCount: totalProblematic,
     deterministicCount: totalDeterministic,
-    percentageProblematic: ((totalProblematic / auditResult.totalDocuments) * 100).toFixed(2),
+    percentageProblematic: auditResult.totalDocuments > 0 ? ((totalProblematic / auditResult.totalDocuments) * 100).toFixed(2) : "0.00",
     percentageDeterministic: totalDeterministic > 0 ? ((totalDeterministic / totalProblematic) * 100).toFixed(2) : 0
   };
 }
