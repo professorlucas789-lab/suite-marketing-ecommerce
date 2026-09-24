@@ -99,6 +99,7 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
     distinctProductIds: new Set(),
     problematicDocuments: [],
     storeIdDistribution: {},
+    userStoresDistribution: {},
     inferenceAnalysis: [],
     classificationCounts: {
       deterministicProduct: 0,
@@ -212,6 +213,14 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
             inferredStoreId: productStoreId,
             couldInferStoreId: true
           });
+        } else if (classification === 'DETERMINÍSTICO_USER') {
+          result.inferenceAnalysis.push({
+            documentId: docId,
+            method: 'userId',
+            userId,
+            inferredStoreId: inferredUserStoreId,
+            couldInferStoreId: true
+          });
         }
       }
     }
@@ -228,6 +237,20 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
         result.classificationCounts.ambiguous++;
       } else if (doc.classification === 'SEM_EVIDÊNCIA') {
         result.classificationCounts.noEvidence++;
+      }
+    });
+
+    // Registar distribuição de utilizadores por número de lojas
+    result.problematicDocuments.forEach(doc => {
+      if (doc.classification === 'DETERMINÍSTICO_USER') {
+        const userLojas = userStoresMap.get(doc.userId);
+        if (userLojas) {
+          const count = userLojas.length;
+          if (!result.userStoresDistribution[count]) {
+            result.userStoresDistribution[count] = 0;
+          }
+          result.userStoresDistribution[count]++;
+        }
       }
     });
 
@@ -325,9 +348,12 @@ async function main() {
     usersSnapshot.docs.forEach(d => {
       const lojas = d.data().lojas;
       if (lojas && Array.isArray(lojas)) {
-        const validLojas = lojas.filter(loja =>
-          loja && typeof loja === 'string' && loja.trim() !== '' && validStoreIds.has(loja)
-        );
+        const dedupedLojas = Array.from(new Set(
+          lojas
+            .filter(loja => loja && typeof loja === 'string' && loja.trim() !== '')
+            .map(loja => loja.trim())
+        ));
+        const validLojas = dedupedLojas.filter(loja => validStoreIds.has(loja));
         if (validLojas.length > 0) {
           userStoresMap.set(d.id, validLojas);
         }
