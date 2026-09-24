@@ -285,9 +285,6 @@ function analyzeReadiness(auditResult) {
   if (totalProblematic === 0) {
     readyForStoreIdQuery = true;
     readyExplanation = '✅ priceHistory ESTÁ PRONTA: todos os 100% dos documentos possuem storeId válido.';
-  } else if (totalDeterministic === totalProblematic) {
-    readyForStoreIdQuery = true;
-    readyExplanation = `✅ priceHistory ESTÁ PRONTA: todos os ${totalProblematic} documentos problemáticos podem ser corrigidos de forma determinística via productId.`;
   } else {
     readyForStoreIdQuery = false;
     const percentageProblematic = ((totalProblematic / auditResult.totalDocuments) * 100).toFixed(2);
