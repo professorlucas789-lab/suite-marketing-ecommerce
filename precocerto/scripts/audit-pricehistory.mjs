@@ -103,8 +103,7 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
     inferenceAnalysis: [],
     classificationCounts: {
       deterministicProduct: 0,
-      deterministicUser: 0,
-      ambiguousMultistore: 0,
+      deterministicUserSingleStore: 0,
       ambiguous: 0,
       noEvidence: 0
     }
@@ -170,25 +169,24 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
         }
 
         // Determinar classificação baseada em inferência segura
-        const productStoreId = productStoreMap.get(productId);
-        const isProductStoreIdValid = productStoreId && validStoreIds.has(productStoreId);
+        let inferredStoreId = null;
 
-        const userLojas = userId ? userStoresMap.get(userId) : null;
-        let inferredUserStoreId = null;
-        if (userLojas && userLojas.length === 1) {
-          inferredUserStoreId = userLojas[0];
-        }
-
-        if (isProductStoreIdValid) {
+        if (productId && productStoreMap.has(productId)) {
           classification = 'DETERMINÍSTICO_PRODUCT';
-        } else if (inferredUserStoreId) {
-          classification = 'DETERMINÍSTICO_USER';
-        } else if (userLojas && userLojas.length > 1) {
-          classification = 'AMBÍGUO_MULTISTORE';
-        } else if (userId) {
-          classification = 'AMBÍGUO';
+          inferredStoreId = productStoreMap.get(productId);
         } else {
-          classification = 'SEM_EVIDÊNCIA';
+          const userStores = userId
+            ? userStoresMap.get(userId) || []
+            : [];
+
+          if (userStores.length === 1) {
+            classification = 'DETERMINÍSTICO_USER_SINGLE_STORE';
+            inferredStoreId = userStores[0];
+          } else if (userStores.length > 1) {
+            classification = 'AMBÍGUO';
+          } else {
+            classification = 'SEM_EVIDÊNCIA';
+          }
         }
 
         // Registar documentos problemáticos
@@ -197,7 +195,7 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
           productId: productId || null,
           userId: userId || null,
           storeId: storeIdField || null,
-          inferredStoreId: isProductStoreIdValid ? productStoreId : inferredUserStoreId,
+          inferredStoreId,
           problemType,
           classification,
           createdAt: data.createdAt ? data.createdAt.toDate?.().toISOString() : null,
@@ -210,15 +208,15 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
             documentId: docId,
             method: 'productId',
             productId,
-            inferredStoreId: productStoreId,
+            inferredStoreId,
             couldInferStoreId: true
           });
-        } else if (classification === 'DETERMINÍSTICO_USER') {
+        } else if (classification === 'DETERMINÍSTICO_USER_SINGLE_STORE') {
           result.inferenceAnalysis.push({
             documentId: docId,
             method: 'userId',
             userId,
-            inferredStoreId: inferredUserStoreId,
+            inferredStoreId,
             couldInferStoreId: true
           });
         }
@@ -229,10 +227,8 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
     result.problematicDocuments.forEach(doc => {
       if (doc.classification === 'DETERMINÍSTICO_PRODUCT') {
         result.classificationCounts.deterministicProduct++;
-      } else if (doc.classification === 'DETERMINÍSTICO_USER') {
-        result.classificationCounts.deterministicUser++;
-      } else if (doc.classification === 'AMBÍGUO_MULTISTORE') {
-        result.classificationCounts.ambiguousMultistore++;
+      } else if (doc.classification === 'DETERMINÍSTICO_USER_SINGLE_STORE') {
+        result.classificationCounts.deterministicUserSingleStore++;
       } else if (doc.classification === 'AMBÍGUO') {
         result.classificationCounts.ambiguous++;
       } else if (doc.classification === 'SEM_EVIDÊNCIA') {
@@ -242,7 +238,7 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
 
     // Registar distribuição de utilizadores por número de lojas
     result.problematicDocuments.forEach(doc => {
-      if (doc.classification === 'DETERMINÍSTICO_USER') {
+      if (doc.classification === 'DETERMINÍSTICO_USER_SINGLE_STORE') {
         const userLojas = userStoresMap.get(doc.userId);
         if (userLojas) {
           const count = userLojas.length;
@@ -354,12 +350,12 @@ async function main() {
             .map(loja => loja.trim())
         ));
         const validLojas = dedupedLojas.filter(loja => validStoreIds.has(loja));
-        if (validLojas.length > 0) {
-          userStoresMap.set(d.id, validLojas);
-        }
+        userStoresMap.set(d.id, validLojas);
+      } else {
+        userStoresMap.set(d.id, []);
       }
     });
-    log(`  - Users com lojas válidas: ${userStoresMap.size} / ${usersSnapshot.size}`);
+    log(`  - Users carregados: ${userStoresMap.size} / ${usersSnapshot.size}`);
   } catch (err) {
     logError('Falha ao pré-carregar referências:', err.message);
     process.exit(1);
