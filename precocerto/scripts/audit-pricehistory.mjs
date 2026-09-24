@@ -124,11 +124,36 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
 
       // Análise de storeId
       const storeIdField = data.storeId;
-      const hasField = 'storeId' in data;
-      const isNull = storeIdField === null;
-      const isEmpty = hasField && storeIdField !== null && storeIdField === '';
-      const isValid = hasField && storeIdField !== null && storeIdField !== '' && typeof storeIdField === 'string';
-      const storeIdExistsInStores = isValid && validStoreIds.has(storeIdField);
+
+      const hasField =
+        Object.prototype.hasOwnProperty.call(data, 'storeId');
+
+      const isNull =
+        hasField &&
+        storeIdField === null;
+
+      const isString =
+        typeof storeIdField === 'string';
+
+      const isEmpty =
+        hasField &&
+        !isNull &&
+        isString &&
+        storeIdField.trim() === '';
+
+      const isNonEmptyString =
+        hasField &&
+        !isNull &&
+        isString &&
+        storeIdField.trim() !== '';
+
+      const storeIdExistsInStores =
+        isNonEmptyString &&
+        validStoreIds.has(storeIdField);
+
+      const isValid =
+        isNonEmptyString &&
+        storeIdExistsInStores;
 
       // Rastrear valores distintos (SEMPRE, independentemente do estado de storeId)
       if (userId && typeof userId === 'string' && userId.trim() !== '') {
@@ -139,7 +164,7 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
       }
 
       // Classificar
-      if (isValid && storeIdExistsInStores) {
+      if (isValid) {
         result.withStoreIdValid++;
         result.distinctStoreIds.add(storeIdField);
 
@@ -162,10 +187,13 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
         } else if (isEmpty) {
           result.withEmpty++;
           problemType = 'VAZIO';
-        } else if (isValid && !storeIdExistsInStores) {
+        } else {
           result.withInvalidStoreId++;
           problemType = 'STORE_INVÁLIDA';
-          result.distinctStoreIds.add(storeIdField);
+
+          if (isString && storeIdField.trim() !== '') {
+            result.distinctStoreIds.add(storeIdField);
+          }
         }
 
         // Determinar classificação baseada em inferência segura
@@ -194,7 +222,7 @@ async function auditPriceHistory(validStoreIds, productStoreMap, userStoresMap) 
           documentId: docId,
           productId: productId || null,
           userId: userId || null,
-          storeId: storeIdField || null,
+          storeId: storeIdField ?? null,
           inferredStoreId,
           problemType,
           classification,
