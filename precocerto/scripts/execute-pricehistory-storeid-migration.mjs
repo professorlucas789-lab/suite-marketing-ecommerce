@@ -31,6 +31,8 @@ import * as path from 'path';
 // ============================================================
 
 const PRODUCTION_PROJECT_ID = 'precocerto-cc04a';
+const EXECUTE_MIGRATION = false; // BLOQUEADO: só ativar após aprovação formal do dry-run
+const ALLOW_WRITES = false; // NUNCA alterar para true neste script
 const DRY_RUN_PLAN_FILE = path.join(
   os.tmpdir(),
   'precocerto-pricehistory-migration-dry-run.json'
@@ -61,6 +63,16 @@ function logError(...args) {
   }
 }
 
+function assertExecutionSafety() {
+  if (EXECUTE_MIGRATION !== false || ALLOW_WRITES !== false) {
+    throw new Error(
+      '[SECURITY] Executor autorizado SOMENTE com EXECUTE_MIGRATION=false e ALLOW_WRITES=false. ' +
+      'Migração BLOQUEADA por proteção de segurança. ' +
+      'Para ativar, edite o script e altere EXECUTE_MIGRATION para true APÓS validar o dry-run.'
+    );
+  }
+}
+
 // ============================================================
 // INICIALIZAÇÃO
 // ============================================================
@@ -78,6 +90,14 @@ async function initFirebase() {
     });
 
     db = getFirestore(app);
+
+    // Validar que o projeto é o correto
+    if (app.options.projectId !== PRODUCTION_PROJECT_ID) {
+      throw new Error(
+        `[SECURITY] ProjectId mismatch: esperado "${PRODUCTION_PROJECT_ID}", ` +
+        `obtido "${app.options.projectId}". Operação bloqueada.`
+      );
+    }
 
     log(`Firestore inicializado para projeto: ${PRODUCTION_PROJECT_ID}`);
     log('Autenticação via: ADC (Application Default Credentials)');
@@ -104,20 +124,37 @@ function loadDryRunPlan() {
 
     log(`Plano de dry-run carregado: ${plan.candidates.length} candidatos`);
 
-    // Validar plano
+    // Validar plano com todos os critérios
+    if (!plan.validation) {
+      throw new Error('Plano inválido: campo "validation" ausente');
+    }
+
     if (!plan.validation.safeToExecute) {
       throw new Error('Plano não foi aprovado para execução (safeToExecute = false)');
     }
 
     if (plan.result !== 'DRY_RUN_MIGRATION_APPROVED') {
-      throw new Error(`Plano não está aprovado: ${plan.result}`);
+      throw new Error(`Plano não está aprovado: resultado = "${plan.result}"`);
+    }
+
+    if (!plan.validation.allCandidateStoreIdsValid) {
+      throw new Error('Plano contém storeIds inválidos (allCandidateStoreIdsValid = false)');
+    }
+
+    if (!plan.validation.uniqueCandidateDocumentIds) {
+      throw new Error('Plano contém documentIds duplicados (uniqueCandidateDocumentIds = false)');
+    }
+
+    if (!plan.validation.zeroBlockers) {
+      throw new Error(`Plano contém ${plan.blockers.length} blockers (zeroBlockers = false)`);
     }
 
     if (plan.blockers.length > 0) {
-      throw new Error(`Plano contém ${plan.blockers.length} blockers`);
+      throw new Error(`[SEGURANÇA] Plano contém ${plan.blockers.length} blockers, bloqueado`);
     }
 
     log(`✓ Plano validado: ${plan.candidates.length} documentos para migrar`);
+    log(`✓ Validation completo: safeToExecute=true, zeroBlockers=true, storeIds válidos`);
     return plan;
   } catch (err) {
     logError('Falha ao carregar plano de dry-run:', err.message);
@@ -130,6 +167,13 @@ function loadDryRunPlan() {
 // ============================================================
 
 async function executeMigration(plan) {
+  // Proteção final antes de executar qualquer escrita
+  if (ALLOW_WRITES !== false) {
+    throw new Error(
+      '[SECURITY] ALLOW_WRITES deve ser false. Migração bloqueada por proteção de segurança.'
+    );
+  }
+
   log('Iniciando migração REAL de storeId em priceHistory...');
 
   const candidates = plan.candidates;
@@ -237,6 +281,17 @@ async function main() {
   console.log('PC-02B.3D.2 — EXECUTOR SEGURO: MIGRAÇÃO REAL DE priceHistory');
   console.log('===========================================================');
   console.log('');
+
+  // Validar proteções de segurança ANTES de qualquer ação
+  try {
+    assertExecutionSafety();
+  } catch (err) {
+    logError(err.message);
+    console.error('');
+    console.error('❌ MIGRAÇÃO BLOQUEADA POR PROTEÇÃO DE SEGURANÇA');
+    console.error('');
+    process.exit(1);
+  }
 
   // Carregar e validar plano de dry-run
   const plan = loadDryRunPlan();
