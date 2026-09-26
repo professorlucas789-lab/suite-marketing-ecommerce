@@ -33,6 +33,7 @@ interface ReportsViewProps {
   products: Product[];
   settings: BusinessSettings | null;
   userId: string;
+  storeId: string;
 }
 
 type ReportType =
@@ -43,7 +44,7 @@ type ReportType =
   | "medicamentos"
   | "historico";
 
-export default function ReportsView({ products, settings, userId }: ReportsViewProps) {
+export default function ReportsView({ products, settings, userId, storeId }: ReportsViewProps) {
   const [activeReport, setActiveReport] = useState<ReportType>("geral");
   const [history, setHistory] = useState<PriceHistory[]>([]);
   const [historyLoading, setHistoryLoading] = useState<boolean>(true);
@@ -96,11 +97,11 @@ export default function ReportsView({ products, settings, userId }: ReportsViewP
 
   // Fetch price history in real-time
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !storeId) return;
     setHistoryLoading(true);
     const q = query(
       collection(db, "priceHistory"),
-      where("userId", "==", userId)
+      where("storeId", "==", storeId)
     );
     const unsubscribe = onSnapshot(
       q,
@@ -118,7 +119,7 @@ export default function ReportsView({ products, settings, userId }: ReportsViewP
       }
     );
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, storeId]);
 
   // Extract unique categories and suppliers from existing products for filtering options
   const uniqueCategories = useMemo(() => {

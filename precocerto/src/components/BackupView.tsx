@@ -36,6 +36,7 @@ interface BackupViewProps {
   products: Product[];
   settings: BusinessSettings | null;
   userId: string;
+  storeId: string;
   onRefreshProducts?: () => void;
 }
 
@@ -61,7 +62,7 @@ interface CSVRowPreview {
   resolution?: "ignore" | "update" | "new";
 }
 
-export default function BackupView({ products, settings, userId }: BackupViewProps) {
+export default function BackupView({ products, settings, userId, storeId }: BackupViewProps) {
   // Activity logs from Firestore
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [logsLoading, setLogsLoading] = useState<boolean>(true);
@@ -108,7 +109,7 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
 
   // Fetch price history and backup logs in real-time
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !storeId) return;
 
     setLogsLoading(true);
 
@@ -128,8 +129,8 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
       handleFirestoreError(err, OperationType.GET, "backupLogs");
     });
 
-    // Price History query for exporting
-    const qHistory = query(collection(db, "priceHistory"), where("userId", "==", userId));
+    // Price History query for exporting (creator-scoped: store + current user)
+    const qHistory = query(collection(db, "priceHistory"), where("storeId", "==", storeId), where("userId", "==", userId));
     const unsubscribeHistory = onSnapshot(qHistory, (snapshot) => {
       const historyList: PriceHistory[] = [];
       snapshot.forEach((docSnap) => {
@@ -144,7 +145,7 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
       unsubscribeLogs();
       unsubscribeHistory();
     };
-  }, [userId]);
+  }, [userId, storeId]);
 
   // Log function
   const createBackupLog = async (log: Omit<BackupLog, "userId" | "createdAt">) => {
@@ -841,6 +842,7 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
           importHistories = importHistories.map((h: any) => ({
             ...h,
             userId,
+            storeId,
             createdAt: h.createdAt || timestamp
           }));
 
@@ -851,8 +853,8 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
               await deleteDoc(doc(db, "products", docSnap.id));
             }
 
-            // Delete all history
-            const historySnap = await getDocs(query(collection(db, "priceHistory"), where("userId", "==", userId)));
+            // Delete all history (creator-only + store-based)
+            const historySnap = await getDocs(query(collection(db, "priceHistory"), where("storeId", "==", storeId), where("userId", "==", userId)));
             for (const docSnap of historySnap.docs) {
               await deleteDoc(doc(db, "priceHistory", docSnap.id));
             }
@@ -893,7 +895,7 @@ export default function BackupView({ products, settings, userId }: BackupViewPro
               totalRecords: importProds.length + importHistories.length,
               successfulRecords: importProds.length + importHistories.length,
               failedRecords: 0,
-              message: "Restauro completo realizado (Modo: SUBSTITUIR). Todos os dados anteriores foram removidos."
+              message: "Restauro concluído (Modo: SUBSTITUIR). Os dados associados ao utilizador atual foram substituídos."
             });
 
             triggerAlert("Dados restaurados e substituídos com sucesso!");

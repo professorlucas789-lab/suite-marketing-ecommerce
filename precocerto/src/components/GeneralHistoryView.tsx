@@ -21,9 +21,10 @@ interface GeneralHistoryViewProps {
   products: Product[];
   settings: BusinessSettings | null;
   userId: string;
+  storeId: string;
 }
 
-export default function GeneralHistoryView({ products, settings, userId }: GeneralHistoryViewProps) {
+export default function GeneralHistoryView({ products, settings, userId, storeId }: GeneralHistoryViewProps) {
   const [history, setHistory] = useState<PriceHistory[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -68,6 +69,7 @@ export default function GeneralHistoryView({ products, settings, userId }: Gener
           productId: product.id,
           productName: product.nome,
           productCategory: product.categoria || "Outros",
+          storeId: storeId,
           userId: userId,
           previousPrice: 0,
           newPrice: Math.round((initialPrice || 0) * 100) / 100,
@@ -92,13 +94,13 @@ export default function GeneralHistoryView({ products, settings, userId }: Gener
     }
   };
 
-  // Fetch full history for user in real-time
+  // Fetch full history for store in real-time
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !storeId) return;
     setLoading(true);
     const q = query(
       collection(db, "priceHistory"),
-      where("userId", "==", userId)
+      where("storeId", "==", storeId)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const historyList: PriceHistory[] = [];
@@ -112,7 +114,7 @@ export default function GeneralHistoryView({ products, settings, userId }: Gener
       handleFirestoreError(err, OperationType.GET, "priceHistory");
     });
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, storeId]);
 
   // Extract unique change reasons for filtering dropdown
   const uniqueReasons = Array.from(new Set(history.map(h => h.changeReason).filter(Boolean)));

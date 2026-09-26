@@ -31,9 +31,9 @@ export default function ProductDetailsModal({ product, onClose }: ProductDetails
   const [historyLoading, setHistoryLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    if (!product.id) return;
+    if (!product.id || !product.storeId) return;
     setHistoryLoading(true);
-    
+
     const uid = auth.currentUser?.uid;
     if (!uid) {
       setHistory([]);
@@ -44,7 +44,7 @@ export default function ProductDetailsModal({ product, onClose }: ProductDetails
     const q = query(
       collection(db, "priceHistory"),
       where("productId", "==", product.id),
-      where("userId", "==", uid)
+      where("storeId", "==", product.storeId)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const historyData: PriceHistory[] = [];
@@ -60,7 +60,7 @@ export default function ProductDetailsModal({ product, onClose }: ProductDetails
       handleFirestoreError(err, OperationType.GET, `priceHistory (productId: ${product.id})`);
     });
     return () => unsubscribe();
-  }, [product.id]);
+  }, [product.id, product.storeId]);
 
   // Simulator state (Section E)
   const [testPrice, setTestPrice] = useState<string>("");

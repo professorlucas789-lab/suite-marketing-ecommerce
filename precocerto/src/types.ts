@@ -243,6 +243,7 @@ export interface PriceHistory {
   productId: string;
   productName?: string; // Cache the name for general history listing
   productCategory?: string; // Cache category for filtering
+  storeId: string;
   userId: string;
   previousPrice: number;
   newPrice: number;

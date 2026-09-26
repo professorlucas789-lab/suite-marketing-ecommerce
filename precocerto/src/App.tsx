@@ -1433,7 +1433,7 @@ export default function App() {
                   </motion.div>
                 )}
 
-                {activeTab === "history" && user && (
+                {activeTab === "history" && user && currentStore?.storeId && (
                   <motion.div
                     key="general-history-view"
                     initial={{ opacity: 0, x: -10 }}
@@ -1441,15 +1441,16 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <GeneralHistoryView 
-                      products={products} 
+                    <GeneralHistoryView
+                      products={products}
                       settings={businessSettings}
                       userId={user.uid}
+                      storeId={currentStore.storeId}
                     />
                   </motion.div>
                 )}
 
-                {activeTab === "reports" && user && (
+                {activeTab === "reports" && user && currentStore?.storeId && (
                   <motion.div
                     key="reports-view"
                     initial={{ opacity: 0, x: -10 }}
@@ -1462,6 +1463,7 @@ export default function App() {
                         products={products}
                         settings={businessSettings}
                         userId={user.uid}
+                        storeId={currentStore.storeId}
                       />
                     </Suspense>
                   </motion.div>
@@ -1680,7 +1682,7 @@ export default function App() {
                   </motion.div>
                 )}
 
-                {activeTab === "backup" && (
+                {activeTab === "backup" && user && currentStore?.storeId && (
                   <motion.div
                     key="backup-view"
                     initial={{ opacity: 0, x: -10 }}
@@ -1691,7 +1693,8 @@ export default function App() {
                     <BackupView
                       products={products}
                       settings={businessSettings}
-                      userId={user ? user.uid : ""}
+                      userId={user.uid}
+                      storeId={currentStore.storeId}
                     />
                   </motion.div>
                 )}
