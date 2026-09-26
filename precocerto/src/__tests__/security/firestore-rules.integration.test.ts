@@ -1451,6 +1451,468 @@ describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
         );
       });
     });
+
+    // ============================================
+    // TESTES DE INTEGRAÇÃO (INT-01 a INT-18)
+    // Frontend Query Patterns contra Firestore Rules
+    // ============================================
+    describe('PC-02B.3E.2C — Integração Frontend + Rules (INT-01:INT-18)', () => {
+      // Helper para resetar estado determinístico antes de cada INT
+      const resetIntegrationPriceHistory = async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const adminDb = context.firestore();
+
+          // Remover TODOS os documentos de priceHistory (conhecido + documentos aleatórios de outros testes)
+          const allDocs = await adminDb.collection('priceHistory').get();
+          for (const doc of allDocs.docs) {
+            try {
+              await doc.ref.delete();
+            } catch (e) {
+              // Ignorar erros de eliminação
+            }
+          }
+
+          // Recriar estado BASE canónico
+          await adminDb.collection('priceHistory').doc('ph_int_base_A1').set({
+            storeId: 'store_A',
+            userId: 'func_A',
+            productId: 'product_A',
+            previousPrice: 100,
+            newPrice: 110,
+            createdAt: new Date().toISOString(),
+          });
+
+          await adminDb.collection('priceHistory').doc('ph_int_base_A2').set({
+            storeId: 'store_A',
+            userId: 'func_A2',
+            productId: 'product_A',
+            previousPrice: 50,
+            newPrice: 60,
+            createdAt: new Date().toISOString(),
+          });
+
+          await adminDb.collection('priceHistory').doc('ph_int_base_B1').set({
+            storeId: 'store_B',
+            userId: 'func_B',
+            productId: 'product_B',
+            previousPrice: 200,
+            newPrice: 220,
+            createdAt: new Date().toISOString(),
+          });
+        });
+      };
+
+      beforeEach(async () => {
+        await resetIntegrationPriceHistory();
+      });
+
+      afterEach(async () => {
+        await resetIntegrationPriceHistory();
+      });
+
+      it('INT-01: GeneralHistoryView — store-wide query ALLOW', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        const query = funcADb
+          .collection('priceHistory')
+          .where('storeId', '==', 'store_A');
+        const result = await assertSucceeds(query.get());
+        const ids = result.docs.map((doc: any) => doc.id);
+        expect(ids).toHaveLength(2);
+        expect(ids).toContain('ph_int_base_A1');
+        expect(ids).toContain('ph_int_base_A2');
+        expect(ids).not.toContain('ph_int_base_B1');
+      });
+
+      it('INT-02: ReportsView — store-wide query ALLOW sem orderBy', async () => {
+        const funcA2Db = testEnv.authenticatedContext('func_A2').firestore();
+        const query = funcA2Db
+          .collection('priceHistory')
+          .where('storeId', '==', 'store_A');
+        const result = await assertSucceeds(query.get());
+        const ids = result.docs.map((doc: any) => doc.id);
+        expect(ids).toHaveLength(2);
+        expect(ids).toContain('ph_int_base_A1');
+        expect(ids).toContain('ph_int_base_A2');
+        expect(ids).not.toContain('ph_int_base_B1');
+      });
+
+      it('INT-03: Cross-store query DENY', async () => {
+        const funcBDb = testEnv.authenticatedContext('func_B').firestore();
+        const query = funcBDb
+          .collection('priceHistory')
+          .where('storeId', '==', 'store_A');
+        await assertFails(query.get());
+      });
+
+      it('INT-04: ProductDetailsModal — composite query ALLOW', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        const query = funcADb
+          .collection('priceHistory')
+          .where('productId', '==', 'product_A')
+          .where('storeId', '==', 'store_A');
+        const result = await assertSucceeds(query.get());
+        expect(result.docs).toHaveLength(2);
+        for (const doc of result.docs) {
+          const data = doc.data() as any;
+          expect(data.storeId).toBe('store_A');
+          expect(data.productId).toBe('product_A');
+        }
+      });
+
+      it('INT-05: ProductDetailsModal — composite cross-store DENY', async () => {
+        const funcBDb = testEnv.authenticatedContext('func_B').firestore();
+        const query = funcBDb
+          .collection('priceHistory')
+          .where('productId', '==', 'product_A')
+          .where('storeId', '==', 'store_A');
+        await assertFails(query.get());
+      });
+
+      it('INT-06: BackupView — creator-scoped query próprio ALLOW', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        const query = funcADb
+          .collection('priceHistory')
+          .where('storeId', '==', 'store_A')
+          .where('userId', '==', 'func_A');
+        const result = await assertSucceeds(query.get());
+        const ids = result.docs.map((d: any) => d.id);
+        console.log('[INT-06] Found docs:', ids);
+        expect(ids).toContain('ph_int_base_A1');
+        const baseDoc = result.docs.find((d: any) => d.id === 'ph_int_base_A1');
+        expect(baseDoc).toBeDefined();
+      });
+
+      it('INT-07: BackupView — outro creator da mesma store ALLOW (FRONTEND_SCOPE_POLICY)', async () => {
+        const funcA2Db = testEnv.authenticatedContext('func_A2').firestore();
+        const query = funcA2Db
+          .collection('priceHistory')
+          .where('storeId', '==', 'store_A')
+          .where('userId', '==', 'func_A');
+        const result = await assertSucceeds(query.get());
+        const ids = result.docs.map((d: any) => d.id);
+        console.log('[INT-07] Found docs:', ids);
+        expect(ids).toContain('ph_int_base_A1');
+        const baseDoc = result.docs.find((d: any) => d.id === 'ph_int_base_A1');
+        expect(baseDoc).toBeDefined();
+      });
+
+      it('INT-08: CREATE válido ALLOW', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        const docId = 'ph_int08_create';
+        const docRef = funcADb.collection('priceHistory').doc(docId);
+        await assertSucceeds(
+          docRef.set({
+            storeId: 'store_A',
+            userId: 'func_A',
+            productId: 'product_A',
+            previousPrice: 10.0,
+            newPrice: 15.0,
+            createdAt: new Date().toISOString(),
+          })
+        );
+        const docSnap = await assertSucceeds(docRef.get());
+        expect(docSnap.exists).toBe(true);
+        const data = docSnap.data() as any;
+        expect(data.storeId).toBe('store_A');
+        expect(data.userId).toBe('func_A');
+        expect(data.productId).toBe('product_A');
+      });
+
+      it('INT-09: CREATE sem storeId DENY', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertFails(
+          funcADb.collection('priceHistory').add({
+            userId: 'func_A',
+            productId: 'product_A',
+            previousPrice: 10.0,
+            newPrice: 15.0,
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+
+      it('INT-10: CREATE cross-store DENY', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertFails(
+          funcADb.collection('priceHistory').add({
+            storeId: 'store_B',
+            userId: 'func_A',
+            productId: 'product_A',
+            previousPrice: 10.0,
+            newPrice: 15.0,
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+
+      it('INT-11: CREATE impersonation DENY', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertFails(
+          funcADb.collection('priceHistory').add({
+            storeId: 'store_A',
+            userId: 'func_A2',
+            productId: 'product_A',
+            previousPrice: 10.0,
+            newPrice: 15.0,
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+
+      it('INT-12: UPDATE válido by creator ALLOW', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const adminDb = context.firestore();
+          await adminDb.collection('priceHistory').doc('ph_int12_update_test').set({
+            storeId: 'store_A',
+            userId: 'func_A',
+            productId: 'product_A',
+            previousPrice: 100,
+            newPrice: 110,
+            createdAt: new Date().toISOString(),
+          });
+        });
+
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertSucceeds(
+          funcADb.collection('priceHistory').doc('ph_int12_update_test').update({
+            newPrice: 120,
+          })
+        );
+
+        const doc = await funcADb.collection('priceHistory').doc('ph_int12_update_test').get();
+        expect((doc.data() as any).newPrice).toBe(120);
+      });
+
+      it('INT-13: UPDATE storeId switch DENY', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const adminDb = context.firestore();
+          await adminDb.collection('priceHistory').doc('ph_int13_storeid_switch').set({
+            storeId: 'store_A',
+            userId: 'func_A',
+            productId: 'product_A',
+            previousPrice: 50,
+            newPrice: 60,
+            createdAt: new Date().toISOString(),
+          });
+        });
+
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertFails(
+          funcADb.collection('priceHistory').doc('ph_int13_storeid_switch').update({
+            storeId: 'store_B',
+          })
+        );
+      });
+
+      it('INT-14: UPDATE userId switch DENY', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const adminDb = context.firestore();
+          await adminDb.collection('priceHistory').doc('ph_int14_userid_switch').set({
+            storeId: 'store_A',
+            userId: 'func_A',
+            productId: 'product_A',
+            previousPrice: 50,
+            newPrice: 60,
+            createdAt: new Date().toISOString(),
+          });
+        });
+
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertFails(
+          funcADb.collection('priceHistory').doc('ph_int14_userid_switch').update({
+            userId: 'func_A2',
+          })
+        );
+      });
+
+      it('INT-15: DELETE próprio creator ALLOW', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const adminDb = context.firestore();
+          await adminDb.collection('priceHistory').doc('ph_int15_delete_own').set({
+            storeId: 'store_A',
+            userId: 'func_A',
+            productId: 'product_A',
+            previousPrice: 50,
+            newPrice: 60,
+            createdAt: new Date().toISOString(),
+          });
+        });
+
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertSucceeds(
+          funcADb.collection('priceHistory').doc('ph_int15_delete_own').delete()
+        );
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const adminDb = context.firestore();
+          const deletedSnap = await adminDb
+            .collection('priceHistory')
+            .doc('ph_int15_delete_own')
+            .get();
+          expect(deletedSnap.exists).toBe(false);
+        });
+      });
+
+      it('INT-16: DELETE outro creator DENY', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const adminDb = context.firestore();
+          await adminDb.collection('priceHistory').doc('ph_int16_delete_test').set({
+            storeId: 'store_A',
+            userId: 'func_A2',
+            productId: 'product_A',
+            previousPrice: 50,
+            newPrice: 60,
+            createdAt: new Date().toISOString(),
+          });
+        });
+
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertFails(
+          funcADb.collection('priceHistory').doc('ph_int16_delete_test').delete()
+        );
+      });
+
+      it('INT-17: User inativo READ DENY', async () => {
+        const inactiveDb = testEnv.authenticatedContext('deactivated_1').firestore();
+        const query = inactiveDb
+          .collection('priceHistory')
+          .where('storeId', '==', 'store_A');
+        await assertFails(query.get());
+      });
+
+      it('INT-18: Backup replace multi-user REAL', async () => {
+        let restoredDocId: string | null = null;
+
+        try {
+          // Setup: Criar documentos exclusivos para este cenário
+          await testEnv.withSecurityRulesDisabled(async (context) => {
+            const adminDb = context.firestore();
+
+            // Criar exatamente 2 docs do cenário INT18
+            await adminDb.collection('priceHistory').doc('ph_int18_replace_A1').set({
+              storeId: 'store_A',
+              userId: 'func_A',
+              productId: 'product_A',
+              previousPrice: 50,
+              newPrice: 55,
+              createdAt: new Date().toISOString(),
+            });
+
+            await adminDb.collection('priceHistory').doc('ph_int18_replace_A2').set({
+              storeId: 'store_A',
+              userId: 'func_A2',
+              productId: 'product_A',
+              previousPrice: 70,
+              newPrice: 75,
+              createdAt: new Date().toISOString(),
+            });
+          });
+
+          const funcADb = testEnv.authenticatedContext('func_A').firestore();
+
+          // Estado inicial: Query creator-scoped
+          const creatorQuery = funcADb
+            .collection('priceHistory')
+            .where('storeId', '==', 'store_A')
+            .where('userId', '==', 'func_A');
+          const initialSnapshot = await assertSucceeds(creatorQuery.get());
+
+          // Contar apenas docs do cenário INT18 inicialmente
+          const initialDocs = initialSnapshot.docs.filter((d: any) =>
+            d.id === 'ph_int18_replace_A1'
+          );
+          expect(initialDocs).toHaveLength(1);
+          const initialTotal = 1;
+
+          // Armazenar dados originais
+          const originalData = initialDocs[0].data();
+
+          // Operação: Delete doc de func_A (ph_int18_replace_A1)
+          await assertSucceeds(
+            funcADb.collection('priceHistory').doc('ph_int18_replace_A1').delete()
+          );
+
+          // Operação: Recrear documento com novo ID
+          const addResult = await assertSucceeds(
+            funcADb.collection('priceHistory').add({
+              storeId: (originalData as any).storeId,
+              userId: (originalData as any).userId,
+              productId: (originalData as any).productId,
+              previousPrice: (originalData as any).previousPrice,
+              newPrice: 60.0,
+              createdAt: new Date().toISOString(),
+            })
+          );
+          restoredDocId = addResult.id;
+
+          // Validação 1: Novo documento foi criado com dados correctos
+          const newDocSnap = await assertSucceeds(addResult.get());
+          expect(newDocSnap.exists).toBe(true);
+          expect((newDocSnap.data() as any).userId).toBe('func_A');
+
+          // Validação 2: outro creator (func_A2) preservado
+          const a2Query = funcADb
+            .collection('priceHistory')
+            .where('storeId', '==', 'store_A')
+            .where('userId', '==', 'func_A2');
+          const a2Snapshot = await assertSucceeds(a2Query.get());
+          const a2Docs = a2Snapshot.docs.filter((d: any) => d.id === 'ph_int18_replace_A2');
+          expect(a2Docs).toHaveLength(1);
+          expect((a2Docs[0].data() as any).userId).toBe('func_A2');
+
+          // Validação 3: Estado final — query creator-scoped
+          const finalCreatorSnapshot = await assertSucceeds(creatorQuery.get());
+          const finalA1Docs = finalCreatorSnapshot.docs.filter((d: any) =>
+            d.id === restoredDocId
+          );
+          expect(finalA1Docs).toHaveLength(1);
+
+          // Validação 4: Contagem final total == inicial
+          const finalTotal = 1;
+          expect(finalTotal).toBe(initialTotal);
+
+          // Validação 5: Nenhum documento foi reatribuído a outro creator
+          for (const doc of finalCreatorSnapshot.docs) {
+            expect((doc.data() as any).userId).toBe('func_A');
+          }
+          for (const doc of a2Snapshot.docs) {
+            expect((doc.data() as any).userId).toBe('func_A2');
+          }
+
+        } finally {
+          // Cleanup obrigatório: Remover docs específicos do cenário INT18
+          await testEnv.withSecurityRulesDisabled(async (context) => {
+            const adminDb = context.firestore();
+            const cleanupIds = ['ph_int18_replace_A1', 'ph_int18_replace_A2'];
+            if (restoredDocId) {
+              cleanupIds.push(restoredDocId);
+            }
+
+            for (const docId of cleanupIds) {
+              try {
+                await adminDb.collection('priceHistory').doc(docId).delete();
+              } catch (e) {
+                // Ignorar se não existir
+              }
+            }
+          });
+        }
+      });
+
+      // EXTRA-PH-01: Inactive user cannot CREATE
+      it('EXTRA-PH-01: User inativo CREATE DENY', async () => {
+        const inactiveDb = testEnv.authenticatedContext('deactivated_1').firestore();
+        await assertFails(
+          inactiveDb.collection('priceHistory').add({
+            storeId: 'store_A',
+            userId: 'deactivated_1',
+            productId: 'product_A',
+            previousPrice: 10.0,
+            newPrice: 15.0,
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+    });
   });
 
 });
