@@ -1,0 +1,408 @@
+#!/usr/bin/env node
+
+/**
+ * STG-01.4.3A: Bootstrap Seguro das Contas de Smoke Test em Firebase STAGING
+ *
+ * Objetivo:
+ * - Preparar as 6 contas Firebase Authentication necessárias ao smoke test
+ * - Configurar documento admin com metadados Firestore
+ * - Validar ausência de fixtures residuais
+ * - Proteger contra acesso acidental a produção
+ *
+ * Segurança:
+ * - Bloqueia imediatamente se projectId === produção
+ * - Valida projectId === precocerto-staging
+ * - Usa Firebase Admin SDK com applicationDefault()
+ * - NÃO imprime passwords
+ * - NÃO cria service-account JSON, private key ou tokens
+ * - Falha-rápido em caso de inconsistência
+ *
+ * Dependências de Variáveis de Ambiente:
+ * - VITE_FIREBASE_PROJECT_ID (deve ser precocerto-staging)
+ * - STG_SMOKE_ADMIN_EMAIL
+ * - STG_SMOKE_ADMIN_PASSWORD
+ * - STG_SMOKE_MANAGER_A_EMAIL
+ * - STG_SMOKE_MANAGER_A_PASSWORD
+ * - STG_SMOKE_FUNC_A_EMAIL
+ * - STG_SMOKE_FUNC_A_PASSWORD
+ * - STG_SMOKE_FUNC_A2_EMAIL
+ * - STG_SMOKE_FUNC_A2_PASSWORD
+ * - STG_SMOKE_FUNC_B_EMAIL
+ * - STG_SMOKE_FUNC_B_PASSWORD
+ * - STG_SMOKE_DEACTIVATED_EMAIL
+ * - STG_SMOKE_DEACTIVATED_PASSWORD
+ */
+
+import {
+  initializeApp,
+  applicationDefault
+} from 'firebase-admin/app';
+import {
+  getAuth
+} from 'firebase-admin/auth';
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc
+} from 'firebase-admin/firestore';
+
+// ============================================================
+// CONFIGURAÇÃO E VALIDAÇÕES
+// ============================================================
+
+const PRODUCTION_PROJECT_ID = 'precocerto-cc04a';
+const STAGING_PROJECT_ID = 'precocerto-staging';
+const STORE_A_ID = 'store_A_stg_smoke';
+const STORE_B_ID = 'store_B_stg_smoke';
+
+// Fixtures que devem estar ausentes
+const RESIDUAL_FIXTURES = [
+  ['stores', STORE_A_ID],
+  ['stores', STORE_B_ID],
+  ['products', 'product_A_stg_smoke'],
+  ['products', 'product_B_stg_smoke'],
+  ['products', 'product_anon_stg_smoke'],
+];
+
+// Atores a criar
+const ACTORS = [
+  { key: 'admin', papel: 'admin', lojas: [STORE_A_ID, STORE_B_ID], ativo: true, createUserDoc: true },
+  { key: 'managerA', papel: 'loja-manager', lojas: [STORE_A_ID], ativo: true, createUserDoc: false },
+  { key: 'funcA', papel: 'funcionario', lojas: [STORE_A_ID], ativo: true, createUserDoc: false },
+  { key: 'funcA2', papel: 'funcionario', lojas: [STORE_A_ID], ativo: true, createUserDoc: false },
+  { key: 'funcB', papel: 'funcionario', lojas: [STORE_B_ID], ativo: true, createUserDoc: false },
+  { key: 'deactivated', papel: 'funcionario', lojas: [STORE_A_ID], ativo: false, createUserDoc: false },
+];
+
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+
+function log(...args) {
+  console.log('[STG-SMOKE-BOOTSTRAP]', ...args);
+}
+
+function maskEmail(email) {
+  if (!email || email.length < 5) return '***';
+  const parts = email.split('@');
+  return `${parts[0].substring(0, 2)}***@${parts[1]}`;
+}
+
+function validateEnvironment() {
+  const required = [
+    'VITE_FIREBASE_PROJECT_ID',
+    'STG_SMOKE_ADMIN_EMAIL',
+    'STG_SMOKE_ADMIN_PASSWORD',
+    'STG_SMOKE_MANAGER_A_EMAIL',
+    'STG_SMOKE_MANAGER_A_PASSWORD',
+    'STG_SMOKE_FUNC_A_EMAIL',
+    'STG_SMOKE_FUNC_A_PASSWORD',
+    'STG_SMOKE_FUNC_A2_EMAIL',
+    'STG_SMOKE_FUNC_A2_PASSWORD',
+    'STG_SMOKE_FUNC_B_EMAIL',
+    'STG_SMOKE_FUNC_B_PASSWORD',
+    'STG_SMOKE_DEACTIVATED_EMAIL',
+    'STG_SMOKE_DEACTIVATED_PASSWORD',
+  ];
+
+  const missing = required.filter(v => !process.env[v]);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Variáveis de ambiente faltantes (${missing.length}): ${missing.join(', ')}`
+    );
+  }
+
+  // Validação crítica: projectId
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+
+  if (projectId === PRODUCTION_PROJECT_ID) {
+    throw new Error(
+      `SEGURANÇA CRÍTICA: projectId está apontando para PRODUÇÃO (${PRODUCTION_PROJECT_ID}).\n` +
+      `Este script trabalha SOMENTE com STAGING (${STAGING_PROJECT_ID}).\n` +
+      `Operação abortada para prevenir dados de staging em produção.`
+    );
+  }
+
+  if (projectId !== STAGING_PROJECT_ID) {
+    throw new Error(
+      `projectId deve ser exatamente '${STAGING_PROJECT_ID}', obtido '${projectId}'`
+    );
+  }
+
+  log(`Validação de ambiente OK`);
+  log(`  Projeto: ${projectId}`);
+}
+
+function getActorCredentials(actorKey) {
+  const emailKey = `STG_SMOKE_${actorKey.toUpperCase()}_EMAIL`;
+  const passwordKey = `STG_SMOKE_${actorKey.toUpperCase()}_PASSWORD`;
+
+  const email = process.env[emailKey];
+  const password = process.env[passwordKey];
+
+  if (!email || !password) {
+    throw new Error(`Credenciais faltantes para ${actorKey}: ${emailKey}, ${passwordKey}`);
+  }
+
+  return { email, password };
+}
+
+// ============================================================
+// FIRESTORE OPERATIONS
+// ============================================================
+
+async function checkResidualFixtures(db) {
+  log('Verificando fixtures residuais...');
+
+  let residualCount = 0;
+  const residuals = [];
+
+  for (const [collection, docId] of RESIDUAL_FIXTURES) {
+    const ref = doc(db, collection, docId);
+    const snap = await getDoc(ref);
+
+    if (snap.exists()) {
+      residualCount++;
+      residuals.push(`${collection}/${docId}`);
+    }
+  }
+
+  if (residualCount > 0) {
+    throw new Error(
+      `Fixtures residuais detectados (${residualCount}): ${residuals.join(', ')}\n` +
+      `Por favor, execute a limpeza do smoke test anterior antes de fazer bootstrap.`
+    );
+  }
+
+  log(`Fixtures residuais: 0 (OK)`);
+}
+
+async function checkResidualUserDocs(db, actorKey, uid) {
+  // Validação CRÍTICA para atores não-admin (FASE A READ-ONLY):
+  // Se documento users/{uid} já existir, smoke vai falhar com SMOKE_FIXTURE_COLLISION
+  // Por isso, abortamos aqui se detectarmos residual
+  // NÃO modificamos nada nesta fase
+  if (ACTORS.find(a => a.key === actorKey)?.createUserDoc) {
+    return; // Admin é esperado ter documento
+  }
+
+  const userRef = doc(db, 'users', uid);
+  const snap = await getDoc(userRef);
+
+  if (snap.exists()) {
+    throw new Error(
+      `Documento residual users/${uid} existe. Smoke test espera encontrar ausente.\n` +
+      `Limpe dados de execução anterior antes de fazer bootstrap.`
+    );
+  }
+}
+
+async function queryAuthUser(auth, email) {
+  // FASE A — READ-ONLY: apenas consulta, sem modificações
+  try {
+    const user = await auth.getUserByEmail(email);
+    return { exists: true, uid: user.uid };
+  } catch (error) {
+    if (error.code === 'auth/user-not-found') {
+      return { exists: false, uid: null };
+    }
+    throw error;
+  }
+}
+
+async function ensureAdminUserDoc(db, adminUid) {
+  log(`Configurando documento admin...`);
+
+  const adminRef = doc(db, 'users', adminUid);
+  const existing = await getDoc(adminRef);
+
+  const adminData = {
+    nome: 'Admin Smoke Bootstrap',
+    papel: 'admin',
+    ativo: true,
+    lojas: [STORE_A_ID, STORE_B_ID],
+    dataCriacao: new Date().toISOString(),
+  };
+
+  if (existing.exists()) {
+    // Merge seguro: preserva campos existentes, atualiza papel/ativo/lojas
+    const merged = {
+      ...existing.data(),
+      ...adminData,
+    };
+    await setDoc(adminRef, merged, { merge: true });
+    log(`  Documento admin atualizado (merge seguro)`);
+  } else {
+    await setDoc(adminRef, adminData);
+    log(`  Documento admin criado`);
+  }
+}
+
+// ============================================================
+// AUTH OPERATIONS
+// ============================================================
+
+async function ensureAuthUser(auth, email, password, existingUid) {
+  // FASE B — MUTATION: cria ou atualiza conta Auth
+  // Requer: existingUid foi validado em FASE A
+  if (existingUid) {
+    // Atualizar password para garantir alinhamento com variável
+    await auth.updateUser(existingUid, {
+      password,
+    });
+    log(`  ${maskEmail(email)}: password atualizada (UID: ${existingUid})`);
+    return existingUid;
+  } else {
+    // Criar novo utilizador
+    const user = await auth.createUser({
+      email,
+      password,
+      emailVerified: true,
+    });
+    log(`  ${maskEmail(email)}: criado (UID: ${user.uid})`);
+    return user.uid;
+  }
+}
+
+// ============================================================
+// MAIN
+// ============================================================
+
+async function main() {
+  let exitCode = 0;
+
+  try {
+    log('Iniciando bootstrap STAGING...');
+    console.log('');
+
+    // Validar variáveis de ambiente
+    validateEnvironment();
+
+    // Inicializar Firebase Admin
+    log('Inicializando Firebase Admin SDK...');
+    const app = initializeApp({
+      credential: applicationDefault(),
+      projectId: STAGING_PROJECT_ID,
+    });
+
+    // Validar projectId efetivo do app
+    if (app.options.projectId !== STAGING_PROJECT_ID) {
+      throw new Error(
+        `SEGURANÇA CRÍTICA: app.options.projectId !== STAGING (obtido '${app.options.projectId}').\n` +
+        `Operação abortada.`
+      );
+    }
+
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    log(`  projectId validado: ${app.options.projectId}`);
+
+    console.log('');
+
+    // ============================================================
+    // FASE A — PREFLIGHT READ-ONLY
+    // ============================================================
+    console.log('');
+    log('FASE A: Validações e verificações READ-ONLY...');
+
+    // Verificar fixtures residuais (falha-rápido)
+    await checkResidualFixtures(db);
+
+    console.log('');
+    log('Consultando contas Firebase Auth...');
+
+    const authStatus = {};
+
+    // Consultar cada ator (READ-ONLY, sem criar/atualizar)
+    for (const actor of ACTORS) {
+      const { email } = getActorCredentials(actor.key);
+      const result = await queryAuthUser(auth, email);
+      authStatus[actor.key] = result;
+
+      if (result.exists) {
+        log(`  ${maskEmail(email)}: conta existente (UID: ${result.uid})`);
+      } else {
+        log(`  ${maskEmail(email)}: conta não encontrada (será criada)`);
+      }
+    }
+
+    console.log('');
+    log('Verificando documentos Firestore residuais...');
+
+    // Validar ausência de user docs para não-admin com contas existentes
+    for (const actor of ACTORS) {
+      if (!actor.createUserDoc && authStatus[actor.key].exists) {
+        await checkResidualUserDocs(db, actor.key, authStatus[actor.key].uid);
+      }
+    }
+
+    console.log('');
+    log('========================================');
+    log('PREFLIGHT=PASS');
+    log('PROJECT=precocerto-staging');
+    log('RESIDUAL_FIXTURES=0');
+    log('RESIDUAL_USER_DOCS=0');
+    log('========================================');
+
+    // ============================================================
+    // FASE B — MUTATION
+    // ============================================================
+    console.log('');
+    log('FASE B: Criando e atualizando contas...');
+
+    const uids = {};
+
+    // Processar cada ator (criar/atualizar contas Auth)
+    for (const actor of ACTORS) {
+      const { email, password } = getActorCredentials(actor.key);
+      const existingUid = authStatus[actor.key].exists ? authStatus[actor.key].uid : null;
+      const uid = await ensureAuthUser(auth, email, password, existingUid);
+      uids[actor.key] = uid;
+    }
+
+    console.log('');
+
+    // Configurar documento admin
+    log('Configurando documento admin Firestore...');
+    await ensureAdminUserDoc(db, uids.admin);
+
+    console.log('');
+
+    // Resumo final
+    log('========================================');
+    log('BOOTSTRAP COMPLETO');
+    log('========================================');
+    log(`PROJECT=${process.env.VITE_FIREBASE_PROJECT_ID}`);
+    log(`AUTH_ADMIN=READY`);
+    log(`AUTH_MANAGER_A=READY`);
+    log(`AUTH_FUNC_A=READY`);
+    log(`AUTH_FUNC_A2=READY`);
+    log(`AUTH_FUNC_B=READY`);
+    log(`AUTH_DEACTIVATED=READY`);
+    log(`ADMIN_DOC=READY`);
+    log(`RESIDUAL_FIXTURES=0`);
+    log(`STATUS=READY_FOR_STAGING_SMOKE`);
+    log('========================================');
+    log('Você pode agora executar: npm run smoke:staging');
+
+  } catch (error) {
+    console.error('');
+    console.error('[STG-SMOKE-BOOTSTRAP] ERRO CRÍTICO:', error.message);
+    if (error.code) {
+      console.error('[STG-SMOKE-BOOTSTRAP] Código:', error.code);
+    }
+    exitCode = 1;
+  }
+
+  return exitCode;
+}
+
+// ============================================================
+// EXECUÇÃO
+// ============================================================
+
+const code = await main();
+process.exitCode = code;
