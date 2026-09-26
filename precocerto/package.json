@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
-    "build:staging": "VITE_APP_ENV=staging vite build",
+    "build:staging": "vite build --mode staging",
     "build:production": "VITE_APP_ENV=production vite build",
     "build:ci": "vite build && echo 'Build completed successfully'",
     "preview": "vite preview",
