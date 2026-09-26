@@ -1150,6 +1150,307 @@ describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
         adminDb.collection('stores').doc('store_temp_delete').delete()
       );
     });
+
+    // ============================================================================
+    // PC-02B.3E.2A — priceHistory com storeId Tenancy
+    // ============================================================================
+
+    describe('PC-02B.3E.2A — priceHistory Tenancy Rules (storeId)', () => {
+
+      beforeEach(async () => {
+        // Seed: Criar docs de priceHistory para testes
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const adminDb = context.firestore();
+
+          // priceHistory criado por func_A para store_A
+          await adminDb.collection('priceHistory').doc('ph_A_funcA').set({
+            id: 'ph_A_funcA',
+            productId: 'product_1',
+            productName: 'Product 1',
+            productCategory: 'Test',
+            storeId: 'store_A',
+            userId: 'func_A',
+            previousPrice: 100,
+            newPrice: 120,
+            previousCost: 50,
+            newCost: 55,
+            previousMargin: 50,
+            newMargin: 55,
+            previousROI: 100,
+            newROI: 118,
+            previousProfit: 50,
+            newProfit: 65,
+            changeReason: 'Test change',
+            createdAt: new Date().toISOString(),
+          });
+
+          // priceHistory criado por func_A2 (outro user da store_A) para store_A
+          await adminDb.collection('priceHistory').doc('ph_A_funcA2').set({
+            id: 'ph_A_funcA2',
+            productId: 'product_2',
+            productName: 'Product 2',
+            productCategory: 'Test',
+            storeId: 'store_A',
+            userId: 'func_A2',
+            previousPrice: 200,
+            newPrice: 220,
+            previousCost: 100,
+            newCost: 110,
+            previousMargin: 50,
+            newMargin: 50,
+            previousROI: 100,
+            newROI: 100,
+            previousProfit: 100,
+            newProfit: 110,
+            changeReason: 'Test change 2',
+            createdAt: new Date().toISOString(),
+          });
+
+          // priceHistory criado por func_B para store_B
+          await adminDb.collection('priceHistory').doc('ph_B_funcB').set({
+            id: 'ph_B_funcB',
+            productId: 'product_3',
+            productName: 'Product 3',
+            productCategory: 'Test',
+            storeId: 'store_B',
+            userId: 'func_B',
+            previousPrice: 300,
+            newPrice: 330,
+            previousCost: 150,
+            newCost: 165,
+            previousMargin: 50,
+            newMargin: 55,
+            previousROI: 100,
+            newROI: 120,
+            previousProfit: 150,
+            newProfit: 165,
+            changeReason: 'Test change B',
+            createdAt: new Date().toISOString(),
+          });
+        });
+      });
+
+      afterEach(async () => {
+        // Limpeza
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          const adminDb = context.firestore();
+          await adminDb.collection('priceHistory').doc('ph_A_funcA').delete();
+          await adminDb.collection('priceHistory').doc('ph_A_funcA2').delete();
+          await adminDb.collection('priceHistory').doc('ph_B_funcB').delete();
+        });
+      });
+
+      // TESTE PH-RULE-01
+      it('PH-RULE-01: Membro ativo da store A consegue READ de priceHistory próprio', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertSucceeds(
+          funcADb.collection('priceHistory').doc('ph_A_funcA').get()
+        );
+      });
+
+      // TESTE PH-RULE-02
+      it('PH-RULE-02: Membro ativo da store A consegue READ de priceHistory de OUTRO user da mesma store', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertSucceeds(
+          funcADb.collection('priceHistory').doc('ph_A_funcA2').get()
+        );
+      });
+
+      // TESTE PH-RULE-03
+      it('PH-RULE-03: User consegue CREATE priceHistory com storeId autorizado e userId próprio', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertSucceeds(
+          funcADb.collection('priceHistory').add({
+            productId: 'product_new',
+            productName: 'Product New',
+            productCategory: 'Test',
+            storeId: 'store_A',
+            userId: 'func_A',
+            previousPrice: 100,
+            newPrice: 110,
+            previousCost: 50,
+            newCost: 55,
+            previousMargin: 50,
+            newMargin: 55,
+            previousROI: 100,
+            newROI: 110,
+            previousProfit: 50,
+            newProfit: 55,
+            changeReason: 'New test',
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+
+      // TESTE PH-RULE-04
+      it('PH-RULE-04: Criador consegue UPDATE mantendo storeId e userId', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertSucceeds(
+          funcADb.collection('priceHistory').doc('ph_A_funcA').update({
+            newPrice: 125,
+          })
+        );
+      });
+
+      // TESTE PH-RULE-05
+      it('PH-RULE-05: Criador consegue DELETE do próprio priceHistory', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+
+        // Criar doc para deletar
+        const newDocRef = await funcADb.collection('priceHistory').add({
+          productId: 'product_del',
+          productName: 'Product Delete',
+          productCategory: 'Test',
+          storeId: 'store_A',
+          userId: 'func_A',
+          previousPrice: 50,
+          newPrice: 60,
+          previousCost: 25,
+          newCost: 30,
+          previousMargin: 50,
+          newMargin: 50,
+          previousROI: 100,
+          newROI: 100,
+          previousProfit: 25,
+          newProfit: 30,
+          changeReason: 'Delete test',
+          createdAt: new Date().toISOString(),
+        });
+
+        // Deletar
+        await assertSucceeds(
+          funcADb.collection('priceHistory').doc(newDocRef.id).delete()
+        );
+      });
+
+      // TESTE PH-RULE-06
+      it('PH-RULE-06: User da store B NÃO consegue READ de priceHistory da store A', async () => {
+        const funcBDb = testEnv.authenticatedContext('func_B').firestore();
+        await assertFails(
+          funcBDb.collection('priceHistory').doc('ph_A_funcA').get()
+        );
+      });
+
+      // TESTE PH-RULE-07
+      it('PH-RULE-07: User tenta CREATE em store onde NÃO é membro — DENY', async () => {
+        const funcBDb = testEnv.authenticatedContext('func_B').firestore();
+        await assertFails(
+          funcBDb.collection('priceHistory').add({
+            productId: 'product_invalid',
+            storeId: 'store_A', // store onde func_B não é membro
+            userId: 'func_B',
+            previousPrice: 100,
+            newPrice: 110,
+            previousCost: 50,
+            newCost: 55,
+            previousMargin: 50,
+            newMargin: 55,
+            previousROI: 100,
+            newROI: 110,
+            previousProfit: 50,
+            newProfit: 55,
+            changeReason: 'Invalid store',
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+
+      // TESTE PH-RULE-08
+      it('PH-RULE-08: User tenta CREATE com userId de outra pessoa — DENY', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertFails(
+          funcADb.collection('priceHistory').add({
+            productId: 'product_other_user',
+            storeId: 'store_A',
+            userId: 'func_A2', // userId diferente do auth.uid
+            previousPrice: 100,
+            newPrice: 110,
+            previousCost: 50,
+            newCost: 55,
+            previousMargin: 50,
+            newMargin: 55,
+            previousROI: 100,
+            newROI: 110,
+            previousProfit: 50,
+            newProfit: 55,
+            changeReason: 'Wrong user',
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+
+      // TESTE PH-RULE-09
+      it('PH-RULE-09: User tenta CREATE sem storeId — DENY', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertFails(
+          funcADb.collection('priceHistory').add({
+            productId: 'product_no_store',
+            // storeId ausente
+            userId: 'func_A',
+            previousPrice: 100,
+            newPrice: 110,
+            previousCost: 50,
+            newCost: 55,
+            previousMargin: 50,
+            newMargin: 55,
+            previousROI: 100,
+            newROI: 110,
+            previousProfit: 50,
+            newProfit: 55,
+            changeReason: 'No store',
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+
+      // TESTE PH-RULE-10
+      it('PH-RULE-10: Criador tenta UPDATE alterando storeId — DENY', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertFails(
+          funcADb.collection('priceHistory').doc('ph_A_funcA').update({
+            storeId: 'store_B', // Tenant switch attempt
+          })
+        );
+      });
+
+      // TESTE PH-RULE-11
+      it('PH-RULE-11: Criador tenta UPDATE alterando userId — DENY', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        await assertFails(
+          funcADb.collection('priceHistory').doc('ph_A_funcA').update({
+            userId: 'func_A2', // User change attempt
+          })
+        );
+      });
+
+      // TESTE PH-RULE-12
+      it('PH-RULE-12: Outro membro da mesma store tenta UPDATE de doc criado por outro — DENY', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        // func_A tenta editar doc de func_A2
+        await assertFails(
+          funcADb.collection('priceHistory').doc('ph_A_funcA2').update({
+            newPrice: 999,
+          })
+        );
+      });
+
+      // TESTE PH-RULE-13
+      it('PH-RULE-13: Outro membro da mesma store tenta DELETE de doc criado por outro — DENY', async () => {
+        const funcADb = testEnv.authenticatedContext('func_A').firestore();
+        // func_A tenta deletar doc de func_A2
+        await assertFails(
+          funcADb.collection('priceHistory').doc('ph_A_funcA2').delete()
+        );
+      });
+
+      // TESTE PH-RULE-14
+      it('PH-RULE-14: User inativo tenta READ mesmo listado na store — DENY', async () => {
+        const deactivatedDb = testEnv.authenticatedContext('deactivated_1').firestore();
+        await assertFails(
+          deactivatedDb.collection('priceHistory').doc('ph_A_funcA').get()
+        );
+      });
+    });
   });
 
 });

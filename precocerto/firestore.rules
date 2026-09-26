@@ -144,8 +144,22 @@ service cloud.firestore {
     }
 
     match /priceHistory/{historyId} {
-      allow read, update, delete: if isActiveUser() && resource.data.userId == request.auth.uid;
-      allow create: if isActiveUser() && request.resource.data.userId == request.auth.uid;
+      allow read:
+        if isStoreMember(resource.data.storeId);
+
+      allow create:
+        if isStoreMember(request.resource.data.storeId) &&
+           request.resource.data.userId == request.auth.uid;
+
+      allow update:
+        if isStoreMember(resource.data.storeId) &&
+           resource.data.userId == request.auth.uid &&
+           request.resource.data.userId == resource.data.userId &&
+           request.resource.data.storeId == resource.data.storeId;
+
+      allow delete:
+        if isStoreMember(resource.data.storeId) &&
+           resource.data.userId == request.auth.uid;
     }
 
     match /backupLogs/{logId} {
