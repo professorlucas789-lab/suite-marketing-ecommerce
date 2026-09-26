@@ -41,10 +41,7 @@ import {
   getAuth
 } from 'firebase-admin/auth';
 import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc
+  getFirestore
 } from 'firebase-admin/firestore';
 
 // ============================================================
@@ -65,14 +62,14 @@ const RESIDUAL_FIXTURES = [
   ['products', 'product_anon_stg_smoke'],
 ];
 
-// Atores a criar
+// Atores a criar com mapeamento explícito de env vars
 const ACTORS = [
-  { key: 'admin', papel: 'admin', lojas: [STORE_A_ID, STORE_B_ID], ativo: true, createUserDoc: true },
-  { key: 'managerA', papel: 'loja-manager', lojas: [STORE_A_ID], ativo: true, createUserDoc: false },
-  { key: 'funcA', papel: 'funcionario', lojas: [STORE_A_ID], ativo: true, createUserDoc: false },
-  { key: 'funcA2', papel: 'funcionario', lojas: [STORE_A_ID], ativo: true, createUserDoc: false },
-  { key: 'funcB', papel: 'funcionario', lojas: [STORE_B_ID], ativo: true, createUserDoc: false },
-  { key: 'deactivated', papel: 'funcionario', lojas: [STORE_A_ID], ativo: false, createUserDoc: false },
+  { key: 'admin', emailEnv: 'STG_SMOKE_ADMIN_EMAIL', passwordEnv: 'STG_SMOKE_ADMIN_PASSWORD', papel: 'admin', lojas: [STORE_A_ID, STORE_B_ID], ativo: true, createUserDoc: true },
+  { key: 'managerA', emailEnv: 'STG_SMOKE_MANAGER_A_EMAIL', passwordEnv: 'STG_SMOKE_MANAGER_A_PASSWORD', papel: 'loja-manager', lojas: [STORE_A_ID], ativo: true, createUserDoc: false },
+  { key: 'funcA', emailEnv: 'STG_SMOKE_FUNC_A_EMAIL', passwordEnv: 'STG_SMOKE_FUNC_A_PASSWORD', papel: 'funcionario', lojas: [STORE_A_ID], ativo: true, createUserDoc: false },
+  { key: 'funcA2', emailEnv: 'STG_SMOKE_FUNC_A2_EMAIL', passwordEnv: 'STG_SMOKE_FUNC_A2_PASSWORD', papel: 'funcionario', lojas: [STORE_A_ID], ativo: true, createUserDoc: false },
+  { key: 'funcB', emailEnv: 'STG_SMOKE_FUNC_B_EMAIL', passwordEnv: 'STG_SMOKE_FUNC_B_PASSWORD', papel: 'funcionario', lojas: [STORE_B_ID], ativo: true, createUserDoc: false },
+  { key: 'deactivated', emailEnv: 'STG_SMOKE_DEACTIVATED_EMAIL', passwordEnv: 'STG_SMOKE_DEACTIVATED_PASSWORD', papel: 'funcionario', lojas: [STORE_A_ID], ativo: false, createUserDoc: false },
 ];
 
 // ============================================================
@@ -135,15 +132,12 @@ function validateEnvironment() {
   log(`  Projeto: ${projectId}`);
 }
 
-function getActorCredentials(actorKey) {
-  const emailKey = `STG_SMOKE_${actorKey.toUpperCase()}_EMAIL`;
-  const passwordKey = `STG_SMOKE_${actorKey.toUpperCase()}_PASSWORD`;
-
-  const email = process.env[emailKey];
-  const password = process.env[passwordKey];
+function getActorCredentials(actor) {
+  const email = process.env[actor.emailEnv];
+  const password = process.env[actor.passwordEnv];
 
   if (!email || !password) {
-    throw new Error(`Credenciais faltantes para ${actorKey}: ${emailKey}, ${passwordKey}`);
+    throw new Error(`Credenciais faltantes para ${actor.key}: ${actor.emailEnv}, ${actor.passwordEnv}`);
   }
 
   return { email, password };
@@ -160,10 +154,10 @@ async function checkResidualFixtures(db) {
   const residuals = [];
 
   for (const [collection, docId] of RESIDUAL_FIXTURES) {
-    const ref = doc(db, collection, docId);
-    const snap = await getDoc(ref);
+    const ref = db.doc(`${collection}/${docId}`);
+    const snap = await ref.get();
 
-    if (snap.exists()) {
+    if (snap.exists) {
       residualCount++;
       residuals.push(`${collection}/${docId}`);
     }
@@ -188,10 +182,10 @@ async function checkResidualUserDocs(db, actorKey, uid) {
     return; // Admin é esperado ter documento
   }
 
-  const userRef = doc(db, 'users', uid);
-  const snap = await getDoc(userRef);
+  const userRef = db.doc(`users/${uid}`);
+  const snap = await userRef.get();
 
-  if (snap.exists()) {
+  if (snap.exists) {
     throw new Error(
       `Documento residual users/${uid} existe. Smoke test espera encontrar ausente.\n` +
       `Limpe dados de execução anterior antes de fazer bootstrap.`
@@ -215,27 +209,39 @@ async function queryAuthUser(auth, email) {
 async function ensureAdminUserDoc(db, adminUid) {
   log(`Configurando documento admin...`);
 
-  const adminRef = doc(db, 'users', adminUid);
-  const existing = await getDoc(adminRef);
+  const adminRef = db.doc(`users/${adminUid}`);
+  const existing = await adminRef.get();
 
-  const adminData = {
-    nome: 'Admin Smoke Bootstrap',
-    papel: 'admin',
-    ativo: true,
-    lojas: [STORE_A_ID, STORE_B_ID],
-    dataCriacao: new Date().toISOString(),
-  };
+  if (existing.exists) {
+    // Merge seguro: preserva nome e dataCriacao existentes
+    const existingData = existing.data();
+    const existingStores = Array.isArray(existingData?.lojas)
+      ? existingData.lojas
+      : [];
 
-  if (existing.exists()) {
-    // Merge seguro: preserva campos existentes, atualiza papel/ativo/lojas
-    const merged = {
-      ...existing.data(),
-      ...adminData,
+    // União de lojas: preserva existentes + adiciona obrigatórias
+    const requiredStores = [STORE_A_ID, STORE_B_ID];
+    const allStores = [...new Set([...existingStores, ...requiredStores])];
+
+    const updateData = {
+      papel: 'admin',
+      ativo: true,
+      lojas: allStores,
     };
-    await setDoc(adminRef, merged, { merge: true });
+
+    await adminRef.set(updateData, { merge: true });
     log(`  Documento admin atualizado (merge seguro)`);
   } else {
-    await setDoc(adminRef, adminData);
+    // Criar novo documento
+    const adminData = {
+      nome: 'Admin Smoke Bootstrap',
+      papel: 'admin',
+      ativo: true,
+      lojas: [STORE_A_ID, STORE_B_ID],
+      dataCriacao: new Date().toISOString(),
+    };
+
+    await adminRef.set(adminData);
     log(`  Documento admin criado`);
   }
 }
@@ -318,7 +324,7 @@ async function main() {
 
     // Consultar cada ator (READ-ONLY, sem criar/atualizar)
     for (const actor of ACTORS) {
-      const { email } = getActorCredentials(actor.key);
+      const { email } = getActorCredentials(actor);
       const result = await queryAuthUser(auth, email);
       authStatus[actor.key] = result;
 
@@ -357,7 +363,7 @@ async function main() {
 
     // Processar cada ator (criar/atualizar contas Auth)
     for (const actor of ACTORS) {
-      const { email, password } = getActorCredentials(actor.key);
+      const { email, password } = getActorCredentials(actor);
       const existingUid = authStatus[actor.key].exists ? authStatus[actor.key].uid : null;
       const uid = await ensureAuthUser(auth, email, password, existingUid);
       uids[actor.key] = uid;
