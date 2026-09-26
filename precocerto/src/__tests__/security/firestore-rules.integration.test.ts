@@ -1576,10 +1576,12 @@ describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
           .where('userId', '==', 'func_A');
         const result = await assertSucceeds(query.get());
         const ids = result.docs.map((d: any) => d.id);
-        console.log('[INT-06] Found docs:', ids);
+        expect(ids).toHaveLength(1);
         expect(ids).toContain('ph_int_base_A1');
         const baseDoc = result.docs.find((d: any) => d.id === 'ph_int_base_A1');
         expect(baseDoc).toBeDefined();
+        expect((baseDoc?.data() as any).storeId).toBe('store_A');
+        expect((baseDoc?.data() as any).userId).toBe('func_A');
       });
 
       it('INT-07: BackupView — outro creator da mesma store ALLOW (FRONTEND_SCOPE_POLICY)', async () => {
@@ -1590,10 +1592,11 @@ describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
           .where('userId', '==', 'func_A');
         const result = await assertSucceeds(query.get());
         const ids = result.docs.map((d: any) => d.id);
-        console.log('[INT-07] Found docs:', ids);
-        expect(ids).toContain('ph_int_base_A1');
+        expect(ids).toHaveLength(1);
+        expect(ids).toEqual(['ph_int_base_A1']);
         const baseDoc = result.docs.find((d: any) => d.id === 'ph_int_base_A1');
         expect(baseDoc).toBeDefined();
+        expect((baseDoc?.data() as any).userId).toBe('func_A');
       });
 
       it('INT-08: CREATE válido ALLOW', async () => {
@@ -1780,10 +1783,10 @@ describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
       });
 
       it('INT-18: Backup replace multi-user REAL', async () => {
-        let restoredDocId: string | null = null;
+        const restoredDocId = 'ph_int18_restored_A1';
 
         try {
-          // Setup: Criar documentos exclusivos para este cenário
+          // Setup: Criar documentos exclusivos para este cenário com scenario field
           await testEnv.withSecurityRulesDisabled(async (context) => {
             const adminDb = context.firestore();
 
@@ -1792,6 +1795,7 @@ describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
               storeId: 'store_A',
               userId: 'func_A',
               productId: 'product_A',
+              scenario: 'INT18',
               previousPrice: 50,
               newPrice: 55,
               createdAt: new Date().toISOString(),
@@ -1801,99 +1805,152 @@ describe('PC-02A.5 — Firestore Rules Security (Emulator Real)', () => {
               storeId: 'store_A',
               userId: 'func_A2',
               productId: 'product_A',
+              scenario: 'INT18',
               previousPrice: 70,
               newPrice: 75,
               createdAt: new Date().toISOString(),
             });
           });
 
+          // Medir estado INICIAL real consultando Firestore
+          let initialTotal: number;
+          await testEnv.withSecurityRulesDisabled(async (context) => {
+            const adminDb = context.firestore();
+            const initialScenarioSnapshot = await adminDb
+              .collection('priceHistory')
+              .where('scenario', '==', 'INT18')
+              .get();
+            initialTotal = initialScenarioSnapshot.docs.length;
+            const initialIds = initialScenarioSnapshot.docs.map((d: any) => d.id);
+            expect(initialTotal).toBe(2);
+            expect(initialIds).toContain('ph_int18_replace_A1');
+            expect(initialIds).toContain('ph_int18_replace_A2');
+          });
+
           const funcADb = testEnv.authenticatedContext('func_A').firestore();
 
-          // Estado inicial: Query creator-scoped
+          // Verificar creator query antes de operação
           const creatorQuery = funcADb
             .collection('priceHistory')
             .where('storeId', '==', 'store_A')
             .where('userId', '==', 'func_A');
-          const initialSnapshot = await assertSucceeds(creatorQuery.get());
-
-          // Contar apenas docs do cenário INT18 inicialmente
-          const initialDocs = initialSnapshot.docs.filter((d: any) =>
-            d.id === 'ph_int18_replace_A1'
+          const creatorSnapshot = await assertSucceeds(creatorQuery.get());
+          const creatorScenarioDocs = creatorSnapshot.docs.filter((d: any) =>
+            (d.data() as any).scenario === 'INT18'
           );
-          expect(initialDocs).toHaveLength(1);
-          const initialTotal = 1;
+          expect(creatorScenarioDocs).toHaveLength(1);
+          expect(creatorScenarioDocs[0].id).toBe('ph_int18_replace_A1');
 
           // Armazenar dados originais
-          const originalData = initialDocs[0].data();
+          const originalData = creatorScenarioDocs[0].data();
 
           // Operação: Delete doc de func_A (ph_int18_replace_A1)
           await assertSucceeds(
             funcADb.collection('priceHistory').doc('ph_int18_replace_A1').delete()
           );
 
-          // Operação: Recrear documento com novo ID
-          const addResult = await assertSucceeds(
-            funcADb.collection('priceHistory').add({
+          // Verificar A2 após delete via admin
+          await testEnv.withSecurityRulesDisabled(async (context) => {
+            const adminDb = context.firestore();
+            const a2Doc = await adminDb.collection('priceHistory').doc('ph_int18_replace_A2').get();
+            expect(a2Doc.exists).toBe(true);
+            expect((a2Doc.data() as any).userId).toBe('func_A2');
+            expect((a2Doc.data() as any).scenario).toBe('INT18');
+          });
+
+          // Operação: Restaurar documento com ID determinístico
+          await assertSucceeds(
+            funcADb.collection('priceHistory').doc(restoredDocId).set({
               storeId: (originalData as any).storeId,
               userId: (originalData as any).userId,
               productId: (originalData as any).productId,
+              scenario: 'INT18',
               previousPrice: (originalData as any).previousPrice,
               newPrice: 60.0,
               createdAt: new Date().toISOString(),
             })
           );
-          restoredDocId = addResult.id;
 
           // Validação 1: Novo documento foi criado com dados correctos
-          const newDocSnap = await assertSucceeds(addResult.get());
+          const newDocSnap = await assertSucceeds(
+            funcADb.collection('priceHistory').doc(restoredDocId).get()
+          );
           expect(newDocSnap.exists).toBe(true);
           expect((newDocSnap.data() as any).userId).toBe('func_A');
+          expect((newDocSnap.data() as any).scenario).toBe('INT18');
 
-          // Validação 2: outro creator (func_A2) preservado
+          // Medir estado FINAL real consultando Firestore
+          let finalTotal: number;
+          const finalIds: string[] = [];
+          await testEnv.withSecurityRulesDisabled(async (context) => {
+            const adminDb = context.firestore();
+            const finalScenarioSnapshot = await adminDb
+              .collection('priceHistory')
+              .where('scenario', '==', 'INT18')
+              .get();
+            finalTotal = finalScenarioSnapshot.docs.length;
+            finalScenarioSnapshot.docs.forEach((d: any) => finalIds.push(d.id));
+          });
+
+          expect(finalTotal).toBe(2);
+          expect(finalTotal).toBe(initialTotal);
+          expect(finalIds).toHaveLength(2);
+          expect(finalIds).toContain('ph_int18_replace_A2');
+          expect(finalIds).toContain(restoredDocId);
+          expect(finalIds).not.toContain('ph_int18_replace_A1');
+
+          // Validação 2: Contar por creator no estado final
+          const finalCreatorQuery = funcADb
+            .collection('priceHistory')
+            .where('storeId', '==', 'store_A')
+            .where('userId', '==', 'func_A');
+          const finalCreatorSnapshot = await assertSucceeds(finalCreatorQuery.get());
+          const finalA1Docs = finalCreatorSnapshot.docs.filter((d: any) =>
+            (d.data() as any).scenario === 'INT18'
+          );
+          expect(finalA1Docs).toHaveLength(1);
+
           const a2Query = funcADb
             .collection('priceHistory')
             .where('storeId', '==', 'store_A')
             .where('userId', '==', 'func_A2');
           const a2Snapshot = await assertSucceeds(a2Query.get());
-          const a2Docs = a2Snapshot.docs.filter((d: any) => d.id === 'ph_int18_replace_A2');
-          expect(a2Docs).toHaveLength(1);
-          expect((a2Docs[0].data() as any).userId).toBe('func_A2');
-
-          // Validação 3: Estado final — query creator-scoped
-          const finalCreatorSnapshot = await assertSucceeds(creatorQuery.get());
-          const finalA1Docs = finalCreatorSnapshot.docs.filter((d: any) =>
-            d.id === restoredDocId
+          const finalA2Docs = a2Snapshot.docs.filter((d: any) =>
+            (d.data() as any).scenario === 'INT18'
           );
-          expect(finalA1Docs).toHaveLength(1);
+          expect(finalA2Docs).toHaveLength(1);
 
-          // Validação 4: Contagem final total == inicial
-          const finalTotal = 1;
-          expect(finalTotal).toBe(initialTotal);
-
-          // Validação 5: Nenhum documento foi reatribuído a outro creator
-          for (const doc of finalCreatorSnapshot.docs) {
-            expect((doc.data() as any).userId).toBe('func_A');
-          }
-          for (const doc of a2Snapshot.docs) {
-            expect((doc.data() as any).userId).toBe('func_A2');
-          }
+          // Validação 3: Nenhuma reatribuição de creator
+          expect(finalA1Docs[0].id).toBe(restoredDocId);
+          expect((finalA1Docs[0].data() as any).userId).toBe('func_A');
+          expect(finalA2Docs[0].id).toBe('ph_int18_replace_A2');
+          expect((finalA2Docs[0].data() as any).userId).toBe('func_A2');
 
         } finally {
-          // Cleanup obrigatório: Remover docs específicos do cenário INT18
+          // Cleanup obrigatório: Remover TODOS os docs scenario INT18
           await testEnv.withSecurityRulesDisabled(async (context) => {
             const adminDb = context.firestore();
-            const cleanupIds = ['ph_int18_replace_A1', 'ph_int18_replace_A2'];
-            if (restoredDocId) {
-              cleanupIds.push(restoredDocId);
-            }
-
-            for (const docId of cleanupIds) {
+            const cleanupSnapshot = await adminDb
+              .collection('priceHistory')
+              .where('scenario', '==', 'INT18')
+              .get();
+            for (const doc of cleanupSnapshot.docs) {
               try {
-                await adminDb.collection('priceHistory').doc(docId).delete();
+                await doc.ref.delete();
               } catch (e) {
                 // Ignorar se não existir
               }
             }
+          });
+
+          // Verificação final: sem resíduos scenario INT18
+          await testEnv.withSecurityRulesDisabled(async (context) => {
+            const adminDb = context.firestore();
+            const finalCleanupSnapshot = await adminDb
+              .collection('priceHistory')
+              .where('scenario', '==', 'INT18')
+              .get();
+            expect(finalCleanupSnapshot.docs).toHaveLength(0);
           });
         }
       });
