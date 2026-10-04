@@ -1,13 +1,12 @@
 name: 🚀 Deploy para Firebase Hosting
 
 on:
-  push:
-    branches:
-      - claude/precocerto-stage-1-xsicob
-    paths:
-      - 'precocerto/src/**'
-      - 'precocerto/package.json'
-      - '.github/workflows/deploy-firebase.yml'
+  workflow_dispatch:
+    inputs:
+      confirm_project_id:
+        description: 'Digite precocerto-cc04a para confirmar deploy em PRODUÇÃO'
+        required: true
+        type: string
 
 jobs:
   build-and-deploy:
@@ -19,6 +18,19 @@ jobs:
     steps:
       - name: 📥 Clonar repositório
         uses: actions/checkout@v4
+
+      - name: 🔐 Confirmar destino de PRODUÇÃO
+        shell: bash
+        run: |
+          EXPECTED_PROJECT="precocerto-cc04a"
+          RECEIVED_PROJECT="${{ github.event.inputs.confirm_project_id }}"
+          if [ "$RECEIVED_PROJECT" != "$EXPECTED_PROJECT" ]; then
+            echo "❌ BLOQUEADO: confirmação de produção inválida."
+            echo "   Esperado: $EXPECTED_PROJECT"
+            echo "   Recebido: $RECEIVED_PROJECT"
+            exit 1
+          fi
+          echo "✅ Confirmação explícita de produção recebida."
 
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
