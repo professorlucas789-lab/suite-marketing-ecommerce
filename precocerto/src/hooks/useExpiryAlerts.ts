@@ -11,6 +11,8 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
+import { collection, query, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 import { ExpiryAlert, AlertSeverity } from '../types/notifications';
 import { ExpiryAlertService } from '../services/expiryAlertService';
 import { useStore } from '../contexts/StoreContext';
@@ -285,7 +287,66 @@ export function useExpiryAlerts(): UseExpiryAlertsReturn {
     setError(null);
   }, []);
 
-  // Recarregar alertas ao mudar de loja
+  /**
+   * Função auxiliar: calcular resumo de alertas
+   */
+  const calculateAlertsSummary = (alertsList: ExpiryAlert[]) => {
+    const summary = {
+      critical: 0,
+      warning: 0,
+      info: 0,
+      total: alertsList.length,
+    };
+
+    alertsList.forEach((alert) => {
+      if (alert.severity === 'CRITICAL') summary.critical++;
+      else if (alert.severity === 'WARNING') summary.warning++;
+      else summary.info++;
+    });
+
+    return summary;
+  };
+
+  // Listener real-time com onSnapshot
+  useEffect(() => {
+    if (!currentStore?.storeId) {
+      setAlerts([]);
+      setAlertsSummary({ critical: 0, warning: 0, info: 0, total: 0 });
+      return;
+    }
+
+    try {
+      const alertsRef = collection(db, 'stores', currentStore.storeId, 'expiryAlerts');
+      const q = query(alertsRef);
+
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const loadedAlerts: ExpiryAlert[] = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as ExpiryAlert[];
+
+          setAlerts(loadedAlerts);
+          setAlertsSummary(calculateAlertsSummary(loadedAlerts));
+          setError(null);
+
+          console.log(`✅ Listener real-time: ${loadedAlerts.length} alertas sincronizados`);
+        },
+        (error) => {
+          console.error('Erro no listener real-time:', error);
+          setError('Erro ao sincronizar alertas');
+        }
+      );
+
+      return () => unsubscribe();
+    } catch (err) {
+      console.error('Erro ao estabelecer listener:', err);
+      setError('Erro ao estabelecer listener de alertas');
+    }
+  }, [currentStore?.storeId]);
+
+  // Recarregar alertas ao mudar de loja (fallback manual)
   useEffect(() => {
     if (currentStore?.storeId) {
       refreshAlerts();

@@ -18,6 +18,7 @@ vi.mock('firebase/firestore', () => ({
   query: vi.fn(),
   where: vi.fn(),
   getDocs: vi.fn(),
+  getDoc: vi.fn(),
   addDoc: vi.fn(),
   updateDoc: vi.fn(),
   doc: vi.fn(),
@@ -550,6 +551,33 @@ describe('ExpiryAlertService', () => {
       ];
 
       expect(alerts).toHaveLength(3);
+    });
+  });
+
+  describe('getAlert', () => {
+    it('deve buscar apenas o documento solicitado com getDoc()', async () => {
+      const firestore = await import('firebase/firestore');
+      const docRef = { path: 'stores/store-1/expiryAlerts/alert-1' };
+      vi.mocked(firestore.doc).mockReturnValue(docRef as any);
+      vi.mocked(firestore.getDoc).mockResolvedValue({
+        exists: () => true,
+        id: 'alert-1',
+        data: () => ({
+          storeId: 'store-1',
+          productId: 'product-1',
+          productName: 'Produto',
+          expiryDate: '2026-12-31',
+          daysUntilExpiry: 10,
+          severity: 'WARNING',
+          createdAt: '2026-10-04T00:00:00.000Z',
+          channels: [],
+        }),
+      } as any);
+      const result = await ExpiryAlertService.getAlert('store-1', 'alert-1');
+      expect(firestore.doc).toHaveBeenCalledWith(firebaseModule.db, 'stores', 'store-1', 'expiryAlerts', 'alert-1');
+      expect(firestore.getDoc).toHaveBeenCalledWith(docRef);
+      expect(firestore.getDocs).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ id: 'alert-1', storeId: 'store-1', productId: 'product-1' });
     });
   });
 
