@@ -151,6 +151,7 @@ export interface Product {
   farmaciaLaboratorio?: string;
   farmaciaLote?: string;
   farmaciaDataValidade?: string; // YYYY-MM-DD (específico de farmácia)
+  dataValidade?: string; // Alias legado usado por módulos de validade/vendas
   farmaciaRegistroRegulatorio?: string;
   farmaciaNecessitaReceita?: "sim" | "não" | "não informado";
 

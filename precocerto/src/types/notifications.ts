@@ -40,6 +40,8 @@ export interface ExpiryAlert {
   quantity?: number; // Quantidade de unidades afetadas
   batchNumber?: string; // Para farmácias/alimentos com lote
   notes?: string;
+  notificationsSent?: number;
+  lastNotificationAt?: string;
 }
 
 /**

@@ -144,9 +144,8 @@ export class StockService {
 
       // Registar no histórico
       await this.recordHistory(storeId, {
-        id: docRef.id,
-        productId,
         ...movement,
+        id: docRef.id,
       });
 
       // Verificar alertas de stock baixo
@@ -361,6 +360,44 @@ export class StockService {
       return alerts;
     } catch (error) {
       console.error('Erro ao obter alertas:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Compatibilidade com automações antigas: gerar alertas de stock baixo a partir dos produtos da loja.
+   */
+  static async checkLowStockAlerts(storeId: string): Promise<StockAlert[]> {
+    try {
+      const productsRef = collection(db, 'stores', storeId, 'products');
+      const snapshot = await getDocs(productsRef);
+
+      return snapshot.docs
+        .map((docSnapshot) => {
+          const product = { id: docSnapshot.id, ...docSnapshot.data() } as Product;
+          if (!product.id || !product.nome) return null;
+
+          const currentQuantity = getProductAvailableStock(product);
+          const minQuantity = getProductMinimumStock(product);
+          if (currentQuantity > minQuantity) return null;
+
+          return {
+            id: `stock-${product.id}`,
+            storeId,
+            productId: product.id,
+            productName: product.nome,
+            currentQuantity,
+            minQuantity,
+            reorderQuantity: Math.max(minQuantity * 2, 1),
+            severity: currentQuantity <= Math.max(1, Math.floor(minQuantity / 2)) ? 'CRITICAL' : 'LOW',
+            createdAt: new Date().toISOString(),
+            channels: ['in-app'],
+            suggestedReorderQuantity: Math.max(minQuantity * 2, 1),
+          } as StockAlert;
+        })
+        .filter((alert): alert is StockAlert => Boolean(alert));
+    } catch (error) {
+      console.error('Erro ao verificar stock baixo:', error);
       return [];
     }
   }
