@@ -13,9 +13,25 @@ import {
   updateDoc,
   deleteDoc,
   doc,
-  getDoc
+  getDoc,
+  serverTimestamp
 } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType } from "./firebase";
+import {
+  createUnifiedProduct,
+  getUnifiedProduct,
+  updateUnifiedProductData,
+  updateUnifiedProductStock,
+  validateStockAvailability,
+  recordStockMovement,
+  getStockMovementHistory
+} from "./services/unifiedProductService";
+import {
+  recordUnifiedSaleTransaction,
+  getUnifiedSalesHistory,
+  cancelUnifiedSale,
+  validateStockBalance
+} from "./services/unifiedSalesService";
 import { Product, ActiveTab, BusinessSettings } from "./types";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -527,10 +543,48 @@ export default function App() {
 
         const hasRelevantChanges = priceChanged || costChanged || marginChanged || roiChanged || profitChanged || qtyChanged || unitsChanged || uVendaChanged || modeChanged || margemDesejadaChanged || categoryChanged;
 
-        // Update mode
-        const productRef = doc(db, "products", editingProduct.id);
-        await updateDoc(productRef, {
-          ...productDataWithStore,
+        // Modo de atualização - Usar serviço unificado (FASE B)
+        await updateUnifiedProductData(editingProduct.id, {
+          nome: productData.nome,
+          categoria: productData.categoria,
+          fornecedor: productData.fornecedor,
+          numeroFatura: productData.numeroFatura,
+          dataEmissaoFatura: productData.dataEmissaoFatura,
+          custoCompra: productData.custoCompra,
+          custoTransporte: productData.custoTransporte,
+          custoEmbalagem: productData.custoEmbalagem,
+          outrosCustos: productData.outrosCustos,
+          comissaoVenda: productData.comissaoVenda,
+          taxaBancaria: productData.taxaBancaria,
+          taxaMarketplace: productData.taxaMarketplace,
+          custoPublicidade: productData.custoPublicidade,
+          custoEntrega: productData.custoEntrega,
+          combustivel: productData.combustivel,
+          impostoTaxa: productData.impostoTaxa,
+          perdasDesperdicios: productData.perdasDesperdicios,
+          energia: productData.energia,
+          internet: productData.internet,
+          renda: productData.renda,
+          salario: productData.salario,
+          agua: productData.agua,
+          contabilidade: productData.contabilidade,
+          seguranca: productData.seguranca,
+          outrosCustosFixos: productData.outrosCustosFixos,
+          margemDesejada: productData.margemDesejada,
+          precoVendaRecomendado: productData.precoVendaRecomendado,
+          lucroEstimado: productData.lucroEstimado,
+          margemReal: productData.margemReal,
+          roi: productData.roi,
+          observacoes: productData.observacoes,
+          storeName: currentStore?.storeName || "Loja Padrão",
+          venderEmbalagemInteira: productData.venderEmbalagemInteira,
+          quantidade: productData.quantidade,
+          unidadeVenda: productData.unidadeVenda,
+          unidadesInternas: productData.unidadesInternas,
+          precoRecomendadoUnidadeVenda: productData.precoRecomendadoUnidadeVenda,
+          custoRealUnidadeVenda: productData.custoRealUnidadeVenda,
+          lucroUnidadeVenda: productData.lucroUnidadeVenda,
+          categoryId: productData.categoryId,
           updatedAt: timestamp
         });
 
@@ -558,15 +612,54 @@ export default function App() {
         }
         triggerNotification(`Produto "${productData.nome}" atualizado com sucesso!`);
       } else {
-        // Create mode
-        const docRef = await addDoc(collection(db, "products"), {
-          ...productDataWithStore,
+        // Modo de criação - Usar serviço unificado (FASE B)
+        const { productId } = await createUnifiedProduct(finalStoreId, {
+          nome: productData.nome,
+          categoria: productData.categoria,
+          fornecedor: productData.fornecedor,
+          numeroFatura: productData.numeroFatura,
+          dataEmissaoFatura: productData.dataEmissaoFatura,
+          custoCompra: productData.custoCompra,
+          custoTransporte: productData.custoTransporte,
+          custoEmbalagem: productData.custoEmbalagem,
+          outrosCustos: productData.outrosCustos,
+          comissaoVenda: productData.comissaoVenda,
+          taxaBancaria: productData.taxaBancaria,
+          taxaMarketplace: productData.taxaMarketplace,
+          custoPublicidade: productData.custoPublicidade,
+          custoEntrega: productData.custoEntrega,
+          combustivel: productData.combustivel,
+          impostoTaxa: productData.impostoTaxa,
+          perdasDesperdicios: productData.perdasDesperdicios,
+          energia: productData.energia,
+          internet: productData.internet,
+          renda: productData.renda,
+          salario: productData.salario,
+          agua: productData.agua,
+          contabilidade: productData.contabilidade,
+          seguranca: productData.seguranca,
+          outrosCustosFixos: productData.outrosCustosFixos,
+          margemDesejada: productData.margemDesejada,
+          precoVendaRecomendado: productData.precoVendaRecomendado,
+          lucroEstimado: productData.lucroEstimado,
+          margemReal: productData.margemReal,
+          roi: productData.roi,
+          observacoes: productData.observacoes,
           userId: user.uid,
-          createdAt: timestamp,
-          updatedAt: timestamp
+          storeId: finalStoreId,
+          storeName: currentStore?.storeName || "Loja Padrão",
+          venderEmbalagemInteira: productData.venderEmbalagemInteira,
+          quantidade: productData.quantidade,
+          unidadeVenda: productData.unidadeVenda,
+          unidadesInternas: productData.unidadesInternas,
+          precoRecomendadoUnidadeVenda: productData.precoRecomendadoUnidadeVenda,
+          custoRealUnidadeVenda: productData.custoRealUnidadeVenda,
+          lucroUnidadeVenda: productData.lucroUnidadeVenda,
+          categoryId: productData.categoryId,
+          quantidadeDisponível: productData.quantidadeDisponível || 0
         });
 
-        // Also save the initial pricing in priceHistory
+        // Registar histórico de preços (auditoria)
         const initialPrice = productData.venderEmbalagemInteira === false && productData.precoRecomendadoUnidadeVenda !== undefined
           ? productData.precoRecomendadoUnidadeVenda
           : productData.precoVendaRecomendado;
@@ -582,7 +675,7 @@ export default function App() {
           : productData.lucroEstimado;
 
         await addDoc(collection(db, "priceHistory"), {
-          productId: docRef.id,
+          productId: productId,
           productName: productData.nome,
           productCategory: productData.categoria || "Outros",
           storeId: finalStoreId,
@@ -677,59 +770,55 @@ export default function App() {
     const timestamp = new Date().toISOString();
     try {
       const { id, ...originalProductWithoutId } = product;
-      const duplicatedProduct = {
+
+      // Usar serviço unificado para duplicar produto (FASE B)
+      const { productId } = await createUnifiedProduct(currentStore.storeId, {
         ...originalProductWithoutId,
         nome: `${originalProductWithoutId.nome} Cópia`,
         storeId: currentStore.storeId,
         storeName: currentStore.storeName,
-        createdAt: timestamp,
-        updatedAt: timestamp,
         userId: user.uid,
-      };
+      });
 
-      try {
-        const docRef = await addDoc(collection(db, "products"), duplicatedProduct);
+      // Registar histórico de preços para produto duplicado
+      const initialPrice = originalProductWithoutId.venderEmbalagemInteira === false && originalProductWithoutId.precoRecomendadoUnidadeVenda !== undefined
+        ? originalProductWithoutId.precoRecomendadoUnidadeVenda
+        : originalProductWithoutId.precoVendaRecomendado;
 
-        // Also save priceHistory for duplicated product
-        const initialPrice = duplicatedProduct.venderEmbalagemInteira === false && duplicatedProduct.precoRecomendadoUnidadeVenda !== undefined
-          ? duplicatedProduct.precoRecomendadoUnidadeVenda
-          : duplicatedProduct.precoVendaRecomendado;
+      const initialCost = originalProductWithoutId.custoRealUnidadeVenda !== undefined
+        ? originalProductWithoutId.custoRealUnidadeVenda
+        : (originalProductWithoutId.custoCompra + (originalProductWithoutId.custoTransporte || 0) + (originalProductWithoutId.custoEmbalagem || 0) + (originalProductWithoutId.outrosCustos || 0)) / (originalProductWithoutId.quantidade || 1);
 
-        const initialCost = duplicatedProduct.custoRealUnidadeVenda !== undefined
-          ? duplicatedProduct.custoRealUnidadeVenda
-          : (duplicatedProduct.custoCompra + (duplicatedProduct.custoTransporte || 0) + (duplicatedProduct.custoEmbalagem || 0) + (duplicatedProduct.outrosCustos || 0)) / (duplicatedProduct.quantidade || 1);
+      const initialMargin = originalProductWithoutId.margemReal || 0;
+      const initialROI = originalProductWithoutId.roi || 0;
+      const initialProfit = originalProductWithoutId.venderEmbalagemInteira === false && originalProductWithoutId.lucroUnidadeVenda !== undefined
+        ? originalProductWithoutId.lucroUnidadeVenda
+        : originalProductWithoutId.lucroEstimado;
 
-        const initialMargin = duplicatedProduct.margemReal || 0;
-        const initialROI = duplicatedProduct.roi || 0;
-        const initialProfit = duplicatedProduct.venderEmbalagemInteira === false && duplicatedProduct.lucroUnidadeVenda !== undefined
-          ? duplicatedProduct.lucroUnidadeVenda
-          : duplicatedProduct.lucroEstimado;
+      await addDoc(collection(db, "priceHistory"), {
+        productId: productId,
+        productName: `${originalProductWithoutId.nome} Cópia`,
+        productCategory: originalProductWithoutId.categoria || "Outros",
+        storeId: currentStore.storeId,
+        userId: user.uid,
+        previousPrice: 0,
+        newPrice: Math.round((initialPrice || 0) * 100) / 100,
+        previousCost: 0,
+        newCost: Math.round((initialCost || 0) * 100) / 100,
+        previousMargin: 0,
+        newMargin: Math.round((initialMargin || 0) * 100) / 100,
+        previousROI: 0,
+        newROI: Math.round((initialROI || 0) * 100) / 100,
+        previousProfit: 0,
+        newProfit: Math.round((initialProfit || 0) * 100) / 100,
+        changeReason: "Duplicação de produto",
+        createdAt: timestamp
+      });
 
-        await addDoc(collection(db, "priceHistory"), {
-          productId: docRef.id,
-          productName: duplicatedProduct.nome,
-          productCategory: duplicatedProduct.categoria || "Outros",
-          storeId: duplicatedProduct.storeId,
-          userId: user.uid,
-          previousPrice: 0,
-          newPrice: Math.round((initialPrice || 0) * 100) / 100,
-          previousCost: 0,
-          newCost: Math.round((initialCost || 0) * 100) / 100,
-          previousMargin: 0,
-          newMargin: Math.round((initialMargin || 0) * 100) / 100,
-          previousROI: 0,
-          newROI: Math.round((initialROI || 0) * 100) / 100,
-          previousProfit: 0,
-          newProfit: Math.round((initialProfit || 0) * 100) / 100,
-          changeReason: "Duplicação de produto",
-          createdAt: timestamp
-        });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, "products");
-      }
-      triggerNotification(`Produto "${duplicatedProduct.nome}" duplicado com sucesso!`);
+      triggerNotification(`Produto "${originalProductWithoutId.nome} Cópia" duplicado com sucesso!`);
     } catch (error) {
-      console.error("Error duplicating product: ", error);
+      console.error("Erro ao duplicar produto: ", error);
+      handleFirestoreError(error, OperationType.CREATE, "products (duplicate)");
       triggerNotification("Erro ao duplicar o produto.", "error");
     }
   };
@@ -832,21 +921,15 @@ export default function App() {
     try {
       for (const productData of productsData) {
         try {
-          const productDataWithStore = {
+          // Usar serviço unificado para criar produto em lote (FASE B)
+          const { productId } = await createUnifiedProduct(currentStore.storeId, {
             ...productData,
             storeId: currentStore.storeId,
             storeName: currentStore.storeName,
-          };
-
-          // Create product document
-          const docRef = await addDoc(collection(db, "products"), {
-            ...productDataWithStore,
             userId: user.uid,
-            createdAt: timestamp,
-            updatedAt: timestamp
           });
 
-          // Save initial price history
+          // Registar histórico de preços inicial
           const initialPrice = productData.venderEmbalagemInteira === false && productData.precoRecomendadoUnidadeVenda !== undefined
             ? productData.precoRecomendadoUnidadeVenda
             : productData.precoVendaRecomendado;
@@ -862,7 +945,7 @@ export default function App() {
             : productData.lucroEstimado;
 
           await addDoc(collection(db, "priceHistory"), {
-            productId: docRef.id,
+            productId: productId,
             productName: productData.nome,
             productCategory: productData.categoria || "Outros",
             storeId: currentStore.storeId,
