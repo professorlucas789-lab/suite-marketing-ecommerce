@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react';
-import { recordSaleTransaction } from '../services/salesService';
+import { recordUnifiedSaleTransaction } from '../services/unifiedSalesService';
 import type { SaleTransactionInput, SaleReceipt } from '../types/sales';
 
 export interface UseSalesTransactionReturn {
@@ -63,7 +63,19 @@ export function useSalesTransaction(): UseSalesTransactionReturn {
     setSuccessMessage(null);
 
     try {
-      const result = await recordSaleTransaction(input);
+      // Usar novo serviço unificado (FASE B)
+      const result = await recordUnifiedSaleTransaction(
+        input.storeId,
+        input.userId,
+        input.items,
+        {
+          paymentMethod: input.paymentMethod || 'cash',
+          customerName: input.customerName,
+          customerNif: input.customerNif,
+          customerId: input.customerId,
+          documentType: input.documentType,
+        }
+      );
       setReceipt(result);
       setSuccessMessage(`Venda registada com sucesso! Recibo: ${result.receiptNumber}`);
       console.log('✅ [useSalesTransaction] Venda registada:', result);
