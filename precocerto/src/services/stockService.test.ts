@@ -4,35 +4,46 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { addDoc } from 'firebase/firestore';
+import { StockService } from './stockService';
+import type { Product } from '../types';
 
 // Mock Firebase
 vi.mock('../firebase', () => ({
   db: {},
 }));
 
+vi.mock('firebase/firestore', async (importOriginal) => ({
+  ...await importOriginal<typeof import('firebase/firestore')>(),
+  addDoc: vi.fn(),
+}));
+
 describe('StockService', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe('Validação de Movimentos', () => {
     it('deve rejeitar quantidade zero', async () => {
-      expect(() => {
-        if (0 <= 0) throw new Error('Quantidade deve ser maior que zero');
-      }).toThrow('Quantidade deve ser maior que zero');
+      await expect(StockService.recordMovement(
+        'store-1', 'product-1', { id: 'product-1' } as Product, 'OUT', 0, 'sale', 'user-1'
+      )).rejects.toThrow('Quantidade deve ser maior que zero');
+      expect(addDoc).not.toHaveBeenCalled();
     });
 
     it('deve rejeitar quantidade negativa', async () => {
-      expect(() => {
-        if (-5 <= 0) throw new Error('Quantidade deve ser maior que zero');
-      }).toThrow('Quantidade deve ser maior que zero');
+      await expect(StockService.recordMovement(
+        'store-1', 'product-1', { id: 'product-1' } as Product, 'OUT', -5, 'sale', 'user-1'
+      )).rejects.toThrow('Quantidade deve ser maior que zero');
+      expect(addDoc).not.toHaveBeenCalled();
     });
 
-    it('deve validar quantidade suficiente para saída', async () => {
-      const currentQty = 5;
-      const requestedQty = 10;
-
-      if (currentQty < requestedQty) {
-        throw new Error(`Stock insuficiente. Disponível: ${currentQty}`);
-      }
-
-      expect(currentQty).toBeGreaterThanOrEqual(requestedQty);
+    it('deve rejeitar saída superior ao stock sem gravar movimento', async () => {
+      const product = { id: 'product-1', nome: 'Produto', quantidadeDisponivel: 5 } as Product;
+      await expect(StockService.recordMovement(
+        'store-1', 'product-1', product, 'OUT', 10, 'sale', 'user-1'
+      )).rejects.toThrow('Stock insuficiente. Disponível: 5');
+      expect(addDoc).not.toHaveBeenCalled();
     });
   });
 

@@ -7,6 +7,7 @@ import {
   getProductStockValue,
   isLowStockProduct,
   isOutOfStockProduct,
+  normalizeStockProductsWithId,
 } from "./stockUtils";
 
 const makeProduct = (overrides: Partial<Product>): Product => ({
@@ -32,6 +33,25 @@ const makeProduct = (overrides: Partial<Product>): Product => ({
 });
 
 describe("stockUtils", () => {
+  it("remove registos ausentes e produtos sem identificacao utilizavel", () => {
+    const validProduct = makeProduct({ id: 'product-1' });
+    expect(normalizeStockProductsWithId([
+      undefined, null, makeProduct({ id: '' }), makeProduct({ id: '  ' }),
+      makeProduct({ id: 'product-2', nome: '' }), validProduct,
+    ])).toEqual([validProduct]);
+    expect(normalizeStockProductsWithId(undefined)).toEqual([]);
+    expect(normalizeStockProductsWithId(null)).toEqual([]);
+  });
+
+  it("tolera registos ausentes e quantidades nao finitas nos resumos", () => {
+    expect(getProductAvailableStock(undefined)).toBe(0);
+    expect(getProductAvailableStock(null)).toBe(0);
+    expect(getProductAvailableStock(makeProduct({ quantidadeDisponivel: NaN }))).toBe(0);
+    expect(getProductAvailableStock(makeProduct({ quantidadeDisponivel: Infinity }))).toBe(0);
+    expect(buildStockSummary([undefined, null, makeProduct({ quantidadeDisponivel: 4 })]))
+      .toMatchObject({ totalProducts: 1, totalUnits: 4 });
+  });
+
   it("resolve stock disponivel com fallback para quantidade", () => {
     expect(getProductAvailableStock(makeProduct({ quantidadeDisponivel: 8, quantidade: 20 }))).toBe(8);
     expect(getProductAvailableStock(makeProduct({ quantidadeDisponível: 6, quantidade: 20 }))).toBe(6);

@@ -80,14 +80,16 @@ describe('ExpiryAlertPanel', () => {
 
   it('deve mostrar dias até expiração', () => {
     render(<ExpiryAlertPanel />);
-    const text = screen.getByText(/5 dias/i);
-    expect(text).toBeDefined();
+    expect(screen.getByText('5', { selector: 'strong' }).parentElement)
+      .toHaveTextContent(/Expira em 5 dias/);
   });
 
   it('deve mostrar quantidade de unidades', () => {
     render(<ExpiryAlertPanel />);
-    expect(screen.getByText(/Quantidade: 10/)).toBeDefined();
-    expect(screen.getByText(/Quantidade: 25/)).toBeDefined();
+    expect(screen.getByText('10', { selector: 'strong' }).parentElement)
+      .toHaveTextContent('Quantidade: 10 unidade(s)');
+    expect(screen.getByText('25', { selector: 'strong' }).parentElement)
+      .toHaveTextContent('Quantidade: 25 unidade(s)');
   });
 
   it('deve exibir botões de ação para alertas não resolvidos', () => {
