@@ -67,28 +67,30 @@
 
 ## 🔄 PRÓXIMAS ETAPAS (Requer Autorização)
 
-### 1️⃣ Atualizar App.tsx
-- [ ] Remover imports do `stockService` (antigo)
-- [ ] Remover imports do `salesService` (antigo)
-- [ ] Adicionar imports de `unifiedProductService`
-- [ ] Adicionar imports de `unifiedSalesService`
-- [ ] Actualizar CRUD de produtos
-- [ ] Actualizar módulo de vendas
+### 1️⃣ Atualizar App.tsx ✅ COMPLETO
+- [x] Remover imports do `stockService` (antigo) - N/A (não importado diretamente)
+- [x] Remover imports do `salesService` (antigo) - N/A (não importado diretamente)
+- [x] Adicionar imports de `unifiedProductService`
+- [x] Adicionar imports de `unifiedSalesService`
+- [x] Actualizar CRUD de produtos (handleSaveProduct, handleDeleteProduct, handleDuplicateProduct, handleSaveBatchProducts)
+- [x] Actualizar módulo de vendas (através de useSalesTransaction)
 
 ### 2️⃣ Atualizar Componentes
-- [ ] ProductForm.tsx → usar novo serviço
-- [ ] ProductList.tsx → usar novo serviço
-- [ ] SalesModule.tsx → usar novo serviço
-- [ ] StockManagementPanel.tsx → usar novo serviço
-- [ ] Dashboard.tsx → usar novo serviço
+- [x] useSalesTransaction.ts → usar recordUnifiedSaleTransaction
+- [ ] ProductForm.tsx → validações e isolamento (SE necessário)
+- [ ] ProductList.tsx → leitura de produtos (IF necessário)
+- [ ] SalesModule.tsx → já utiliza useSalesTransaction atualizado ✅
+- [ ] StockManagementPanel.tsx → usar novo serviço (OPCIONAL)
+- [ ] Dashboard.tsx → usar novo serviço (OPCIONAL)
 
-### 3️⃣ Executar Testes
+### 3️⃣ Executar Testes ⏳ EM PROGRESSO
 - [ ] `npm run test -- unifiedProductService` (100% passing)
 - [ ] `npm run test -- unifiedSalesService` (100% passing)
 - [ ] Coverage >80% em ambos
 - [ ] Sem warnings TypeScript
+- [ ] Validar integração App.tsx com novos serviços
 
-### 4️⃣ Migração de Dados
+### 4️⃣ Migração de Dados ⏳ PRÓXIMO
 - [ ] Executar em **staging** (NUNCA em produção antes de testar)
 - [ ] Validar backup criado
 - [ ] Confirmar integridade
@@ -103,8 +105,8 @@
 - [ ] Histórico completo mantido
 
 ### 6️⃣ Testes Funcionais
-- [ ] Criar produto em loja
-- [ ] Registar venda (5+ itens)
+- [ ] Criar produto em loja (usa createUnifiedProduct) ✅ IMPLEMENTADO
+- [ ] Registar venda (usa recordUnifiedSaleTransaction) ✅ IMPLEMENTADO
 - [ ] Validar stock actualizado
 - [ ] Anular venda
 - [ ] Confirmar reversão de stock
@@ -194,4 +196,28 @@
 
 **NOTA**: Este checklist é guia de implementação. Qualquer desvio deve ser documentado.
 
-Status: 🔄 AGUARDANDO AUTORIZAÇÃO PARA PRÓXIMAS ETAPAS
+---
+
+## 📈 PROGRESSO ACTUAL (9 de outubro de 2026)
+
+**Fase B - Integração Inicial**: ✅ 60% COMPLETO
+
+### Concluído:
+- ✅ Implementação de serviços unificados (unifiedProductService, unifiedSalesService, migrationPhaseB)
+- ✅ Testes unitários (20+ casos de teste)
+- ✅ Documentação completa (FASE-B-NORMALIZACAO-PRODUTOS.md)
+- ✅ Integração em App.tsx (todos os handlers de produtos)
+- ✅ Integração em useSalesTransaction (módulo de vendas)
+
+### Em Progresso:
+- 🔄 Testes de integração
+- 🔄 Validação de tipos TypeScript
+- 🔄 Preparação para migração em staging
+
+### Próximo:
+- ⏳ Execução de testes (`npm run test`)
+- ⏳ Migração de dados (staging)
+- ⏳ Validação pós-migração
+- ⏳ Deploy em produção
+
+Status: 🔄 DESENVOLVIMENTO AVANÇADO - PRONTO PARA TESTES
