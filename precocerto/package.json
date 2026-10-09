@@ -15,7 +15,9 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
-    "smoke:staging": "node scripts/staging-firestore-smoke.mjs"
+    "smoke:staging": "node scripts/staging-firestore-smoke.mjs",
+    "migrate:staging": "tsx scripts/run-migration-staging.ts",
+    "migrate:demo": "tsx scripts/run-migration-demo.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
