@@ -29,8 +29,8 @@ import {
   QueryConstraint,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Product, Sale } from '../types';
-import { SaleTransactionInput, SaleReceipt, SaleReceiptItem } from '../types/sales';
+import { Product } from '../types';
+import { SaleTransactionInput, SaleReceipt, SaleReceiptItem, Sale } from '../types/sales';
 
 interface UnifiedSaleItem {
   productId: string;
@@ -60,6 +60,7 @@ export async function recordUnifiedSaleTransaction(
     paymentMethod?: string;
     customerId?: string;
     customerName?: string;
+    customerNif?: string;
     documentType?: string;
     notes?: string;
   }
@@ -90,7 +91,7 @@ export async function recordUnifiedSaleTransaction(
         throw new Error(`Produto não encontrado: ${item.productId}`);
       }
 
-      const product = { id: productSnap.id, ...productSnap.data() };
+      const product = { id: productSnap.id, ...productSnap.data() } as Product;
 
       // Ler stock da loja
       const stockRef = doc(db, 'products', item.productId, 'stock', storeId);
@@ -162,6 +163,7 @@ export async function recordUnifiedSaleTransaction(
         paymentMethod: options?.paymentMethod || 'cash',
         customerId: options?.customerId || '',
         customerName: options?.customerName || '',
+        customerNif: options?.customerNif || '',
         documentType: options?.documentType || 'internal_receipt',
         status: 'completed',
         createdAt: timestamp,
@@ -225,6 +227,7 @@ export async function recordUnifiedSaleTransaction(
       paymentMethod: options?.paymentMethod || 'cash',
       customerId: options?.customerId || '',
       customerName: options?.customerName || '',
+      customerNif: options?.customerNif || '',
       documentType: options?.documentType || 'internal_receipt',
     } as SaleReceipt;
   });

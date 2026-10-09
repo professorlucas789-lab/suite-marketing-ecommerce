@@ -193,11 +193,11 @@ async function backupCurrentStructure(backupId: string): Promise<void> {
 
   // Backup de products (raiz)
   const productsSnapshot = await getDocs(collection(db, 'products'));
-  for (const doc of productsSnapshot.docs) {
-    const backupRef = doc(collection(db, 'products_backup'), `${backupId}_${doc.id}`);
+  for (const productDoc of productsSnapshot.docs) {
+    const backupRef = doc(collection(db, 'products_backup'), `${backupId}_${productDoc.id}`);
     batch.set(backupRef, {
-      ...doc.data(),
-      originalId: doc.id,
+      ...productDoc.data(),
+      originalId: productDoc.id,
       backupTimestamp: new Date().toISOString(),
     });
   }

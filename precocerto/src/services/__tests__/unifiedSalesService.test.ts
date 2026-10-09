@@ -192,7 +192,7 @@ describe('UnifiedSalesService', () => {
       ];
 
       const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-      expect(subtotal).toBe(119); // (50 + 45 + 16)
+      expect(subtotal).toBe(111); // (50 + 45 + 16)
     });
 
     it('deve actualizar stock para cada produto', () => {

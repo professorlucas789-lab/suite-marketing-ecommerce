@@ -25,18 +25,18 @@ import {
   deleteDoc,
   query,
   where,
+  limit as firebaseLimit,
   serverTimestamp,
   writeBatch,
-  transaction,
+  runTransaction,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Product } from '../types';
 
-export interface UnifiedProduct extends Omit<Product, 'quantidadeDisponível' | 'quantidadeDisponivel'> {
-  // Dados globais do produto
-  storeId?: string; // Loja criadora (opcional, para histórico)
-  createdAt?: string;
-  updatedAt?: string;
+export interface UnifiedProduct extends Omit<Product, 'quantidadeDisponível' | 'quantidadeDisponivel' | 'id'> {
+  // Dados globais do produto (sem id, é gerado pelo Firestore)
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface StockEntry {
@@ -52,7 +52,7 @@ export interface StockEntry {
  */
 export async function createUnifiedProduct(
   storeId: string,
-  productData: Omit<Product, 'id'>
+  productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<{ productId: string; product: UnifiedProduct; stock: StockEntry }> {
   const docRef = doc(collection(db, 'products'));
   const productId = docRef.id;
@@ -117,8 +117,9 @@ export async function getUnifiedProductsForStore(
   storeId: string,
   limit?: number
 ): Promise<Array<{ product: UnifiedProduct & { id: string }; stock: StockEntry }>> {
+  const constraints = limit ? [firebaseLimit(limit)] : [];
   const productsSnapshot = await getDocs(
-    query(collection(db, 'products'), ...(limit ? [limit] : []))
+    query(collection(db, 'products'), ...constraints)
   );
 
   const results = [];
