@@ -1,7 +1,7 @@
 # ✅ FASE B — CHECKLIST DE IMPLEMENTAÇÃO
 
 **Iniciado**: 9 de outubro de 2026  
-**Última atualização**: 22 de outubro de 2026  
+**Última atualização**: 22 de outubro de 2026 (idempotência confirmada em staging)  
 **Estado**: 🔄 MIGRAÇÃO VALIDADA EM STAGING (dados de teste) — falta publicar regras/índices, testar a app e auditar os dados reais
 
 ---
@@ -101,7 +101,8 @@
 - [x] Migração real em 22/10/2026 — `Status: completed`, 6 migradas, 0 já existentes, 0 erros, 0 avisos
   - Backup ID: `backup_2026-10-22T11:14:14.170Z` (3 + 6 = 9 documentos)
 - [ ] Confirmar na consola: `products/fasebseed_prod_001/stock` com 2 documentos; `products_backup` (3) e `stores_products_backup` (6)
-- [ ] Repetir `npm run migrate:staging -- --sim` → esperado: 0 migradas, 6 já existentes
+- [x] Repetir `npm run migrate:staging -- --sim` (22/10/2026) — `completed`, **0 migradas, 6 já existentes**, 0 erros, 0 avisos: confirma que não sobrescreve
+  - Criou um 2.º backup (`backup_2026-10-22T12:04:44.558Z`). Cada execução faz backup, mesmo sem nada a migrar. **Para reverter usar o 1.º backup**: o stock leva o ID do backup que o criou, por isso o rollback do 2.º removeria 0 entradas
 - [ ] `npm run migrate:staging -- --rollback <backupId> --dry-run` → esperado: 6 entradas a remover
 
 ### 5️⃣ Publicar em staging (sempre com `--project precocerto-staging`)
@@ -166,7 +167,7 @@
 ## 🎯 CRITÉRIOS DE SUCESSO
 
 - [x] Testes dos serviços, regras e migração passam (com emulador)
-- [x] Migração executada com sucesso em staging (dados de seed)
+- [x] Migração executada com sucesso em staging (dados de seed) e repetida sem sobrescrever (idempotente)
 - [ ] Validação pós-migração confirmada na consola
 - [ ] Regras e índices publicados em staging
 - [ ] Fluxo de vendas e anulação testado na app em staging
