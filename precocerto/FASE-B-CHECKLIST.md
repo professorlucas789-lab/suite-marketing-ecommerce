@@ -14,8 +14,8 @@
 | Migração (Admin SDK, dry-run, rollback real) | ✅ Reescrita e testada |
 | Migração em **staging** (dados de seed) | ✅ Executada a 22/10/2026 (6 entradas de stock, 0 erros, 0 avisos) |
 | Regras do Firestore (stock, movimentos, vendas) | ✅ Escritas, testadas e **publicadas em staging** (22/10/2026) |
-| Índices compostos (`firestore.indexes.json`) | ✅ Escritos · ⏳ **por publicar** em staging |
-| Teste funcional da app em staging | ⏳ Pendente (depende dos índices) |
+| Índices compostos (`firestore.indexes.json`) | ✅ Escritos e **publicados em staging** (22/10/2026) · ⏳ confirmar "Ativo" na consola |
+| Teste funcional da app em staging | ⏳ Pendente (regras e índices já publicados; falta confirmar índices ativos) |
 | Auditoria do modelo de dados **real** (produção) | ⏳ Pendente — bloqueia a produção |
 | Produção | ⛔ Não iniciar antes dos pontos acima |
 
@@ -108,7 +108,7 @@
 ### 5️⃣ Publicar em staging (sempre com `--project precocerto-staging`)
 > ⚠️ O `.firebaserc` aponta por defeito para **produção** (`precocerto-cc04a`).
 - [x] Regras publicadas em staging a 22/10/2026 via GitHub Actions (`deploy-firebase-staging.yml`, operação `deploy-rules`, run #18, commit `1886f8a`): projeto validado como `precocerto-staging`, passo de deploy com sucesso. Ainda **não** corrido o `smoke-rules` contra as regras novas
-- [ ] `firebase deploy --only firestore:indexes --project precocerto-staging --dry-run`, depois sem `--dry-run` (responder **N** se perguntar por apagar índices)
+- [x] Índices publicados em staging a 22/10/2026 (`firebase deploy --only firestore:indexes --project precocerto-staging`): `deployed indexes in precocerto/firestore.indexes.json successfully for (default) database`. O CLI também compilou as `firestore.rules` sem erros. Não apareceu pergunta sobre apagar índices existentes
 - [ ] Índices no estado "Ativo" (Firestore > Índices)
 
 ### 6️⃣ Testes funcionais da app em staging
