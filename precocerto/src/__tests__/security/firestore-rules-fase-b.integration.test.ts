@@ -54,24 +54,19 @@ function vendaValida(storeId: string, userId: string, extra: Record<string, unkn
   };
 }
 
-beforeAll(async () => {
-  const rulesPath = path.join(__dirname, '../../..', 'firestore.rules');
-  testEnv = await initializeTestEnvironment({
-    projectId: 'precocerto-test-faseb',
-    firestore: {
-      rules: fs.readFileSync(rulesPath, 'utf-8'),
-      host: 'localhost',
-      port: 8080,
-    },
-  });
-});
-
-afterAll(async () => {
-  await testEnv.cleanup();
-});
-
-describe('FASE B — Firestore Rules', () => {
+// Só corre com o emulador ativo (npm run test:rules); sem ele fica "skipped"
+describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('FASE B — Firestore Rules', () => {
   beforeAll(async () => {
+    const rulesPath = path.join(__dirname, '../../..', 'firestore.rules');
+    testEnv = await initializeTestEnvironment({
+      projectId: 'precocerto-test-faseb',
+      firestore: {
+        rules: fs.readFileSync(rulesPath, 'utf-8'),
+        host: 'localhost',
+        port: 8080,
+      },
+    });
+
     await testEnv.withSecurityRulesDisabled(async context => {
       const admin = context.firestore();
 
@@ -95,6 +90,10 @@ describe('FASE B — Firestore Rules', () => {
       await admin.doc('sales/sale_B').set(vendaValida('store_B', 'func_B'));
       await admin.doc('products_backup/backup_x').set({ nome: 'x' });
     });
+  });
+
+  afterAll(async () => {
+    await testEnv.cleanup();
   });
 
   describe('products/{id}/stock/{storeId}', () => {
@@ -179,6 +178,17 @@ describe('FASE B — Firestore Rules', () => {
     });
   });
 
+  describe('products (listagem da loja)', () => {
+    it('consulta com filtro storeId da sua loja passa (getUnifiedProductsForStore)', async () => {
+      await assertSucceeds(db('func_A').collection('products').where('storeId', '==', 'store_A').limit(10).get());
+    });
+
+    it('consulta sem filtro ou de outra loja falha', async () => {
+      await assertFails(db('func_A').collection('products').get());
+      await assertFails(db('func_A').collection('products').where('storeId', '==', 'store_B').get());
+    });
+  });
+
   describe('sales (coleção raiz)', () => {
     it('cria venda da sua loja em seu nome', async () => {
       await assertSucceeds(db('func_A').collection('sales').add(vendaValida('store_A', 'func_A')));
@@ -194,6 +204,16 @@ describe('FASE B — Firestore Rules', () => {
       await assertFails(db('func_A').collection('sales').where('storeId', '==', 'store_B').get());
       await assertFails(db('func_A').collection('sales').get());
       await assertFails(db('func_A').collection('sales').where('receiptNumber', '==', 'R-1').get());
+    });
+
+    it('consulta de anulação (storeId + receiptNumber) passa; só receiptNumber falha', async () => {
+      // Forma exata usada por cancelUnifiedSale
+      await assertSucceeds(
+        db('func_A').collection('sales').where('storeId', '==', 'store_A').where('receiptNumber', '==', 'R-1').get()
+      );
+      await assertFails(
+        db('func_B').collection('sales').where('storeId', '==', 'store_A').where('receiptNumber', '==', 'R-1').get()
+      );
     });
 
     it('anular: autor e admin podem; colega da loja não; storeId/userId imutáveis', async () => {

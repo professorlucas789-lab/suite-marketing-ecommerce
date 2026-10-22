@@ -29,6 +29,7 @@ import {
   serverTimestamp,
   writeBatch,
   runTransaction,
+  QueryConstraint,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Product } from '../types';
@@ -111,13 +112,18 @@ export async function getUnifiedProduct(
 }
 
 /**
- * Obter todos os produtos da loja com seus stocks
+ * Obter os produtos da loja com seus stocks
+ *
+ * Lista os produtos cuja loja proprietária é storeId. O filtro é obrigatório:
+ * as Security Rules só permitem ler produtos da própria loja e rejeitam
+ * consultas sem filtro por storeId.
  */
 export async function getUnifiedProductsForStore(
   storeId: string,
   limit?: number
 ): Promise<Array<{ product: UnifiedProduct & { id: string }; stock: StockEntry }>> {
-  const constraints = limit ? [firebaseLimit(limit)] : [];
+  const constraints: QueryConstraint[] = [where('storeId', '==', storeId)];
+  if (limit) constraints.push(firebaseLimit(limit));
   const productsSnapshot = await getDocs(
     query(collection(db, 'products'), ...constraints)
   );

@@ -27,6 +27,7 @@ import {
   runTransaction,
   serverTimestamp,
   QueryConstraint,
+  DocumentReference,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Product } from '../types';
@@ -281,54 +282,82 @@ export async function getUnifiedSalesHistory(
 
 /**
  * Anular venda com reversão de stock (TRANSAÇÃO)
+ *
+ * A consulta TEM de filtrar por storeId: as Security Rules só permitem ler
+ * vendas da própria loja e rejeitam consultas que não o provem.
  */
 export async function cancelUnifiedSale(
+  storeId: string,
   receiptNumber: string,
   cancelledBy: string
 ): Promise<void> {
+  if (!storeId) throw new Error('Loja obrigatória');
+
+  // Buscar todas as linhas da venda (as consultas não correm dentro da transação)
+  const q = query(
+    collection(db, 'sales'),
+    where('storeId', '==', storeId),
+    where('receiptNumber', '==', receiptNumber)
+  );
+  const snapshot = await getDocs(q);
+
+  if (snapshot.empty) {
+    throw new Error('Recibo não encontrado');
+  }
+
   await runTransaction(db, async (txn) => {
-    // Buscar todas as linhas da venda
-    const q = query(collection(db, 'sales'), where('receiptNumber', '==', receiptNumber));
-    const snapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      throw new Error('Recibo não encontrado');
-    }
-
-    const timestamp = new Date().toISOString();
-    let cancelledCount = 0;
+    // PASSO 1: LEITURAS. O Firestore exige todas as leituras antes de qualquer
+    // escrita. O estado das vendas é relido dentro da transação para que duas
+    // anulações simultâneas não revertam o stock duas vezes.
+    const porAnular: Array<{ ref: DocumentReference; productId: string; quantity: number }> = [];
 
     for (const saleDoc of snapshot.docs) {
-      const sale = saleDoc.data() as any;
+      const atual = await txn.get(saleDoc.ref);
+      if (!atual.exists()) continue;
 
+      const sale = atual.data() as any;
       if (sale.status === 'cancelled') continue;
 
-      // Reverter stock
-      const stockRef = doc(db, 'products', sale.productId, 'stock', sale.storeId);
+      porAnular.push({ ref: saleDoc.ref, productId: sale.productId, quantity: Number(sale.quantity) || 0 });
+    }
+
+    if (porAnular.length === 0) {
+      throw new Error('Este recibo já foi anulado');
+    }
+
+    // Quantidade a repor por produto (o mesmo produto pode ter várias linhas)
+    const aRepor = new Map<string, number>();
+    for (const { productId, quantity } of porAnular) {
+      aRepor.set(productId, (aRepor.get(productId) || 0) + quantity);
+    }
+
+    const stocks: Array<{ ref: DocumentReference; atual: Record<string, any>; quantity: number }> = [];
+    for (const [productId, quantity] of aRepor) {
+      const stockRef = doc(db, 'products', productId, 'stock', storeId);
       const stockSnap = await txn.get(stockRef);
-
       if (stockSnap.exists()) {
-        const stock = stockSnap.data();
-        txn.update(stockRef, {
-          quantidadeDisponível: (stock.quantidadeDisponível || 0) + sale.quantity,
-          quantidadeVendida: Math.max(0, (stock.quantidadeVendida || 0) - sale.quantity),
-          lastUpdated: timestamp,
-        });
+        stocks.push({ ref: stockRef, atual: stockSnap.data(), quantity });
       }
+    }
 
-      // Marcar venda como cancelada
-      txn.update(saleDoc.ref, {
+    // PASSO 2: ESCRITAS
+    const timestamp = new Date().toISOString();
+
+    for (const { ref, atual, quantity } of stocks) {
+      txn.update(ref, {
+        quantidadeDisponível: (atual.quantidadeDisponível || 0) + quantity,
+        quantidadeVendida: Math.max(0, (atual.quantidadeVendida || 0) - quantity),
+        lastUpdated: timestamp,
+      });
+    }
+
+    for (const { ref } of porAnular) {
+      txn.update(ref, {
         status: 'cancelled',
         cancelledAt: timestamp,
         cancelledBy,
         updatedAt: timestamp,
       });
-
-      cancelledCount++;
-    }
-
-    if (cancelledCount === 0) {
-      throw new Error('Este recibo já foi anulado');
     }
   });
 }

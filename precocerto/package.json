@@ -18,7 +18,7 @@
     "smoke:staging": "node scripts/staging-firestore-smoke.mjs",
     "migrate:staging": "tsx scripts/run-migration-staging.ts",
     "seed:staging": "node scripts/staging-seed-fase-b.mjs",
-    "test:rules": "firebase emulators:exec --only firestore --project precocerto-test \"vitest run src/__tests__/security\"",
+    "test:rules": "firebase emulators:exec --only firestore --project precocerto-test \"vitest run src/__tests__/security src/services/__tests__/unifiedServices.emulator\"",
     "migrate:demo": "tsx scripts/run-migration-demo.ts"
   },
   "dependencies": {
