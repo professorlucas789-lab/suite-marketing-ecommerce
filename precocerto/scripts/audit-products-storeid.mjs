@@ -23,6 +23,7 @@ import {
   getFirestore
 } from 'firebase-admin/firestore';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 // ============================================================
@@ -136,7 +137,7 @@ async function getStore(storeId) {
 
   try {
     const docSnap = await db.collection('stores').doc(storeId).get();
-    const exists = docSnap.exists();
+    const exists = docSnap.exists;
     storeCache.set(storeId, { exists });
     return { exists };
   } catch {
@@ -155,7 +156,7 @@ async function getUser(userId) {
   try {
     const docSnap = await db.collection('users').doc(userId).get();
 
-    if (docSnap.exists()) {
+    if (docSnap.exists) {
       const data = docSnap.data() || {};
       userCache.set(userId, {
         exists: true,
@@ -214,9 +215,13 @@ async function auditProducts() {
         INVALID_USER_ID: 0,
       },
       consistency: 'PASS',
+      stockLocation: null,
     },
     problematicProducts: [],
   };
+
+  // id → { storeId (string válida ou null), rootStock (tem campo de stock no documento) }
+  const produtosRaiz = new Map();
 
   try {
     const productsSnapshot = await db.collection('products').get();
@@ -228,6 +233,11 @@ async function auditProducts() {
     for (const productDoc of productsSnapshot.docs) {
       const productId = productDoc.id;
       const productData = productDoc.data() || {};
+
+      produtosRaiz.set(productId, {
+        storeId: typeof productData.storeId === 'string' && productData.storeId.trim() !== '' ? productData.storeId : null,
+        rootStock: CAMPOS_STOCK_RAIZ.some(campo => productData[campo] !== undefined && productData[campo] !== null),
+      });
 
       // Categorizar storeId
       let storeIdStatus = null;
@@ -383,12 +393,71 @@ async function auditProducts() {
       );
     }
 
+    report.summary.stockLocation = await auditStockLocation(produtosRaiz);
+
     return report;
   } catch (err) {
     logError('Erro durante auditoria:', err.message);
     report.summary.consistency = 'FAIL';
     return report;
   }
+}
+
+// Campos onde o stock pode estar no documento do produto (modelo antigo)
+const CAMPOS_STOCK_RAIZ = ['quantidadeDisponivel', 'quantidadeDisponível', 'quantidade'];
+
+/**
+ * Onde está o stock? A migração FASE B lê stores/{loja}/products/{id}. Se o stock
+ * estiver só no documento do produto (quantidadeDisponivel), a migração não o leva.
+ * READ-ONLY: usa select() para ler apenas os IDs das subcoleções.
+ */
+async function auditStockLocation(produtosRaiz) {
+  assertReadOnly('read');
+
+  const resultado = {
+    productsWithRootStockField: 0,
+    storesWithSubcollection: 0,
+    storeSubcollectionDocs: 0,
+    perStore: {},
+    rootStockWithoutStoreDoc: 0,
+    storeDocsWithoutRootProduct: 0,
+    storeDocsOutsideOwnerStore: 0,
+  };
+
+  const idsPorLoja = new Map();
+  const storeRefs = await db.collection('stores').listDocuments();
+
+  for (const storeRef of storeRefs) {
+    const snap = await storeRef.collection('products').select().get();
+    if (snap.empty) continue;
+
+    const ids = new Set(snap.docs.map(d => d.id));
+    idsPorLoja.set(storeRef.id, ids);
+    resultado.storesWithSubcollection++;
+    resultado.storeSubcollectionDocs += ids.size;
+    resultado.perStore[storeRef.id] = ids.size;
+
+    for (const productId of ids) {
+      const raiz = produtosRaiz.get(productId);
+      if (!raiz) {
+        resultado.storeDocsWithoutRootProduct++;
+      } else if (raiz.storeId && raiz.storeId !== storeRef.id) {
+        resultado.storeDocsOutsideOwnerStore++;
+      }
+    }
+  }
+
+  for (const [productId, raiz] of produtosRaiz) {
+    if (!raiz.rootStock) continue;
+    resultado.productsWithRootStockField++;
+
+    // Stock no documento do produto sem entrada equivalente na loja proprietária
+    if (!raiz.storeId || !idsPorLoja.get(raiz.storeId)?.has(productId)) {
+      resultado.rootStockWithoutStoreDoc++;
+    }
+  }
+
+  return resultado;
 }
 
 // ============================================================
@@ -533,6 +602,25 @@ async function main() {
   console.log(`  INVALID_USER_ID: ${report.summary.candidates.INVALID_USER_ID}`);
   console.log('');
 
+  const stock = report.summary.stockLocation;
+  if (stock) {
+    console.log('LOCALIZAÇÃO DO STOCK (o que a migração FASE B consegue migrar):');
+    console.log(`  Produtos com stock no próprio documento (quantidadeDisponivel/quantidade): ${stock.productsWithRootStockField}`);
+    console.log(`  Lojas com stores/{loja}/products: ${stock.storesWithSubcollection} (${stock.storeSubcollectionDocs} documentos)`);
+    for (const [loja, total] of Object.entries(stock.perStore)) {
+      console.log(`    - ${loja}: ${total}`);
+    }
+    console.log(`  Documentos de loja sem produto correspondente em products/: ${stock.storeDocsWithoutRootProduct}`);
+    console.log(`  Documentos de loja fora da loja proprietária do produto: ${stock.storeDocsOutsideOwnerStore}`);
+    console.log(`  Produtos com stock no documento e SEM entrada na loja proprietária: ${stock.rootStockWithoutStoreDoc}`);
+    if (stock.rootStockWithoutStoreDoc > 0) {
+      console.log(`  ATENÇÃO: a migração atual NÃO leva o stock destes ${stock.rootStockWithoutStoreDoc} produto(s):`);
+      console.log('           está no documento do produto, não em stores/*/products.');
+      console.log('           Sem tratamento, ficariam com stock 0 no modelo novo.');
+    }
+    console.log('');
+  }
+
   console.log('CONSISTÊNCIA:', report.summary.consistency);
   console.log('');
 
@@ -546,7 +634,7 @@ async function main() {
   console.log('');
 
   // Salvar JSON
-  const reportFile = '/tmp/audit-products-legados.json';
+  const reportFile = path.join(os.tmpdir(), 'audit-products-legados.json');
 
   try {
     fs.writeFileSync(reportFile, JSON.stringify(report, null, 2));
