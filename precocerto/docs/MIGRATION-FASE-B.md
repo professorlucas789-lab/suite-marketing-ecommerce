@@ -116,10 +116,14 @@ o `backupId`.
 
 1. **Firestore Console** → `products` → um produto → subcoleção `stock`
 2. Coleções `products_backup` e `stores_products_backup` criadas
-3. ⚠️ **Antes de testar a app:** as `firestore.rules` ainda NÃO têm regras para
-   `products/{id}/stock` nem para as coleções de backup (caem no
-   `allow read, write: if false`). O código da FASE B no cliente não consegue
-   ler/escrever stock até as regras serem acrescentadas e publicadas.
+3. **Regras do Firestore:** as `firestore.rules` já cobrem `products/{id}/stock`,
+   `movements`, `stock_archive` e `sales`; os backups ficam negados a clientes.
+   Publicar em staging **antes** de testar a app (o `.firebaserc` aponta por
+   defeito para PRODUÇÃO: usar sempre `--project precocerto-staging`):
+   ```powershell
+   firebase deploy --only firestore:rules --project precocerto-staging
+   ```
+   Testar as regras localmente (emulador): `npm run test:rules`
 4. Testar fluxo de vendas: venda com 1 e vários produtos, stock atualizado,
    anulação e reversão de stock
 5. Dashboard, histórico, KPIs e alertas de validade

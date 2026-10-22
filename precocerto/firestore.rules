@@ -33,6 +33,13 @@ service cloud.firestore {
             .data.lojas;
     }
 
+    // Admin ou gerente ATIVO com acesso à loja
+    function isStoreManagerOrAdmin(storeId) {
+      return isStoreMember(storeId) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid))
+          .data.papel in ['admin', 'loja-manager'];
+    }
+
     // ============================================
     // USER PROFILE PRIVACY & SECURITY (Fase 14)
     // ============================================
@@ -132,6 +139,78 @@ service cloud.firestore {
       // DELETE: Apenas admin ATIVO consegue eliminar produtos
       allow delete: if isAdmin() &&
         resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
+    }
+
+    // ============================================
+    // FASE B — ESTRUTURA UNIFICADA DE PRODUTOS
+    // products/{id}/stock/{storeId}: stock por loja (o storeId vem do CAMINHO,
+    // por isso o isolamento entre lojas não depende do conteúdo do documento)
+    // ============================================
+    match /products/{productId}/stock/{storeId} {
+      allow read: if isStoreMember(storeId);
+
+      // Criar: membro ATIVO da loja; storeId do documento = storeId do caminho
+      // e quantidade numérica não negativa
+      allow create: if isStoreMember(storeId) &&
+        request.resource.data.storeId == storeId &&
+        request.resource.data['quantidadeDisponível'] is number &&
+        request.resource.data['quantidadeDisponível'] >= 0;
+
+      // Atualizar: vendas e anulações (qualquer membro ATIVO). Impede mudar de
+      // loja e stock negativo (defesa em profundidade contra venda sem stock)
+      allow update: if isStoreMember(storeId) &&
+        resource.data.storeId == storeId &&
+        request.resource.data.storeId == storeId &&
+        request.resource.data['quantidadeDisponível'] is number &&
+        request.resource.data['quantidadeDisponível'] >= 0;
+
+      // Apagar (arquivo): apenas admin ou gerente ATIVO da loja
+      allow delete: if isStoreManagerOrAdmin(storeId);
+    }
+
+    // Histórico de movimentos: imutável (auditoria)
+    match /products/{productId}/stock/{storeId}/movements/{movementId} {
+      allow read: if isStoreMember(storeId);
+      allow create: if isStoreMember(storeId) &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Arquivo de stock removido: imutável
+    match /products/{productId}/stock_archive/{archiveId} {
+      allow read: if isStoreMember(resource.data.storeId);
+      allow create: if isStoreManagerOrAdmin(request.resource.data.storeId);
+      allow update, delete: if false;
+    }
+
+    // ============================================
+    // FASE B — VENDAS (linhas de venda, coleção raiz sales)
+    // As consultas do cliente têm de filtrar por storeId
+    // ============================================
+    match /sales/{saleId} {
+      allow read: if isStoreMember(resource.data.storeId);
+
+      // Criar: membro ATIVO da loja, em seu próprio nome
+      allow create: if isStoreMember(request.resource.data.storeId) &&
+        request.resource.data.userId == request.auth.uid;
+
+      // Atualizar (ex.: anulação): autor ou admin ATIVO; storeId e userId imutáveis
+      allow update: if isStoreMember(resource.data.storeId) &&
+        (resource.data.userId == request.auth.uid || isAdmin()) &&
+        request.resource.data.storeId == resource.data.storeId &&
+        request.resource.data.userId == resource.data.userId;
+
+      allow delete: if isAdmin() &&
+        resource.data.storeId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lojas;
+    }
+
+    // Backups da migração FASE B: escritos/lidos só com o Admin SDK (ignora as
+    // regras). Negado explicitamente a todos os clientes.
+    match /products_backup/{backupId} {
+      allow read, write: if false;
+    }
+    match /stores_products_backup/{backupId} {
+      allow read, write: if false;
     }
 
     match /businessSettings/{settingId} {
