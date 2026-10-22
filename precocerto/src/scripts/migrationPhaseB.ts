@@ -53,6 +53,8 @@ export interface MigrationReport {
   storesProcessed: number;
   stockEntriesMigrated: number;
   stockEntriesSkipped: number;
+  /** Entradas de stock numa loja que NÃO é a proprietária do produto (ilegíveis para essa loja) */
+  crossStoreStockEntries: number;
   errors: string[];
   warnings: string[];
   duration: number;
@@ -164,6 +166,7 @@ export async function executeMigrationPhaseB(
     storesProcessed: 0,
     stockEntriesMigrated: 0,
     stockEntriesSkipped: 0,
+    crossStoreStockEntries: 0,
     errors: [],
     warnings: [],
     duration: 0,
@@ -188,8 +191,12 @@ export async function executeMigrationPhaseB(
     console.log('📦 Passo 3: Lendo produtos (raiz)...');
     const productsSnapshot = await db.collection('products').get();
     const produtosGlobais = new Set<string>();
+    // Loja proprietária de cada produto (Product.storeId); undefined se não tiver
+    const proprietarios = new Map<string, string | undefined>();
     for (const productDoc of productsSnapshot.docs) {
       produtosGlobais.add(productDoc.id);
+      const proprietario = productDoc.data().storeId;
+      proprietarios.set(productDoc.id, typeof proprietario === 'string' && proprietario ? proprietario : undefined);
       report.productsProcessed++;
     }
     console.log(`  ✓ Carregados ${report.productsProcessed} produtos raiz`);
@@ -219,6 +226,18 @@ export async function executeMigrationPhaseB(
           continue;
         }
 
+        // Modelo: um produto pertence a uma loja e o stock vive nessa loja. O stock
+        // noutra loja é migrado (nada se perde), mas a loja não o consegue usar:
+        // as regras só lhe deixam ler os produtos de que é proprietária.
+        const proprietario = proprietarios.get(productId);
+        if (proprietario && proprietario !== storeId) {
+          report.crossStoreStockEntries++;
+          report.warnings.push(
+            `Produto ${productId} pertence à loja ${proprietario} mas tem stock na loja ${storeId}; ` +
+            `a loja ${storeId} não conseguirá ler este produto`
+          );
+        }
+
         const dados: Record<string, unknown> = {
           storeId,
           quantidadeDisponível: Number(origem.quantidadeDisponível ?? 0),
@@ -239,6 +258,15 @@ export async function executeMigrationPhaseB(
           dados,
         });
       }
+    }
+
+    const semProprietario = [...proprietarios.entries()].filter(([, loja]) => !loja).map(([id]) => id);
+    if (semProprietario.length > 0) {
+      const amostra = semProprietario.slice(0, 10).join(', ');
+      report.warnings.push(
+        `${semProprietario.length} produto(s) sem storeId (loja proprietária): ninguém os consegue ler ` +
+        `com as regras atuais${semProprietario.length > 10 ? ` (primeiros 10: ${amostra})` : ` (${amostra})`}`
+      );
     }
 
     // STEP 5: Escrever sem sobrescrever stock existente
@@ -477,7 +505,8 @@ export function printMigrationReport(report: MigrationReport): void {
     - Produtos processados: ${report.productsProcessed}
     - Lojas processadas: ${report.storesProcessed}
     - Entradas de stock migradas: ${report.stockEntriesMigrated}
-    - Entradas de stock já existentes (mantidas): ${report.stockEntriesSkipped}`);
+    - Entradas de stock já existentes (mantidas): ${report.stockEntriesSkipped}
+    - Entradas de stock fora da loja proprietária: ${report.crossStoreStockEntries}`);
 
   if (report.errors.length > 0) {
     console.log(`\n❌ Erros (${report.errors.length}):`);

@@ -149,12 +149,15 @@ service cloud.firestore {
     match /products/{productId}/stock/{storeId} {
       allow read: if isStoreMember(storeId);
 
-      // Criar: membro ATIVO da loja; storeId do documento = storeId do caminho
-      // e quantidade numérica não negativa
+      // Criar: membro ATIVO da loja; storeId do documento = storeId do caminho;
+      // quantidade numérica não negativa; e o produto TEM de pertencer a essa loja
+      // (Product.storeId). getAfter() vê também o produto criado no mesmo batch.
+      // Evita stock numa loja que depois não consegue ler o produto.
       allow create: if isStoreMember(storeId) &&
         request.resource.data.storeId == storeId &&
         request.resource.data['quantidadeDisponível'] is number &&
-        request.resource.data['quantidadeDisponível'] >= 0;
+        request.resource.data['quantidadeDisponível'] >= 0 &&
+        getAfter(/databases/$(database)/documents/products/$(productId)).data.storeId == storeId;
 
       // Atualizar: vendas e anulações (qualquer membro ATIVO). Impede mudar de
       // loja e stock negativo (defesa em profundidade contra venda sem stock)

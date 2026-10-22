@@ -109,6 +109,13 @@ export async function recordUnifiedSaleTransaction(
 
       const product = { id: productSnap.id, ...productSnap.data() } as Product;
 
+      // Um produto só se vende na loja proprietária (o stock vive nessa loja)
+      if (product.storeId && product.storeId !== storeId) {
+        throw new Error(
+          `O produto "${product.nome}" pertence a outra loja e não pode ser vendido nesta loja.`
+        );
+      }
+
       // Ler stock da loja
       const stockSnap = await txn.get(doc(db, 'products', item.productId, 'stock', storeId));
       const stockAtual = stockSnap.exists() ? stockSnap.data() : {};

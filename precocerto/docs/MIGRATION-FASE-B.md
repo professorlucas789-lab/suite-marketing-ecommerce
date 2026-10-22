@@ -70,7 +70,7 @@ A migração usa o **Firebase Admin SDK** (ignora as Security Rules). Não usa o
 ### Passo 1: (só se staging estiver vazio) criar dados de teste
 O Firestore de staging só tem `users`; a migração não teria nada para migrar.
 ```bash
-npm run seed:staging             # cria 2 lojas, 3 produtos e 6 entradas de stock (IDs fasebseed_*)
+npm run seed:staging             # cria 2 lojas, 3 produtos (cada um com a sua loja) e 4 entradas de stock (IDs fasebseed_*)
 npm run seed:staging -- --limpar # remove os dados de teste (e stock/backups deles)
 ```
 
@@ -84,6 +84,31 @@ npm run migrate:staging -- --dry-run
 npm run migrate:staging           # pede para escrever o ID do projeto
 npm run migrate:staging -- --sim  # sem pedir confirmação
 ```
+
+---
+
+## 🏪 Modelo de propriedade dos produtos
+
+**Um produto pertence a UMA loja** (`Product.storeId`) **e o seu stock vive nessa
+loja** (`products/{id}/stock/{storeId}`, com `storeId` = loja proprietária).
+As regras do Firestore só deixam uma loja ler os produtos de que é proprietária.
+
+O que isto impõe:
+- **Regras:** só se cria stock numa loja se o produto pertencer a essa loja
+  (`getAfter` vê também o produto criado no mesmo batch).
+- **`createUnifiedProduct`:** recusa um produto de outra loja e preenche o
+  `storeId` quando falta.
+- **`recordUnifiedSaleTransaction`:** recusa vender um produto que pertence a
+  outra loja.
+- **Migração:** stock numa loja que **não** é a proprietária é migrado (nada se
+  perde) mas gera um aviso por entrada e entra em "Entradas de stock fora da loja
+  proprietária"; produtos **sem `storeId`** geram um aviso (ninguém os consegue
+  ler). Com dados reais, estes avisos mostram o que precisa de decisão antes de
+  produção.
+
+Para vender o mesmo artigo noutra loja, cria-se o produto nessa loja. **Partilhar
+produtos entre lojas** é uma decisão futura: exigiria mudar as regras de leitura
+de `products` (que hoje expõem custos só à loja proprietária) e rever este modelo.
 
 ---
 

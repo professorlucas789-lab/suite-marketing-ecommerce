@@ -111,10 +111,28 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('FASE B — Firestore Rule
       await assertFails(db('inativo_A').doc('products/prod_1/stock/store_A').get());
     });
 
-    it('membro cria stock da sua loja com storeId igual ao do caminho', async () => {
+    it('membro cria stock da sua loja, de um produto dessa loja, com storeId igual ao do caminho', async () => {
+      await testEnv.withSecurityRulesDisabled(async c => {
+        await c.firestore().doc('products/prod_novo').set({ nome: 'Novo', storeId: 'store_A', userId: 'manager_A' });
+      });
       await assertSucceeds(
         db('func_A').doc('products/prod_novo/stock/store_A').set(stockValido('store_A', 5))
       );
+    });
+
+    it('NÃO cria stock numa loja para um produto que pertence a outra loja (modelo de propriedade)', async () => {
+      // admin_1 é membro de A e B: seria permitido sem a regra de propriedade
+      await assertFails(
+        db('admin_1').doc('products/prod_2/stock/store_B').set(stockValido('store_B', 5))
+      );
+    });
+
+    it('NÃO cria stock para produto inexistente nem para produto sem storeId', async () => {
+      await assertFails(db('func_A').doc('products/nao_existe/stock/store_A').set(stockValido('store_A', 5)));
+      await testEnv.withSecurityRulesDisabled(async c => {
+        await c.firestore().doc('products/prod_sem_loja').set({ nome: 'Sem loja' });
+      });
+      await assertFails(db('func_A').doc('products/prod_sem_loja/stock/store_A').set(stockValido('store_A', 5)));
     });
 
     it('NÃO cria stock com storeId diferente do caminho, em outra loja ou com quantidade inválida', async () => {

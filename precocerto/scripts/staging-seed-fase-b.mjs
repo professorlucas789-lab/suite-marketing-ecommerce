@@ -5,8 +5,9 @@
  *
  * Cria, no formato anterior à migração:
  * - stores/{storeId}                      (2 lojas)
- * - products/{productId}                  (3 produtos globais)
- * - stores/{storeId}/products/{productId} (stock por loja, 8 entradas)
+ * - products/{productId}                  (3 produtos, cada um com a sua loja proprietária)
+ * - stores/{storeId}/products/{productId} (stock por loja, 4 entradas: 3 na loja
+ *                                           proprietária + 1 caso de teste fora dela)
  *
  * Segurança:
  * - Bloqueia imediatamente se o projeto for produção
@@ -38,21 +39,26 @@ const LOJAS = [
   { id: `${PREFIXO}store_2`, nome: 'Loja Norte (seed FASE B)' },
 ];
 
+// lojaIdx = loja proprietária (Product.storeId). Modelo: um produto pertence a uma
+// loja e o stock vive nessa loja.
 const PRODUTOS = [
-  { id: `${PREFIXO}prod_001`, nome: 'Paracetamol 500mg', categoria: 'Medicamentos', preco: 2.5 },
-  { id: `${PREFIXO}prod_002`, nome: 'Ibuprofeno 400mg', categoria: 'Medicamentos', preco: 3.0 },
-  { id: `${PREFIXO}prod_003`, nome: 'Vitamina C', categoria: 'Suplementos', preco: 4.5 },
+  { id: `${PREFIXO}prod_001`, nome: 'Paracetamol 500mg', categoria: 'Medicamentos', preco: 2.5, lojaIdx: 0 },
+  { id: `${PREFIXO}prod_002`, nome: 'Ibuprofeno 400mg', categoria: 'Medicamentos', preco: 3.0, lojaIdx: 0 },
+  { id: `${PREFIXO}prod_003`, nome: 'Vitamina C', categoria: 'Suplementos', preco: 4.5, lojaIdx: 1 },
 ];
 
 // [loja, produto, quantidadeDisponível, quantidadeVendida]
 const STOCKS = [
   [0, 0, 50, 10],
   [0, 1, 30, 5],
-  [0, 2, 20, 2],
-  [1, 0, 75, 20],
-  [1, 1, 45, 8],
   [1, 2, 60, 12],
+  // CASO DE TESTE: stock do prod_001 (da loja 1) na loja 2. A migração copia-o
+  // mas avisa que a loja 2 não consegue ler o produto (as regras só deixam ler
+  // produtos da própria loja).
+  [1, 0, 75, 20],
 ];
+
+const UTILIZADOR_SEED = `${PREFIXO}user`;
 
 function log(...args) {
   console.log('[STG-SEED-FASE-B]', ...args);
@@ -107,6 +113,8 @@ async function criar(db) {
       nome: produto.nome,
       categoria: produto.categoria,
       preco: produto.preco,
+      storeId: LOJAS[produto.lojaIdx].id,
+      userId: UTILIZADOR_SEED,
       createdAt: agora,
       updatedAt: agora,
     });

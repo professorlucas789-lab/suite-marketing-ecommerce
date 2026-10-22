@@ -55,12 +55,24 @@ export async function createUnifiedProduct(
   storeId: string,
   productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<{ productId: string; product: UnifiedProduct; stock: StockEntry }> {
+  if (!storeId) throw new Error('Loja obrigatória');
+
+  // Modelo: um produto pertence a UMA loja e o seu stock vive nessa loja
+  // (products/{id}/stock/{storeId}, com storeId = loja proprietária). Um produto
+  // cuja loja proprietária difere da do stock ficaria ilegível para a loja do stock.
+  if (productData.storeId && productData.storeId !== storeId) {
+    throw new Error(
+      `O produto pertence à loja ${productData.storeId}, mas o stock está a ser criado na loja ${storeId}.`
+    );
+  }
+
   const docRef = doc(collection(db, 'products'));
   const productId = docRef.id;
   const now = new Date().toISOString();
 
   const product: UnifiedProduct = {
     ...productData,
+    storeId,
     createdAt: now,
     updatedAt: now,
   };

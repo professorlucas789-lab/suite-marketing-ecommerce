@@ -38,6 +38,7 @@ describe.skipIf(!emulador)('Serviços unificados (emulador)', () => {
   let collection: any;
   let cancelUnifiedSale: any;
   let recordUnifiedSaleTransaction: any;
+  let createUnifiedProduct: any;
   let getUnifiedProductsForStore: any;
   let limparEmulador: () => Promise<void>;
 
@@ -59,7 +60,7 @@ describe.skipIf(!emulador)('Serviços unificados (emulador)', () => {
     ({ db } = await import('../../firebase'));
     ({ setDoc, doc, getDoc, getDocs, collection } = await import('firebase/firestore'));
     ({ cancelUnifiedSale, recordUnifiedSaleTransaction } = await import('../unifiedSalesService'));
-    ({ getUnifiedProductsForStore } = await import('../unifiedProductService'));
+    ({ getUnifiedProductsForStore, createUnifiedProduct } = await import('../unifiedProductService'));
 
     limparEmulador = async () => {
       await fetch(`http://${emulador}/emulator/v1/projects/${PROJECT_ID}/databases/(default)/documents`, {
@@ -311,6 +312,44 @@ describe.skipIf(!emulador)('Serviços unificados (emulador)', () => {
       await expect(
         recordUnifiedSaleTransaction('store_A', 'u1', [{ productId: 'p1', quantity: 1, unitPrice: 5 }])
       ).rejects.toThrow('Stock insuficiente');
+    });
+  });
+
+  describe('modelo de propriedade (um produto pertence a uma loja)', () => {
+    const dadosProduto = (extra: Record<string, unknown> = {}) => ({
+      nome: 'Novo', categoria: 'Cat', quantidadeDisponível: 7, userId: 'u1', ...extra,
+    });
+
+    it('createUnifiedProduct cria o produto e o stock na loja indicada', async () => {
+      const { productId } = await createUnifiedProduct('store_A', dadosProduto({ storeId: 'store_A' }));
+
+      expect((await getDoc(doc(db, 'products', productId))).data()).toMatchObject({ storeId: 'store_A' });
+      expect(await lerStock(productId)).toMatchObject({ storeId: 'store_A', quantidadeDisponível: 7 });
+    });
+
+    it('createUnifiedProduct preenche o storeId quando o produto não o traz', async () => {
+      const { productId } = await createUnifiedProduct('store_A', dadosProduto());
+
+      expect((await getDoc(doc(db, 'products', productId))).data()?.storeId).toBe('store_A');
+    });
+
+    it('createUnifiedProduct rejeita um produto de outra loja e não escreve nada', async () => {
+      await expect(
+        createUnifiedProduct('store_A', dadosProduto({ storeId: 'store_B' }))
+      ).rejects.toThrow('pertence à loja store_B');
+
+      expect((await getDocs(collection(db, 'products'))).size).toBe(0);
+    });
+
+    it('não vende na loja A um produto que pertence à loja B', async () => {
+      await setDoc(doc(db, 'products', 'pB'), { nome: 'Da loja B', storeId: 'store_B', userId: 'u1' });
+      await stock('pB', 'store_A', 10, 0);
+
+      await expect(
+        recordUnifiedSaleTransaction('store_A', 'u1', [{ productId: 'pB', quantity: 1, unitPrice: 5 }])
+      ).rejects.toThrow('pertence a outra loja');
+
+      expect(await lerStock('pB')).toMatchObject({ quantidadeDisponível: 10 });
     });
   });
 

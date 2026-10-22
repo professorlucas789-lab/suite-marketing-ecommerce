@@ -87,8 +87,8 @@ function criarCenario() {
   const fs = new FirestoreFalso();
   fs.semear('stores/s1', { nome: 'Loja 1' });
   fs.semear('stores/s2', { nome: 'Loja 2' });
-  fs.semear('products/p1', { nome: 'Paracetamol' });
-  fs.semear('products/p2', { nome: 'Ibuprofeno' });
+  fs.semear('products/p1', { nome: 'Paracetamol', storeId: 's1' });
+  fs.semear('products/p2', { nome: 'Ibuprofeno', storeId: 's1' });
   fs.semear('stores/s1/products/p1', { quantidadeDisponível: 50, quantidadeVendida: 10, lastMovementAt: 'T1' });
   fs.semear('stores/s1/products/p2', { quantidadeDisponível: 30 });
   fs.semear('stores/s2/products/p1', { quantidadeDisponível: 75, quantidadeVendida: 20 });
@@ -214,6 +214,41 @@ describe('migrationPhaseB (Admin SDK)', () => {
     expect(fs.tamanhosLotes.length).toBeGreaterThan(2);
   });
 
+  it('avisa quando o stock está numa loja que não é a proprietária do produto (migra na mesma)', async () => {
+    const fs = criarCenario(); // stores/s2/products/p1, mas p1 pertence a s1
+    const report = await executeMigrationPhaseB(comoDb(fs));
+
+    expect(report.crossStoreStockEntries).toBe(1);
+    expect(report.stockEntriesMigrated).toBe(3);
+    expect(fs.dados.has('products/p1/stock/s2')).toBe(true);
+    expect(
+      report.warnings.some(w => w.includes('p1') && w.includes('pertence à loja s1') && w.includes('stock na loja s2'))
+    ).toBe(true);
+  });
+
+  it('não conta como fora da loja o stock na loja proprietária', async () => {
+    const fs = criarCenario();
+    fs.dados.delete('stores/s2/products/p1');
+
+    const report = await executeMigrationPhaseB(comoDb(fs));
+
+    expect(report.crossStoreStockEntries).toBe(0);
+    expect(report.warnings.some(w => w.includes('pertence à loja'))).toBe(false);
+  });
+
+  it('avisa uma só vez por produto sem storeId (proprietário)', async () => {
+    const fs = criarCenario();
+    fs.semear('products/p3', { nome: 'Sem loja' });
+    fs.semear('products/p4', { nome: 'Sem loja 2' });
+
+    const report = await executeMigrationPhaseB(comoDb(fs));
+
+    const avisos = report.warnings.filter(w => w.includes('sem storeId'));
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]).toMatch(/2 produto\(s\) sem storeId/);
+    expect(avisos[0]).toMatch(/p3/);
+  });
+
   it('segunda execução não duplica nem sobrescreve (idempotente)', async () => {
     const fs = criarCenario();
     await executeMigrationPhaseB(comoDb(fs));
@@ -250,16 +285,16 @@ describe('rollbackMigration', () => {
 
     fs.dados.delete('products/p1');
     fs.dados.delete('stores/s1/products/p1');
-    fs.dados.set('products/p2', { nome: 'Ibuprofeno EDITADO' });
+    fs.dados.set('products/p2', { nome: 'Ibuprofeno EDITADO', storeId: 's1' });
 
     const resultado = await rollbackMigration(comoDb(fs), report.backupId);
 
     expect(resultado.productsRestored).toBe(1);
     expect(resultado.storeProductsRestored).toBe(1);
-    expect(fs.dados.get('products/p1')).toEqual({ nome: 'Paracetamol' });
+    expect(fs.dados.get('products/p1')).toEqual({ nome: 'Paracetamol', storeId: 's1' });
     expect(fs.dados.get('stores/s1/products/p1')).toMatchObject({ quantidadeDisponível: 50 });
     expect(fs.dados.get('stores/s1/products/p1')).not.toHaveProperty('backupId');
-    expect(fs.dados.get('products/p2')).toEqual({ nome: 'Ibuprofeno EDITADO' });
+    expect(fs.dados.get('products/p2')).toEqual({ nome: 'Ibuprofeno EDITADO', storeId: 's1' });
   });
 
   it('dry-run não altera nada', async () => {

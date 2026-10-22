@@ -124,7 +124,8 @@
 
 ### 7️⃣ Antes de produção (bloqueantes)
 - [ ] **Auditar o modelo de dados real**: a migração assume stock em `stores/{id}/products`. As regras antigas de `products` sugerem que, em produção, o stock pode estar no próprio documento do produto (com `storeId`). Se for assim, a migração atual **não migraria nada**. Usar `scripts/audit-products-storeid.mjs`
-- [ ] **Decidir o modelo de produtos**: as regras só deixam uma loja ler produtos de que é proprietária; um produto com stock noutra loja fica ilegível para essa loja
+- [x] **Modelo de produtos decidido e imposto** (22/10/2026): um produto pertence a uma loja (`Product.storeId`) e o stock vive nessa loja. Regra de stock exige produto da mesma loja (`getAfter`); `createUnifiedProduct` e `recordUnifiedSaleTransaction` recusam produtos de outra loja; a migração avisa de stock fora da loja proprietária e de produtos sem `storeId`. **Partilha de produtos entre lojas** fica como decisão futura (exigiria mudar as regras de leitura)
+- [ ] **Publicar as regras novas em staging** (a regra de propriedade do stock é posterior à publicação de 22/10) e voltar a correr seed + migração com os dados coerentes (`seed:staging -- --limpar`, `seed:staging`, `migrate:staging -- --dry-run`: esperado 4 entradas, 1 fora da loja proprietária)
 - [ ] Regras em falta para caminhos que a app usa: `audit_logs`, `stores/{id}/expiryAlerts`, `stores/{id}/products` (hoje caem no `deny` final)
 - [ ] Code review aprovado
 - [ ] Plano de rollback testado em staging (simulação feita; falta executar o rollback real e repetir a migração)
@@ -153,6 +154,7 @@
 | Linhas repetidas do mesmo produto permitiam sobrevenda | Soma validada, saldos encadeados |
 | Quantidades negativas aumentavam o stock | Rejeitadas |
 | Consultas compostas sem índices | `firestore.indexes.json` |
+| Stock podia existir numa loja que não é a proprietária do produto (ilegível para essa loja); produtos de seed sem `storeId` | Regra `getAfter` no stock, validações nos serviços, avisos na migração, seed coerente |
 | `firebase.ts` não funcionava fora do Vite (`import.meta.env`) | Usa `process.env` como alternativa |
 | `.env.staging.example` ignorado pelo `.gitignore` | Exceção adicionada |
 
