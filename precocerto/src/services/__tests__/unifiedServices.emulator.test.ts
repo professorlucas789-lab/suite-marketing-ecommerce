@@ -39,6 +39,11 @@ describe.skipIf(!emulador)('Serviços unificados (emulador)', () => {
   let cancelUnifiedSale: any;
   let recordUnifiedSaleTransaction: any;
   let createUnifiedProduct: any;
+  let updateUnifiedProductStock: any;
+  let archiveProductStock: any;
+  let adjustProductStock: any;
+  let transferProductStock: any;
+  let recordPurchaseReceipt: any;
   let getUnifiedProductsForStore: any;
   let limparEmulador: () => Promise<void>;
 
@@ -60,7 +65,10 @@ describe.skipIf(!emulador)('Serviços unificados (emulador)', () => {
     ({ db } = await import('../../firebase'));
     ({ setDoc, doc, getDoc, getDocs, collection } = await import('firebase/firestore'));
     ({ cancelUnifiedSale, recordUnifiedSaleTransaction } = await import('../unifiedSalesService'));
-    ({ getUnifiedProductsForStore, createUnifiedProduct } = await import('../unifiedProductService'));
+    ({ getUnifiedProductsForStore, createUnifiedProduct, updateUnifiedProductStock, archiveProductStock } =
+      await import('../unifiedProductService'));
+    ({ adjustProductStock, transferProductStock } = await import('../stockMovementService'));
+    ({ recordPurchaseReceipt } = await import('../purchasingService'));
 
     limparEmulador = async () => {
       await fetch(`http://${emulador}/emulator/v1/projects/${PROJECT_ID}/databases/(default)/documents`, {
@@ -350,6 +358,248 @@ describe.skipIf(!emulador)('Serviços unificados (emulador)', () => {
       ).rejects.toThrow('pertence a outra loja');
 
       expect(await lerStock('pB')).toMatchObject({ quantidadeDisponível: 10 });
+    });
+  });
+
+  describe('espelho de stock no documento do produto', () => {
+    const produtoDoc = (id: string, extra: Record<string, unknown> = {}) =>
+      setDoc(doc(db, 'products', id), { nome: `Produto ${id}`, categoria: 'Cat', storeId: 'store_A', userId: 'u1', custoCompra: 2, ...extra });
+    const lerProduto = async (id: string) => (await getDoc(doc(db, 'products', id))).data();
+    const contar = async (caminho: string) => (await getDocs(collection(db, caminho))).size;
+
+    describe('venda e anulação', () => {
+      it('a venda atualiza o stock da loja e o documento do produto, ao mesmo tempo', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10, quantidadeVendida: 5 });
+        await stock('p1', 'store_A', 10, 5);
+
+        await recordUnifiedSaleTransaction('store_A', 'u1', [{ productId: 'p1', quantity: 3, unitPrice: 5 }]);
+
+        expect(await lerStock('p1')).toMatchObject({ quantidadeDisponível: 7, quantidadeVendida: 8 });
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 7, quantidadeVendida: 8 });
+      });
+
+      it('várias linhas do mesmo produto: o espelho fica com o valor final', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10 });
+        await stock('p1', 'store_A', 10, 0);
+
+        await recordUnifiedSaleTransaction('store_A', 'u1', [
+          { productId: 'p1', quantity: 4, unitPrice: 5 },
+          { productId: 'p1', quantity: 3, unitPrice: 5 },
+        ]);
+
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 3, quantidadeVendida: 7 });
+      });
+
+      it('produto só com stock no documento (sem entrada): vende a partir dele e cria a entrada', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10, quantidadeVendida: 2 }); // como os 52 de produção
+
+        await recordUnifiedSaleTransaction('store_A', 'u1', [{ productId: 'p1', quantity: 4, unitPrice: 5 }]);
+
+        expect(await lerStock('p1')).toMatchObject({ storeId: 'store_A', quantidadeDisponível: 6, quantidadeVendida: 6 });
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 6, quantidadeVendida: 6 });
+      });
+
+      it('sem entrada, também respeita o stock do documento (não vende a mais)', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 2 });
+
+        await expect(
+          recordUnifiedSaleTransaction('store_A', 'u1', [{ productId: 'p1', quantity: 3, unitPrice: 5 }])
+        ).rejects.toThrow('Stock insuficiente');
+
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 2 });
+        expect(await lerStock('p1')).toBeUndefined();
+      });
+
+      it('a anulação repõe o stock da loja e o documento do produto', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 7, quantidadeVendida: 8 });
+        await stock('p1', 'store_A', 7, 8);
+        await venda('s1', { productId: 'p1', quantity: 3 });
+
+        await cancelUnifiedSale('store_A', 'R-1', 'gerente_1');
+
+        expect(await lerStock('p1')).toMatchObject({ quantidadeDisponível: 10, quantidadeVendida: 5 });
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 10, quantidadeVendida: 5 });
+      });
+
+      it('anular uma venda antiga de um produto sem entrada de stock cria a entrada a partir do documento', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 7, quantidadeVendida: 8 });
+        await venda('s1', { productId: 'p1', quantity: 3 });
+
+        await cancelUnifiedSale('store_A', 'R-1', 'gerente_1');
+
+        expect(await lerStock('p1')).toMatchObject({ quantidadeDisponível: 10, quantidadeVendida: 5 });
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 10, quantidadeVendida: 5 });
+      });
+    });
+
+    describe('ajuste de stock (ecrã de gestão de stock)', () => {
+      const ajuste = (extra: Record<string, unknown>) => ({
+        productId: 'p1', storeId: 'store_A', adjustmentType: 'in', quantity: 5, reason: 'Contagem', userId: 'u1', ...extra,
+      });
+
+      it('entrada atualiza o stock, o espelho e regista o movimento', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10, quantidadeVendida: 3 });
+        await stock('p1', 'store_A', 10, 3);
+
+        const movimento = await adjustProductStock(ajuste({ adjustmentType: 'in', quantity: 5 }));
+
+        expect(movimento).toMatchObject({ stockBefore: 10, stockAfter: 15 });
+        expect(await lerStock('p1')).toMatchObject({ quantidadeDisponível: 15, quantidadeVendida: 3 });
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 15, quantidadeVendida: 3 });
+        expect((await getDoc(doc(db, 'stockMovements', movimento.id))).data()).toMatchObject({ movementType: 'in', quantity: 5 });
+      });
+
+      it('saída e correção funcionam; saída acima do stock é rejeitada sem escrever nada', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10 });
+        await stock('p1', 'store_A', 10, 0);
+
+        await adjustProductStock(ajuste({ adjustmentType: 'out', quantity: 4 }));
+        expect(await lerStock('p1')).toMatchObject({ quantidadeDisponível: 6 });
+
+        await adjustProductStock(ajuste({ adjustmentType: 'correction', quantity: 20 }));
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 20 });
+
+        await expect(adjustProductStock(ajuste({ adjustmentType: 'out', quantity: 99 }))).rejects.toThrow('Stock insuficiente');
+        expect(await lerStock('p1')).toMatchObject({ quantidadeDisponível: 20 });
+        expect(await contar('stockMovements')).toBe(2);
+      });
+
+      it('produto só com stock no documento: ajusta a partir dele e cria a entrada', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10 });
+
+        await adjustProductStock(ajuste({ adjustmentType: 'in', quantity: 5 }));
+
+        expect(await lerStock('p1')).toMatchObject({ storeId: 'store_A', quantidadeDisponível: 15 });
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 15 });
+      });
+
+      it('recusa um produto de outra loja', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10, storeId: 'store_B' });
+
+        await expect(adjustProductStock(ajuste({}))).rejects.toThrow('não pertence à unidade atual');
+      });
+    });
+
+    describe('transferência entre lojas', () => {
+      const transferencia = (extra: Record<string, unknown> = {}) => ({
+        productId: 'p1', sourceStoreId: 'store_A', destinationStoreId: 'store_B', quantity: 4, reason: 'Reposição',
+        userId: 'admin_1', ...extra,
+      });
+
+      it('baixa a origem e cria um produto novo na loja de destino com o seu stock e espelho', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10, quantidadeVendida: 2 });
+        await stock('p1', 'store_A', 10, 2);
+
+        const r = await transferProductStock(transferencia());
+
+        expect(await lerStock('p1')).toMatchObject({ quantidadeDisponível: 6, quantidadeVendida: 2 });
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 6 });
+
+        expect(await lerProduto(r.destinationProductId)).toMatchObject({
+          storeId: 'store_B', userId: 'admin_1', quantidadeDisponivel: 4, quantidadeVendida: 0, transferSourceProductId: 'p1',
+        });
+        expect(await lerStock(r.destinationProductId, 'store_B')).toMatchObject({
+          storeId: 'store_B', quantidadeDisponível: 4, quantidadeVendida: 0,
+        });
+        expect(await contar('stockMovements')).toBe(2);
+      });
+
+      it('stock insuficiente, mesma loja e produto de outra loja são rejeitados sem escrever nada', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 3 });
+        await stock('p1', 'store_A', 3, 0);
+
+        await expect(transferProductStock(transferencia())).rejects.toThrow('Stock insuficiente');
+        await expect(transferProductStock(transferencia({ destinationStoreId: 'store_A' }))).rejects.toThrow('diferente da origem');
+        await expect(transferProductStock(transferencia({ sourceStoreId: 'store_X' }))).rejects.toThrow('não pertence à unidade de origem');
+
+        expect(await lerStock('p1')).toMatchObject({ quantidadeDisponível: 3 });
+        expect((await getDocs(collection(db, 'products'))).size).toBe(1);
+        expect(await contar('stockMovements')).toBe(0);
+      });
+    });
+
+    describe('compras', () => {
+      const compra = (linhas: Array<Record<string, unknown>>) => ({
+        storeId: 'store_A', userId: 'u1', supplierId: 'forn1', invoiceNumber: 'F-1', invoiceDate: '2026-10-22',
+        paymentStatus: 'pending', lines: linhas,
+      });
+
+      beforeEach(async () => {
+        await setDoc(doc(db, 'suppliers', 'forn1'), { name: 'Fornecedor 1', storeId: 'store_A', status: 'active', currentPayable: 0 });
+      });
+
+      it('a compra aumenta o stock da loja e o espelho, e guarda os custos', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10, quantidadeVendida: 4, custoCompra: 2, quantidade: 10 });
+        await stock('p1', 'store_A', 10, 4);
+
+        const recibo = await recordPurchaseReceipt(compra([{ productId: 'p1', quantity: 5, unitCost: 4 }]));
+
+        expect(recibo.lines[0]).toMatchObject({ stockBefore: 10, stockAfter: 15 });
+        expect(await lerStock('p1')).toMatchObject({ quantidadeDisponível: 15, quantidadeVendida: 4 });
+        expect(await lerProduto('p1')).toMatchObject({
+          quantidadeDisponivel: 15, quantidadeVendida: 4, quantidade: 15, fornecedor: 'Fornecedor 1', numeroFatura: 'F-1',
+        });
+      });
+
+      it('o mesmo produto em duas linhas: saldos encadeados e um só valor final', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10 });
+        await stock('p1', 'store_A', 10, 0);
+
+        const recibo = await recordPurchaseReceipt(compra([
+          { productId: 'p1', quantity: 5, unitCost: 4 },
+          { productId: 'p1', quantity: 3, unitCost: 4 },
+        ]));
+
+        expect(recibo.lines.map((l: any) => [l.stockBefore, l.stockAfter])).toEqual([[10, 15], [15, 18]]);
+        expect(await lerStock('p1')).toMatchObject({ quantidadeDisponível: 18 });
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 18 });
+      });
+
+      it('produto só com stock no documento: soma ao valor do documento e cria a entrada', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10 });
+
+        await recordPurchaseReceipt(compra([{ productId: 'p1', quantity: 5, unitCost: 4 }]));
+
+        expect(await lerStock('p1')).toMatchObject({ storeId: 'store_A', quantidadeDisponível: 15 });
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 15 });
+      });
+    });
+
+    describe('atualizar, arquivar e criar', () => {
+      it('updateUnifiedProductStock atualiza o stock e o espelho, mantém o vendido e rejeita negativos', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10, quantidadeVendida: 4 });
+        await stock('p1', 'store_A', 10, 4);
+
+        await updateUnifiedProductStock('p1', 'store_A', 25);
+
+        expect(await lerStock('p1')).toMatchObject({ quantidadeDisponível: 25, quantidadeVendida: 4 });
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 25, quantidadeVendida: 4 });
+
+        await expect(updateUnifiedProductStock('p1', 'store_A', -1)).rejects.toThrow('negativo');
+        await expect(updateUnifiedProductStock('nao_existe', 'store_A', 1)).rejects.toThrow('não encontrado');
+      });
+
+      it('archiveProductStock arquiva a entrada, apaga-a e põe o espelho a zero', async () => {
+        await produtoDoc('p1', { quantidadeDisponivel: 10 });
+        await stock('p1', 'store_A', 10, 3);
+
+        await archiveProductStock('p1', 'store_A');
+
+        expect(await lerStock('p1')).toBeUndefined();
+        expect(await lerProduto('p1')).toMatchObject({ quantidadeDisponivel: 0 });
+        const arquivo = await getDocs(collection(db, 'products', 'p1', 'stock_archive'));
+        expect(arquivo.size).toBe(1);
+        expect(arquivo.docs[0].data()).toMatchObject({ storeId: 'store_A', quantidadeDisponível: 10 });
+      });
+
+      it('createUnifiedProduct escreve o espelho no documento do produto', async () => {
+        const { productId } = await createUnifiedProduct('store_A', {
+          nome: 'Novo', categoria: 'Cat', userId: 'u1', storeId: 'store_A', quantidadeDisponível: 7,
+        });
+
+        expect(await lerProduto(productId)).toMatchObject({ quantidadeDisponivel: 7, quantidadeVendida: 0 });
+        expect(await lerStock(productId)).toMatchObject({ quantidadeDisponível: 7 });
+      });
     });
   });
 

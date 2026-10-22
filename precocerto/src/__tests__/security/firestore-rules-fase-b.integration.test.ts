@@ -262,6 +262,139 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('FASE B — Firestore Rule
     });
   });
 
+  describe('products — espelho de stock no documento do produto', () => {
+    const espelho = { quantidadeDisponivel: 5, quantidadeVendida: 1, updatedAt: 'agora', dataAtualizacao: 'agora' };
+
+    it('qualquer membro da loja atualiza APENAS os campos do espelho de stock', async () => {
+      await assertSucceeds(db('func_A').doc('products/prod_1').update(espelho));
+    });
+
+    it('funcionário NÃO altera outros campos (nome, preço) nem mistura campos', async () => {
+      await assertFails(db('func_A').doc('products/prod_1').update({ nome: 'Alterado' }));
+      await assertFails(db('func_A').doc('products/prod_1').update({ precoVendaRecomendado: 1 }));
+      await assertFails(db('func_A').doc('products/prod_1').update({ ...espelho, nome: 'Alterado' }));
+    });
+
+    it('não permite mudar userId nem storeId, mesmo com campos do espelho', async () => {
+      await assertFails(db('func_A').doc('products/prod_1').update({ ...espelho, userId: 'func_A' }));
+      await assertFails(db('func_A').doc('products/prod_1').update({ ...espelho, storeId: 'store_B' }));
+    });
+
+    it('membro de outra loja ou utilizador inativo NÃO atualiza o espelho', async () => {
+      await assertFails(db('func_B').doc('products/prod_1').update(espelho));
+      await assertFails(db('inativo_A').doc('products/prod_1').update(espelho));
+    });
+
+    it('gerente continua a poder editar o produto', async () => {
+      await assertSucceeds(db('manager_A').doc('products/prod_1').update({ nome: 'Editado pelo gerente' }));
+    });
+  });
+
+  describe('stockMovements (ajustes e transferências)', () => {
+    const movimento = (extra: Record<string, unknown> = {}) => ({
+      movementType: 'adjustment', productId: 'prod_1', sourceStoreId: 'store_A', quantity: 1,
+      stockBefore: 5, stockAfter: 4, reason: 'teste', userId: 'func_A', createdAt: 'agora', ...extra,
+    });
+
+    it('membro da loja cria movimento em seu nome', async () => {
+      await assertSucceeds(db('func_A').collection('stockMovements').add(movimento()));
+    });
+
+    it('NÃO cria em nome de outro utilizador, nem para uma loja que não é sua', async () => {
+      await assertFails(db('func_A').collection('stockMovements').add(movimento({ userId: 'manager_A' })));
+      await assertFails(db('func_A').collection('stockMovements').add(movimento({ sourceStoreId: 'store_B' })));
+      await assertFails(db('inativo_A').collection('stockMovements').add(movimento({ userId: 'inativo_A' })));
+    });
+
+    it('movimentos são imutáveis e só membros da loja de origem leem', async () => {
+      await testEnv.withSecurityRulesDisabled(async c => {
+        await c.firestore().doc('stockMovements/m1').set(movimento());
+      });
+      await assertSucceeds(db('func_A').doc('stockMovements/m1').get());
+      await assertFails(db('func_B').doc('stockMovements/m1').get());
+      await assertFails(db('admin_1').doc('stockMovements/m1').update({ reason: 'x' }));
+      await assertFails(db('admin_1').doc('stockMovements/m1').delete());
+    });
+  });
+
+  describe('escritores de stock com espelho (regras reais)', () => {
+    async function prepararProdutos(n: number) {
+      await testEnv.withSecurityRulesDisabled(async c => {
+        const admin = c.firestore();
+        for (let i = 1; i <= n; i++) {
+          await admin.doc(`products/esp_${i}`).set({
+            nome: `Espelho ${i}`, storeId: 'store_A', userId: 'manager_A', quantidadeDisponivel: 10, quantidadeVendida: 0,
+          });
+          await admin.doc(`products/esp_${i}/stock/store_A`).set(stockValido('store_A', 10));
+        }
+      });
+    }
+
+    it('venda de 6 produtos numa transação (stock + espelho + venda + movimento) passa', async () => {
+      await prepararProdutos(6);
+      const firestore = db('func_A');
+
+      await assertSucceeds(
+        firestore.runTransaction(async txn => {
+          const leituras = [];
+          for (let i = 1; i <= 6; i++) {
+            await txn.get(firestore.doc(`products/esp_${i}`));
+            leituras.push(await txn.get(firestore.doc(`products/esp_${i}/stock/store_A`)));
+          }
+          leituras.forEach((snap, i) => {
+            const n = i + 1;
+            txn.update(snap.ref, { quantidadeDisponível: 9, lastUpdated: 'agora' });
+            txn.update(firestore.doc(`products/esp_${n}`), {
+              quantidadeDisponivel: 9, quantidadeVendida: 1, updatedAt: 'agora', dataAtualizacao: 'agora',
+            });
+            txn.set(firestore.collection('sales').doc(), vendaValida('store_A', 'func_A', { productId: `esp_${n}` }));
+            txn.set(firestore.collection(`products/esp_${n}/stock/store_A/movements`).doc(), {
+              type: 'OUT', quantity: 1, reason: 'Venda R-8', userId: 'func_A',
+            });
+          });
+        })
+      );
+    });
+
+    it('transferência entre lojas por um admin (produto novo + stock + espelho + 2 movimentos) passa', async () => {
+      await prepararProdutos(1);
+      const firestore = db('admin_1');
+      const novo = firestore.doc('products/esp_transferido');
+
+      await assertSucceeds(
+        firestore.runTransaction(async txn => {
+          await txn.get(firestore.doc('products/esp_1'));
+          await txn.get(firestore.doc('products/esp_1/stock/store_A'));
+
+          txn.update(firestore.doc('products/esp_1/stock/store_A'), { quantidadeDisponível: 6, lastUpdated: 'agora' });
+          txn.update(firestore.doc('products/esp_1'), { quantidadeDisponivel: 6, quantidadeVendida: 0, updatedAt: 'agora', dataAtualizacao: 'agora' });
+          txn.set(novo, { nome: 'Espelho 1', storeId: 'store_B', userId: 'admin_1', quantidadeDisponivel: 4, quantidadeVendida: 0 });
+          txn.set(firestore.doc('products/esp_transferido/stock/store_B'), stockValido('store_B', 4));
+          txn.set(firestore.collection('stockMovements').doc(), {
+            movementType: 'transfer_out', sourceStoreId: 'store_A', destinationStoreId: 'store_B', userId: 'admin_1', quantity: 4,
+          });
+          txn.set(firestore.collection('stockMovements').doc(), {
+            movementType: 'transfer_in', sourceStoreId: 'store_A', destinationStoreId: 'store_B', userId: 'admin_1', quantity: 4,
+          });
+        })
+      );
+    });
+
+    it('transferência por um utilizador que não é membro da loja de destino falha', async () => {
+      await prepararProdutos(1);
+      const firestore = db('manager_A'); // só membro da loja A
+
+      await assertFails(
+        firestore.runTransaction(async txn => {
+          await txn.get(firestore.doc('products/esp_1'));
+          txn.set(firestore.doc('products/esp_transferido_2'), {
+            nome: 'X', storeId: 'store_B', userId: 'manager_A', quantidadeDisponivel: 1,
+          });
+        })
+      );
+    });
+  });
+
   describe('fluxo real: venda em transação (limite de get() das regras)', () => {
     it('venda de 3 produtos numa única transação passa', async () => {
       // Repõe stock (os testes anteriores apagaram prod_2 e prod_3)

@@ -113,6 +113,23 @@ de `products` (que hoje expõem custos só à loja proprietária) e rever este m
 
 ---
 
+## 🪞 Espelho do stock no documento do produto
+
+Depois da FASE B o stock vive em `products/{id}/stock/{loja}` (fonte de verdade),
+mas vários ecrãs e serviços ainda leem `quantidadeDisponivel`/`quantidadeVendida`
+do **documento do produto**. Para não mostrarem stock desatualizado, todos os
+escritores atualizam o documento do produto **na mesma transação ou batch**
+(`src/utils/unifiedStock.ts`): venda, anulação, ajuste e transferência de stock,
+compras, criação, `updateUnifiedProductStock` e arquivo.
+
+- Como um produto pertence a uma só loja, o espelho é sempre igual ao stock dessa loja
+- Produtos sem entrada de stock partem do valor do documento (regra da app antiga:
+  `quantidadeDisponivel ?? quantidade ?? 0`) e a entrada é criada na primeira escrita
+- As regras deixam qualquer membro da loja atualizar **só** estes campos no produto
+- Ver as limitações conhecidas no `FASE-B-CHECKLIST.md`
+
+---
+
 ## 📊 O que Acontece na Migração
 
 ### 1️⃣ Backup automático

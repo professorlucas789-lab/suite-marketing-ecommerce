@@ -234,9 +234,20 @@ async function auditProducts() {
       const productId = productDoc.id;
       const productData = productDoc.data() || {};
 
+      // A app antiga tinha DUAS regras para o stock quando falta quantidadeDisponivel:
+      // a venda usava quantidade; os ecrãs usavam totalUnidadesVendaveis antes de quantidade.
+      // Se divergirem, o stock mostrado e o stock vendável seriam diferentes.
+      const semQuantidadeDisponivel =
+        productData.quantidadeDisponivel == null && productData.quantidadeDisponível == null;
+      const regrasDivergem =
+        semQuantidadeDisponivel &&
+        productData.totalUnidadesVendaveis != null &&
+        Number(productData.totalUnidadesVendaveis) !== Number(productData.quantidade ?? 0);
+
       produtosRaiz.set(productId, {
         storeId: typeof productData.storeId === 'string' && productData.storeId.trim() !== '' ? productData.storeId : null,
         rootStock: CAMPOS_STOCK_RAIZ.some(campo => productData[campo] !== undefined && productData[campo] !== null),
+        regrasDivergem,
       });
 
       // Categorizar storeId
@@ -422,6 +433,7 @@ async function auditStockLocation(produtosRaiz) {
     rootStockWithoutStoreDoc: 0,
     storeDocsWithoutRootProduct: 0,
     storeDocsOutsideOwnerStore: 0,
+    stockRuleDivergence: { count: 0, sample: [] },
   };
 
   const idsPorLoja = new Map();
@@ -448,6 +460,10 @@ async function auditStockLocation(produtosRaiz) {
   }
 
   for (const [productId, raiz] of produtosRaiz) {
+    if (raiz.regrasDivergem) {
+      resultado.stockRuleDivergence.count++;
+      if (resultado.stockRuleDivergence.sample.length < 10) resultado.stockRuleDivergence.sample.push(productId);
+    }
     if (!raiz.rootStock) continue;
     resultado.productsWithRootStockField++;
 
@@ -613,6 +629,11 @@ async function main() {
     console.log(`  Documentos de loja sem produto correspondente em products/: ${stock.storeDocsWithoutRootProduct}`);
     console.log(`  Documentos de loja fora da loja proprietária do produto: ${stock.storeDocsOutsideOwnerStore}`);
     console.log(`  Produtos com stock no documento e SEM entrada na loja proprietária: ${stock.rootStockWithoutStoreDoc}`);
+    console.log(`  Produtos em que as DUAS regras de stock da app antiga divergem (sem quantidadeDisponivel; totalUnidadesVendaveis != quantidade): ${stock.stockRuleDivergence.count}`);
+    if (stock.stockRuleDivergence.count > 0) {
+      console.log(`    exemplos: ${stock.stockRuleDivergence.sample.join(', ')}`);
+      console.log('    A migração usa quantidade (regra da venda); os ecrãs mostravam totalUnidadesVendaveis. Rever estes produtos antes de migrar.');
+    }
     if (stock.rootStockWithoutStoreDoc > 0) {
       console.log(`  ATENÇÃO: a migração atual NÃO leva o stock destes ${stock.rootStockWithoutStoreDoc} produto(s):`);
       console.log('           está no documento do produto, não em stores/*/products.');

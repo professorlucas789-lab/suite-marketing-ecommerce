@@ -17,6 +17,7 @@ import {
   calculateWeightedAverageCost,
   normalizePurchasePayment,
 } from '../utils/purchasingUtils';
+import { lerStockAtual, aplicarEscritaStock } from '../utils/unifiedStock';
 import { getProductAvailableStock } from '../utils/stockUtils';
 import { getDefaultAccountForPaymentMethod } from '../utils/financeUtils';
 
@@ -113,6 +114,17 @@ export async function recordPurchaseReceipt(input: PurchaseReceiptInput): Promis
   const purchaseRef = doc(collection(db, 'purchases'));
   const purchaseLines: PurchaseLine[] = [];
 
+  // Estado final por produto (uma só escrita de stock por produto)
+  const produtosCompra = new Map<string, {
+    productRef: ReturnType<typeof doc>;
+    dadosProduto: Record<string, any>;
+    existiaStock: boolean;
+    disponivel: number;
+    vendida: number;
+    custo: number;
+    quantidadeLote: number;
+  }>();
+
   for (const line of input.lines) {
     if (!line.productId) throw new Error('Produto inválido na compra.');
     const productRef = doc(db, 'products', line.productId);
@@ -124,24 +136,45 @@ export async function recordPurchaseReceipt(input: PurchaseReceiptInput): Promis
       throw new Error(`O produto "${product.nome}" não pertence à loja atual.`);
     }
 
-    const stockBefore = getProductAvailableStock(product);
+    // Stock da loja (fonte de verdade); sem entrada, parte do valor do documento do produto.
+    // O mesmo produto pode aparecer em várias linhas: os saldos encadeiam-se.
+    const anterior = produtosCompra.get(line.productId);
+    let stockBefore: number;
+    let previousUnitCost: number;
+    let quantidadeLote: number;
+    let vendida: number;
+    let existiaStock: boolean;
+
+    if (anterior) {
+      stockBefore = anterior.disponivel;
+      previousUnitCost = anterior.custo;
+      quantidadeLote = anterior.quantidadeLote;
+      vendida = anterior.vendida;
+      existiaStock = anterior.existiaStock;
+    } else {
+      const stockRef = doc(db, 'products', line.productId, 'stock', input.storeId);
+      const stockSnap = await getDoc(stockRef);
+      const atual = lerStockAtual(productSnap.data(), stockSnap.exists() ? stockSnap.data() : null);
+      stockBefore = atual.disponivel;
+      previousUnitCost = getUnitCost(product);
+      quantidadeLote = Number(product.quantidade || stockBefore);
+      vendida = atual.vendida;
+      existiaStock = atual.existe;
+    }
+
     const stockAfter = stockBefore + line.quantity;
-    const previousUnitCost = getUnitCost(product);
     const updatedUnitCost = calculateWeightedAverageCost(stockBefore, previousUnitCost, line.quantity, line.unitCost);
     const lineTotal = calculatePurchaseLineTotal(line.quantity, line.unitCost);
     const movementRef = doc(collection(db, 'stockMovements'));
 
-    batch.update(productRef, {
-      fornecedor: supplier.name,
-      quantidade: Number(product.quantidade || stockBefore) + line.quantity,
-      quantidadeDisponivel: stockAfter,
-      custoCompra: updatedUnitCost,
-      custoTotalReal: updatedUnitCost,
-      custoRealUnidadeVenda: updatedUnitCost,
-      numeroFatura: input.invoiceNumber.trim(),
-      dataEmissaoFatura: input.invoiceDate,
-      updatedAt: timestamp,
-      dataAtualizacao: timestamp,
+    produtosCompra.set(line.productId, {
+      productRef,
+      dadosProduto: productSnap.data(),
+      existiaStock,
+      disponivel: stockAfter,
+      vendida,
+      custo: updatedUnitCost,
+      quantidadeLote: quantidadeLote + line.quantity,
     });
 
     const movement: StockMovement = {
@@ -178,6 +211,30 @@ export async function recordPurchaseReceipt(input: PurchaseReceiptInput): Promis
       stockAfter,
       previousUnitCost,
       updatedUnitCost,
+    });
+  }
+
+  // Stock da loja + espelho no documento do produto + campos da compra, na mesma batch
+  for (const [productId, f] of produtosCompra) {
+    aplicarEscritaStock(batch, {
+      productRef: f.productRef,
+      stockRef: doc(db, 'products', productId, 'stock', input.storeId),
+      produto: f.dadosProduto,
+      storeId: input.storeId,
+      existiaStock: f.existiaStock,
+      disponivel: f.disponivel,
+      vendida: f.vendida,
+      timestamp,
+      extraStock: { lastMovementAt: timestamp },
+      extraProduto: {
+        fornecedor: supplier.name,
+        quantidade: f.quantidadeLote,
+        custoCompra: f.custo,
+        custoTotalReal: f.custo,
+        custoRealUnidadeVenda: f.custo,
+        numeroFatura: input.invoiceNumber.trim(),
+        dataEmissaoFatura: input.invoiceDate,
+      },
     });
   }
 

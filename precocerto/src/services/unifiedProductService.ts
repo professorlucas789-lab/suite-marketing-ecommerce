@@ -33,6 +33,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Product } from '../types';
+import { lerStockAtual, aplicarEscritaStock } from '../utils/unifiedStock';
 
 export interface UnifiedProduct extends Omit<Product, 'quantidadeDisponível' | 'quantidadeDisponivel' | 'id'> {
   // Dados globais do produto (sem id, é gerado pelo Firestore)
@@ -84,14 +85,22 @@ export async function createUnifiedProduct(
     lastUpdated: now,
   };
 
+  // O documento do produto espelha o stock da loja proprietária (ver utils/unifiedStock):
+  // ecrãs e serviços que leem quantidadeDisponivel do documento ficam corretos
+  const produtoComEspelho = {
+    ...product,
+    quantidadeDisponivel: stock.quantidadeDisponível,
+    quantidadeVendida: 0,
+  } as UnifiedProduct;
+
   // Usar batch para atomicidade
   const batch = writeBatch(db);
-  batch.set(docRef, product);
+  batch.set(docRef, produtoComEspelho);
   batch.set(doc(db, 'products', productId, 'stock', storeId), stock);
 
   await batch.commit();
 
-  return { productId, product, stock };
+  return { productId, product: produtoComEspelho, stock };
 }
 
 /**
@@ -188,13 +197,33 @@ export async function updateUnifiedProductStock(
     notes?: string;
   }
 ): Promise<void> {
-  const stockRef = doc(db, 'products', productId, 'stock', storeId);
-  const now = new Date().toISOString();
+  if (!Number.isFinite(quantidadeDisponível) || quantidadeDisponível < 0) {
+    throw new Error('O stock não pode ser negativo.');
+  }
 
-  await updateDoc(stockRef, {
-    quantidadeDisponível,
-    quantidadeVendida: options?.quantidadeVendida,
-    lastUpdated: now,
+  await runTransaction(db, async (txn) => {
+    const productRef = doc(db, 'products', productId);
+    const stockRef = doc(db, 'products', productId, 'stock', storeId);
+
+    const productSnap = await txn.get(productRef);
+    const stockSnap = await txn.get(stockRef);
+
+    if (!productSnap.exists() && !stockSnap.exists()) {
+      throw new Error(`Produto não encontrado: ${productId}`);
+    }
+
+    const atual = lerStockAtual(productSnap.data(), stockSnap.exists() ? stockSnap.data() : null);
+
+    aplicarEscritaStock(txn, {
+      productRef,
+      stockRef,
+      produto: productSnap.exists() ? productSnap.data() : undefined,
+      storeId,
+      existiaStock: atual.existe,
+      disponivel: quantidadeDisponível,
+      vendida: options?.quantidadeVendida ?? atual.vendida,
+      timestamp: new Date().toISOString(),
+    });
   });
 }
 
@@ -302,20 +331,33 @@ export async function archiveProductStock(
   productId: string,
   storeId: string
 ): Promise<void> {
-  const stockRef = doc(db, 'products', productId, 'stock', storeId);
+  await runTransaction(db, async (txn) => {
+    const productRef = doc(db, 'products', productId);
+    const stockRef = doc(db, 'products', productId, 'stock', storeId);
 
-  // Mover para arquivo antes de deletar
-  const stockSnap = await getDoc(stockRef);
-  if (stockSnap.exists()) {
-    const archiveRef = doc(
-      collection(db, 'products', productId, 'stock_archive')
-    );
-    await setDoc(archiveRef, {
-      ...stockSnap.data(),
-      archivedAt: serverTimestamp(),
-    });
-  }
+    const productSnap = await txn.get(productRef);
+    const stockSnap = await txn.get(stockRef);
 
-  // Deletar stock actual
-  await deleteDoc(stockRef);
+    // Mover para arquivo antes de apagar
+    if (stockSnap.exists()) {
+      const archiveRef = doc(collection(db, 'products', productId, 'stock_archive'));
+      txn.set(archiveRef, {
+        ...stockSnap.data(),
+        archivedAt: serverTimestamp(),
+      });
+    }
+
+    txn.delete(stockRef);
+
+    // O espelho no documento do produto passa a 0, para não "ressuscitar" stock
+    const dadosProduto = productSnap.exists() ? productSnap.data() : undefined;
+    if (dadosProduto && (!dadosProduto.storeId || dadosProduto.storeId === storeId)) {
+      const agora = new Date().toISOString();
+      txn.update(productRef, {
+        quantidadeDisponivel: 0,
+        updatedAt: agora,
+        dataAtualizacao: agora,
+      });
+    }
+  });
 }

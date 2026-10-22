@@ -128,12 +128,17 @@ service cloud.firestore {
 
       // UPDATE: Admin ATIVO ou manager ATIVO conseguem editar (RBAC)
       // Proteger imutabilidade de userId e storeId (impedir tenant switch)
+      // Excepção: qualquer membro ATIVO da loja pode atualizar APENAS os campos do
+      // espelho de stock (vendas, anulações, ajustes mantêm o documento do produto
+      // sincronizado com products/{id}/stock/{storeId} na mesma transação)
       allow update: if isStoreMember(resource.data.storeId) &&
         request.resource.data.userId == resource.data.userId &&
         request.resource.data.storeId == resource.data.storeId &&
         (
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'admin' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'loja-manager'
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.papel == 'loja-manager' ||
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['quantidadeDisponivel', 'quantidadeVendida', 'updatedAt', 'dataAtualizacao'])
         );
 
       // DELETE: Apenas admin ATIVO consegue eliminar produtos
@@ -214,6 +219,14 @@ service cloud.firestore {
     }
     match /stores_products_backup/{backupId} {
       allow read, write: if false;
+    }
+
+    // Movimentos de stock (ajustes e transferências): só se criam, nunca se alteram
+    match /stockMovements/{movementId} {
+      allow read: if isStoreMember(resource.data.sourceStoreId);
+      allow create: if isStoreMember(request.resource.data.sourceStoreId) &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
     }
 
     match /businessSettings/{settingId} {

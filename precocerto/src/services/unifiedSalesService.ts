@@ -32,6 +32,7 @@ import {
 import { db } from '../firebase';
 import { Product } from '../types';
 import { SaleTransactionInput, SaleReceipt, SaleReceiptItem, Sale } from '../types/sales';
+import { lerStockAtual, aplicarEscritaStock } from '../utils/unifiedStock';
 
 interface UnifiedSaleItem {
   productId: string;
@@ -92,6 +93,8 @@ export async function recordUnifiedSaleTransaction(
     // ficar antes de qualquer escrita)
     const estado: Map<string, {
       product: Product;
+      dadosProduto: Record<string, any>;
+      existiaStock: boolean;
       saldo: number;      // stock disponível, atualizado linha a linha
       vendida: number;    // quantidadeVendida da loja, atualizada linha a linha
       unitCost: number;
@@ -118,7 +121,9 @@ export async function recordUnifiedSaleTransaction(
 
       // Ler stock da loja
       const stockSnap = await txn.get(doc(db, 'products', item.productId, 'stock', storeId));
-      const stockAtual = stockSnap.exists() ? stockSnap.data() : {};
+      // Sem entrada de stock (produto importado ou anterior à migração): parte do
+      // valor do documento do produto e a entrada é criada na escrita
+      const stockAtual = lerStockAtual(productSnap.data(), stockSnap.exists() ? stockSnap.data() : null);
 
       const unitCost = Number(
         product.custoRealUnidadeVenda ??
@@ -129,8 +134,10 @@ export async function recordUnifiedSaleTransaction(
 
       estado.set(item.productId, {
         product,
-        saldo: stockAtual.quantidadeDisponível || 0,
-        vendida: stockAtual.quantidadeVendida || 0,
+        dadosProduto: productSnap.data(),
+        existiaStock: stockAtual.existe,
+        saldo: stockAtual.disponivel,
+        vendida: stockAtual.vendida,
         unitCost,
       });
     }
@@ -234,13 +241,19 @@ export async function recordUnifiedSaleTransaction(
       totalProfit += itemProfit;
     }
 
-    // PASSO 3: Um único update de stock por produto, com o saldo final
-    for (const [productId, { saldo, vendida }] of estado) {
-      txn.update(doc(db, 'products', productId, 'stock', storeId), {
-        quantidadeDisponível: saldo,
-        quantidadeVendida: vendida,
-        lastUpdated: timestamp,
-        lastMovementAt: timestamp,
+    // PASSO 3: Uma única escrita de stock por produto, com o saldo final, e o
+    // espelho no documento do produto (na mesma transação)
+    for (const [productId, linha] of estado) {
+      aplicarEscritaStock(txn, {
+        productRef: doc(db, 'products', productId),
+        stockRef: doc(db, 'products', productId, 'stock', storeId),
+        produto: linha.dadosProduto,
+        storeId,
+        existiaStock: linha.existiaStock,
+        disponivel: linha.saldo,
+        vendida: linha.vendida,
+        timestamp,
+        extraStock: { lastMovementAt: timestamp },
       });
     }
 
@@ -372,23 +385,41 @@ export async function cancelUnifiedSale(
       aRepor.set(productId, (aRepor.get(productId) || 0) + quantity);
     }
 
-    const stocks: Array<{ ref: DocumentReference; atual: Record<string, any>; quantity: number }> = [];
+    const stocks: Array<{
+      productId: string;
+      produto: Record<string, any> | undefined;
+      existiaStock: boolean;
+      disponivel: number;
+      vendida: number;
+    }> = [];
     for (const [productId, quantity] of aRepor) {
-      const stockRef = doc(db, 'products', productId, 'stock', storeId);
-      const stockSnap = await txn.get(stockRef);
-      if (stockSnap.exists()) {
-        stocks.push({ ref: stockRef, atual: stockSnap.data(), quantity });
-      }
+      const productSnap = await txn.get(doc(db, 'products', productId));
+      const stockSnap = await txn.get(doc(db, 'products', productId, 'stock', storeId));
+      if (!productSnap.exists() && !stockSnap.exists()) continue;
+
+      const atual = lerStockAtual(productSnap.data(), stockSnap.exists() ? stockSnap.data() : null);
+      stocks.push({
+        productId,
+        produto: productSnap.exists() ? productSnap.data() : undefined,
+        existiaStock: atual.existe,
+        disponivel: atual.disponivel + quantity,
+        vendida: Math.max(0, atual.vendida - quantity),
+      });
     }
 
     // PASSO 2: ESCRITAS
     const timestamp = new Date().toISOString();
 
-    for (const { ref, atual, quantity } of stocks) {
-      txn.update(ref, {
-        quantidadeDisponível: (atual.quantidadeDisponível || 0) + quantity,
-        quantidadeVendida: Math.max(0, (atual.quantidadeVendida || 0) - quantity),
-        lastUpdated: timestamp,
+    for (const item of stocks) {
+      aplicarEscritaStock(txn, {
+        productRef: doc(db, 'products', item.productId),
+        stockRef: doc(db, 'products', item.productId, 'stock', storeId),
+        produto: item.produto,
+        storeId,
+        existiaStock: item.existiaStock,
+        disponivel: item.disponivel,
+        vendida: item.vendida,
+        timestamp,
       });
     }
 
