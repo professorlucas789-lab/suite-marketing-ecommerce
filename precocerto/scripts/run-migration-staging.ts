@@ -123,7 +123,7 @@ async function main(): Promise<number> {
     console.log('📋 Próximos passos:');
     console.log('1. Validar dados em staging (Firestore > products > {id} > stock)');
     console.log('2. Testar fluxo de vendas completo');
-    console.log('3. Publicar regras para stock/backups (ver docs) antes de usar a app');
+    console.log('3. Confirmar que as regras e os índices estão publicados em staging (ver docs)');
   }
 
   return 0;

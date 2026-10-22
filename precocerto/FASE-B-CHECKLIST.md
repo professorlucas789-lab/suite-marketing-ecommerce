@@ -128,7 +128,9 @@
 - [x] **Regras com a regra de propriedade publicadas em staging** a 22/10/2026 (workflow `deploy-rules`, run #19, commit `0a24065`): projeto validado como `precocerto-staging`, passo de deploy com sucesso
 - [x] Seed refeito com dados coerentes (22/10/2026): `seed:staging -- --limpar` removeu 44 documentos (stock antigo e backups incluídos) e `seed:staging` criou 2 lojas, 3 produtos e 4 entradas de stock
 - [x] Dry-run da migração com o código novo (22/10/2026): `completed`, **4 entradas a migrar, 0 já existentes, 1 fora da loja proprietária**, 1 aviso (`fasebseed_prod_001` pertence à loja 1 mas tem stock na loja 2) e backup de 7 documentos (3 produtos + 4 stocks de loja). Confirma que os avisos de propriedade funcionam
-- [ ] Executar a migração **real** com estes dados (`migrate:staging`) e confirmar na consola que `fasebseed_prod_001` tem stock nas lojas 1 e 2 (a da loja 2 migrada mas ilegível para essa loja pelas regras)
+- [x] Migração **real** com os dados coerentes (22/10/2026): `completed`, **4 migradas, 0 já existentes, 1 fora da loja proprietária**, 1 aviso (o esperado), 0 erros. Validação do passo 6 sem avisos adicionais
+  - Backup ID: `backup_2026-10-22T20:06:15.334Z` (7 documentos: 3 produtos + 4 stocks de loja) — usar este para o rollback
+- [ ] Confirmar na consola: `fasebseed_prod_001/stock` com 2 documentos (lojas 1 e 2; o da loja 2 migrado mas ilegível para essa loja pelas regras), `prod_002/stock` com 1, `prod_003/stock` com 1; `products_backup` com 3 e `stores_products_backup` com 4
 - [ ] Regras em falta para caminhos que a app usa: `audit_logs`, `stores/{id}/expiryAlerts`, `stores/{id}/products` (hoje caem no `deny` final)
 - [ ] Code review aprovado
 - [ ] Plano de rollback testado em staging (simulação feita; falta executar o rollback real e repetir a migração)
