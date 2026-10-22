@@ -16,10 +16,11 @@
 
 import dotenv from 'dotenv';
 import path from 'path';
-import { executeMigrationPhaseB } from '../src/scripts/migrationPhaseB';
+import { fileURLToPath } from 'url';
 
 // Carregar variáveis de ambiente de staging
-const envPath = path.join(__dirname, '../.env.staging');
+// (o projeto é ESM, por isso __dirname não existe)
+const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../.env.staging');
 dotenv.config({ path: envPath });
 
 // Validar credenciais
@@ -39,9 +40,15 @@ if (missing.length > 0) {
   console.error('   Variáveis faltando:', missing);
   console.error('');
   console.error('📝 INSTRUÇÕES:');
-  console.error('1. Copiar .env.example para .env.staging');
+  console.error('1. Copiar .env.staging.example para .env.staging');
   console.error('2. Preencher as credenciais do Firebase STAGING');
   console.error('3. Executar novamente este script');
+  process.exit(1);
+}
+
+// Segurança: este script só pode correr contra staging
+if (process.env.VITE_APP_ENV !== 'staging') {
+  console.error('❌ ERRO: VITE_APP_ENV tem de ser "staging" no ficheiro .env.staging');
   process.exit(1);
 }
 
@@ -66,6 +73,10 @@ async function main() {
     //   console.log('❌ Migração cancelada');
     //   process.exit(0);
     // }
+
+    // Import dinâmico: o firebase.ts lê as variáveis ao ser carregado, por isso
+    // só pode ser importado depois de o dotenv ter preenchido process.env
+    const { executeMigrationPhaseB } = await import('../src/scripts/migrationPhaseB');
 
     console.log('🚀 Iniciando migração...');
     console.log('');

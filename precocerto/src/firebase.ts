@@ -19,14 +19,19 @@ import { FirebaseStorage, getStorage } from "firebase/storage"; // NOVO (Fase 11
  */
 
 // Obter variáveis de ambiente
-const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
-const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
-const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-const storageBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET;
-const messagingSenderId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID;
-const appId = import.meta.env.VITE_FIREBASE_APP_ID;
-const measurementId = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID;
-const appEnv = import.meta.env.VITE_APP_ENV || 'development';
+// No browser/Vite (e Vitest) vem de import.meta.env; em scripts Node (tsx,
+// ex.: migrações) import.meta.env não existe, por isso usa-se process.env.
+const env: Record<string, string | undefined> =
+  import.meta.env ?? (typeof process !== 'undefined' ? process.env : {});
+
+const apiKey = env.VITE_FIREBASE_API_KEY;
+const authDomain = env.VITE_FIREBASE_AUTH_DOMAIN;
+const projectId = env.VITE_FIREBASE_PROJECT_ID;
+const storageBucket = env.VITE_FIREBASE_STORAGE_BUCKET;
+const messagingSenderId = env.VITE_FIREBASE_MESSAGING_SENDER_ID;
+const appId = env.VITE_FIREBASE_APP_ID;
+const measurementId = env.VITE_FIREBASE_MEASUREMENT_ID;
+const appEnv = env.VITE_APP_ENV || 'development';
 
 // Constante de produção conhecido (prevent accidental staging→production)
 const PRODUCTION_PROJECT_ID = 'precocerto-cc04a';
