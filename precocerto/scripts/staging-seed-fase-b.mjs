@@ -190,6 +190,17 @@ async function main() {
   }
 }
 
+// Erros de credenciais do gRPC chegam fora do try/catch: mostrar mensagem amigável
+process.on('uncaughtException', error => {
+  console.error('');
+  console.error('[STG-SEED-FASE-B] ERRO:', error.message);
+  if (error.message.includes('default credentials')) {
+    console.error('   Falta autenticação. Execute: gcloud auth application-default login');
+    console.error('   (ou defina GOOGLE_APPLICATION_CREDENTIALS com um service account de staging)');
+  }
+  process.exit(1);
+});
+
 main().catch(error => {
   console.error('[STG-SEED-FASE-B] ERRO:', error.message);
   process.exitCode = 1;
