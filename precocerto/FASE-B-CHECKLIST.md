@@ -87,7 +87,10 @@
 ### 1️⃣ App.tsx ✅
 - [x] Imports e CRUD de produtos (`createUnifiedProduct`, `updateUnifiedProductData`, …)
 - [x] Vendas através de `useSalesTransaction` → `recordUnifiedSaleTransaction`
-- [ ] `cancelUnifiedSale` está importado no `App.tsx` mas **não é chamado** por nenhum ecrã: a anulação não tem interface
+- [x] Anulação de vendas ligada à interface: `SalesHistory.tsx` (botão "Anular" + motivo) passa a chamar `cancelUnifiedSale(storeId, recibo, utilizador, { cancelledByName, reason })`. Antes chamava `cancelSaleByReceipt` (serviço antigo), que repunha o stock no sítio errado e consultava sem `storeId`
+  - O motivo e o nome de quem anulou ficam guardados (`cancellationReason`, `cancelledByName`) e aparecem no histórico
+  - As regras só deixam anular o **autor da venda ou um administrador**; outro utilizador vê a mensagem "Sem permissão para anular este recibo" dentro da janela de confirmação
+  - 6 testes do componente + 2 de emulador; falta testar manualmente em staging
 
 ### 2️⃣ Componentes
 - [x] `useSalesTransaction.ts`
@@ -115,7 +118,7 @@
 - [ ] Criar produto numa loja
 - [ ] Venda com 1 produto e com vários produtos
 - [ ] Stock e `quantidadeVendida` atualizados corretamente
-- [ ] Anular venda e confirmar reversão de stock (requer ligar `cancelUnifiedSale` à interface)
+- [ ] Anular venda (Vendas > Histórico > Anular) e confirmar reversão de stock; testar também com um funcionário que não é o autor (deve ver a mensagem de falta de permissão)
 - [ ] Histórico de vendas (precisa dos índices)
 - [ ] Duas lojas em simultâneo
 

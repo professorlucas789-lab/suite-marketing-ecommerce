@@ -152,6 +152,30 @@ describe.skipIf(!emulador)('Serviços unificados (emulador)', () => {
       expect((await getDoc(doc(db, 'sales', 'sB'))).data()?.status).toBe('completed');
     });
 
+    it('guarda quem anulou e o motivo (o histórico mostra-os)', async () => {
+      await stock('p1', 'store_A', 8, 2);
+      await venda('s1', {});
+
+      await cancelUnifiedSale('store_A', 'R-1', 'user_1', { cancelledByName: 'Maria Silva', reason: '  Venda em duplicado ' });
+
+      const v = (await getDoc(doc(db, 'sales', 's1'))).data();
+      expect(v).toMatchObject({
+        status: 'cancelled',
+        cancelledBy: 'user_1',
+        cancelledByName: 'Maria Silva',
+        cancellationReason: 'Venda em duplicado',
+      });
+    });
+
+    it('sem opções, guarda nome e motivo vazios', async () => {
+      await stock('p1', 'store_A', 8, 2);
+      await venda('s1', {});
+
+      await cancelUnifiedSale('store_A', 'R-1', 'user_1');
+
+      expect((await getDoc(doc(db, 'sales', 's1'))).data()).toMatchObject({ cancelledByName: '', cancellationReason: '' });
+    });
+
     it('exige storeId', async () => {
       await expect(cancelUnifiedSale('', 'R-1', 'x')).rejects.toThrow('Loja obrigatória');
     });

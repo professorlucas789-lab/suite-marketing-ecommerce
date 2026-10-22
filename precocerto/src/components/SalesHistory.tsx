@@ -17,7 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { Sale } from '../types/sales';
-import { cancelSaleByReceipt } from '../services/salesService';
+import { cancelUnifiedSale } from '../services/unifiedSalesService';
 import { useSalesAnalytics } from '../hooks/useSalesAnalytics';
 import { useStore } from '../contexts/StoreContext';
 import { formatKz } from '../utils';
@@ -181,6 +181,21 @@ function printReceipt(receipt: ReceiptGroup) {
   win.document.close();
 }
 
+/**
+ * Mensagem de erro da anulação. As Security Rules só deixam anular o autor da
+ * venda ou um administrador: o Firestore devolve permission-denied.
+ */
+function mensagemErroAnulacao(err: unknown): string {
+  const code = (err as { code?: string })?.code;
+  const message = err instanceof Error ? err.message : '';
+
+  if (code === 'permission-denied' || /missing or insufficient permissions/i.test(message)) {
+    return 'Sem permissão para anular este recibo. Só o autor da venda ou um administrador o pode anular.';
+  }
+
+  return message || 'Erro ao anular recibo.';
+}
+
 export const SalesHistory: React.FC<SalesHistoryProps> = () => {
   const { currentStore, currentUser } = useStore();
   const { salesHistory, loading, fetchHistory } = useSalesAnalytics();
@@ -250,19 +265,24 @@ export const SalesHistory: React.FC<SalesHistoryProps> = () => {
   const handleCancelReceipt = async () => {
     if (!cancelTarget || !currentStore) return;
 
+    if (!currentUser?.id) {
+      setActionError('Utilizador não identificado. Inicie sessão novamente.');
+      return;
+    }
+
     try {
       setActionLoading(true);
       setActionError('');
-      await cancelSaleByReceipt(cancelTarget.receiptNumber, {
-        cancelledBy: currentUser?.id,
-        cancelledByName: currentUser?.nome || currentUser?.email,
+      // Serviço unificado: repõe o stock em products/{id}/stock/{storeId}
+      await cancelUnifiedSale(currentStore.storeId, cancelTarget.receiptNumber, currentUser.id, {
+        cancelledByName: currentUser.nome || currentUser.email,
         reason: cancelReason,
       });
       setCancelTarget(null);
       setCancelReason('');
       await fetchHistory(currentStore.storeId, { limit: 500 });
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Erro ao anular recibo.');
+      setActionError(mensagemErroAnulacao(err));
     } finally {
       setActionLoading(false);
     }
@@ -369,7 +389,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = () => {
         </div>
       </motion.div>
 
-      {actionError && (
+      {actionError && !cancelTarget && (
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span>{actionError}</span>
@@ -544,6 +564,13 @@ export const SalesHistory: React.FC<SalesHistoryProps> = () => {
                 placeholder="Ex.: erro no produto, devolução, venda registada em duplicado..."
               />
             </label>
+
+            {actionError && (
+              <div role="alert" className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                <span>{actionError}</span>
+              </div>
+            )}
 
             <div className="mt-5 flex justify-end gap-2">
               <button

@@ -319,7 +319,11 @@ export async function getUnifiedSalesHistory(
 export async function cancelUnifiedSale(
   storeId: string,
   receiptNumber: string,
-  cancelledBy: string
+  cancelledBy: string,
+  options?: {
+    cancelledByName?: string;
+    reason?: string;
+  }
 ): Promise<void> {
   if (!storeId) throw new Error('Loja obrigatória');
 
@@ -386,6 +390,8 @@ export async function cancelUnifiedSale(
         status: 'cancelled',
         cancelledAt: timestamp,
         cancelledBy,
+        cancelledByName: options?.cancelledByName || '',
+        cancellationReason: options?.reason?.trim() || '',
         updatedAt: timestamp,
       });
     }
