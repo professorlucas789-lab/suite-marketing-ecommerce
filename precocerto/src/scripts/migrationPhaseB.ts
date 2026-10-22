@@ -1,44 +1,141 @@
 /**
- * FASE B — Script de Migração de Produtos
+ * FASE B — Script de Migração de Produtos (Firebase Admin SDK)
  *
  * Migra de estrutura fragmentada para unificada:
  *
  * ANTES:
- *   products/
- *   stores/{storeId}/products/
+ *   products/{id}
+ *   stores/{storeId}/products/{id}   (stock por loja)
  *
  * DEPOIS:
  *   products/{id}/
  *     ├── (dados globais)
- *     └── stock/{storeId}/ (estoque por loja)
+ *     └── stock/{storeId}/ (stock por loja)
+ *
+ * Usa o Admin SDK porque:
+ * - as Security Rules exigem utilizador autenticado e membro da loja, e não
+ *   cobrem os caminhos novos (stock) nem as coleções de backup;
+ * - a migração lê coleções inteiras (sem filtro por storeId), o que as regras
+ *   multi-tenant rejeitam para qualquer utilizador de cliente.
  *
  * SEGURANÇA:
- * - Backup automático em products_backup_TIMESTAMP
- * - Validação de integridade
- * - Reversível se necessário
+ * - Backup automático antes de qualquer escrita (products_backup e
+ *   stores_products_backup, com o campo backupId)
+ * - NÃO altera nem apaga a estrutura antiga: só acrescenta products/{id}/stock
+ * - NÃO sobrescreve stock já existente (evita perder vendas posteriores
+ *   a uma primeira execução)
+ * - Modo dryRun: calcula tudo sem escrever
+ * - Rollback real: remove o stock migrado e repõe originais em falta
+ *
+ * O ficheiro recebe a instância Firestore por parâmetro; a validação do projeto
+ * (staging vs produção) é feita em scripts/run-migration-staging.ts.
  */
 
-import {
-  collection,
-  getDocs,
-  doc,
-  getDoc,
-  writeBatch,
-  setDoc,
-  query,
-} from 'firebase/firestore';
-import { db } from '../firebase';
+import type {
+  DocumentReference,
+  Firestore,
+} from 'firebase-admin/firestore';
 
-interface MigrationReport {
+/** Máximo de operações por batch do Firestore é 500; deixa-se margem. */
+const TAMANHO_LOTE = 400;
+
+export interface MigrationOptions {
+  /** Calcula e reporta sem escrever nada */
+  dryRun?: boolean;
+}
+
+export interface MigrationReport {
   timestamp: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
   backupId: string;
+  dryRun: boolean;
   productsProcessed: number;
   storesProcessed: number;
   stockEntriesMigrated: number;
+  stockEntriesSkipped: number;
   errors: string[];
   warnings: string[];
   duration: number;
+}
+
+export interface RollbackReport {
+  backupId: string;
+  stockRemoved: number;
+  productsRestored: number;
+  storeProductsRestored: number;
+}
+
+interface Escrita {
+  ref: DocumentReference;
+  dados: Record<string, unknown>;
+}
+
+interface StockPlaneado {
+  ref: DocumentReference;
+  productId: string;
+  storeId: string;
+  dados: Record<string, unknown>;
+}
+
+/**
+ * Metadados acrescentados aos documentos de backup. Os campos storeId/productId
+ * ficam de fora de propósito: podem ser campos originais dos documentos.
+ */
+const CAMPOS_META_BACKUP = ['originalId', 'backupId', 'backupTimestamp'];
+
+function removerMetaBackup(dados: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(dados).filter(([chave]) => !CAMPOS_META_BACKUP.includes(chave))
+  );
+}
+
+function dividir<T>(itens: T[], tamanho: number): T[][] {
+  const grupos: T[][] = [];
+  for (let i = 0; i < itens.length; i += tamanho) {
+    grupos.push(itens.slice(i, i + tamanho));
+  }
+  return grupos;
+}
+
+async function escreverEmLotes(db: Firestore, escritas: Escrita[], dryRun: boolean): Promise<void> {
+  if (dryRun) return;
+
+  for (const grupo of dividir(escritas, TAMANHO_LOTE)) {
+    const lote = db.batch();
+    for (const { ref, dados } of grupo) {
+      lote.set(ref, dados);
+    }
+    await lote.commit();
+  }
+}
+
+async function apagarEmLotes(db: Firestore, refs: DocumentReference[]): Promise<void> {
+  for (const grupo of dividir(refs, TAMANHO_LOTE)) {
+    const lote = db.batch();
+    for (const ref of grupo) {
+      lote.delete(ref);
+    }
+    await lote.commit();
+  }
+}
+
+/** Lê vários documentos de uma vez; devolve um Map caminho → dados (só os existentes) */
+async function lerExistentes(
+  db: Firestore,
+  refs: DocumentReference[]
+): Promise<Map<string, Record<string, unknown>>> {
+  const existentes = new Map<string, Record<string, unknown>>();
+
+  for (const grupo of dividir(refs, TAMANHO_LOTE)) {
+    const snaps = await db.getAll(...grupo);
+    for (const snap of snaps) {
+      if (snap.exists) {
+        existentes.set(snap.ref.path, snap.data() as Record<string, unknown>);
+      }
+    }
+  }
+
+  return existentes;
 }
 
 /**
@@ -46,20 +143,27 @@ interface MigrationReport {
  *
  * STEPS:
  * 1. Fazer backup de tudo
- * 2. Migrar estrutura de produtos
- * 3. Validar integridade
- * 4. Reportar
+ * 2. Planear o stock novo (loja × produto)
+ * 3. Escrever stock novo (sem sobrescrever o que já existe)
+ * 4. Validar integridade
+ * 5. Reportar
  */
-export async function executeMigrationPhaseB(): Promise<MigrationReport> {
+export async function executeMigrationPhaseB(
+  db: Firestore,
+  options: MigrationOptions = {}
+): Promise<MigrationReport> {
+  const dryRun = options.dryRun === true;
   const startTime = Date.now();
   const backupId = `backup_${new Date().toISOString()}`;
   const report: MigrationReport = {
     timestamp: new Date().toISOString(),
     status: 'pending',
     backupId,
+    dryRun,
     productsProcessed: 0,
     storesProcessed: 0,
     stockEntriesMigrated: 0,
+    stockEntriesSkipped: 0,
     errors: [],
     warnings: [],
     duration: 0,
@@ -67,112 +171,115 @@ export async function executeMigrationPhaseB(): Promise<MigrationReport> {
 
   try {
     report.status = 'in_progress';
-    console.log('🔄 FASE B: Iniciando migração de produtos...');
+    console.log(`🔄 FASE B: Iniciando migração de produtos${dryRun ? ' (DRY-RUN: sem escrita)' : ''}...`);
 
-    // STEP 1: Fazer backup
+    // STEP 1: Backup
     console.log('📦 Passo 1: Fazendo backup...');
-    await backupCurrentStructure(backupId);
+    await backupCurrentStructure(db, backupId, dryRun);
 
-    // STEP 2: Obter lista de lojas
+    // STEP 2: Lojas (listDocuments inclui lojas só com subcoleções)
     console.log('🏪 Passo 2: Obtendo lista de lojas...');
-    const storesSnapshot = await getDocs(collection(db, 'stores'));
-    const storeIds = storesSnapshot.docs.map(doc => doc.id);
+    const storeRefs = await db.collection('stores').listDocuments();
+    const storeIds = storeRefs.map(ref => ref.id);
+    report.storesProcessed = storeIds.length;
     console.log(`  ✓ Encontradas ${storeIds.length} lojas`);
 
-    // STEP 3: Migrar produtos raiz
-    console.log('📦 Passo 3: Migrando produtos (raiz)...');
-    const productsSnapshot = await getDocs(collection(db, 'products'));
-    const productMap = new Map<string, any>();
-
+    // STEP 3: Produtos globais
+    console.log('📦 Passo 3: Lendo produtos (raiz)...');
+    const productsSnapshot = await db.collection('products').get();
+    const produtosGlobais = new Set<string>();
     for (const productDoc of productsSnapshot.docs) {
-      const productData = productDoc.data();
-      productMap.set(productDoc.id, {
-        id: productDoc.id,
-        ...productData,
-      });
+      produtosGlobais.add(productDoc.id);
       report.productsProcessed++;
     }
-
     console.log(`  ✓ Carregados ${report.productsProcessed} produtos raiz`);
 
-    // STEP 4: Migrar stocks por loja
-    console.log('📊 Passo 4: Migrando stocks por loja...');
-    report.storesProcessed = storeIds.length;
+    // STEP 4: Planear stock por loja
+    console.log('📊 Passo 4: Planeando stock por loja...');
+    const planeado: StockPlaneado[] = [];
 
     for (const storeId of storeIds) {
-      console.log(`  → Processando loja: ${storeId}`);
-
-      // Obter produtos da loja
-      const storeProductsSnapshot = await getDocs(
-        collection(db, 'stores', storeId, 'products')
-      );
+      const storeProductsSnapshot = await db.collection(`stores/${storeId}/products`).get();
 
       if (storeProductsSnapshot.empty) {
-        console.log(`    ⊘ Loja sem produtos`);
+        console.log(`  ⊘ ${storeId}: loja sem produtos`);
         continue;
       }
 
-      // Processar cada produto da loja
-      const batch = writeBatch(db);
-      let batchCount = 0;
-      const batchSize = 100;
+      console.log(`  → ${storeId}: ${storeProductsSnapshot.size} produtos`);
 
       for (const storeProductDoc of storeProductsSnapshot.docs) {
-        const storeProductData = storeProductDoc.data();
         const productId = storeProductDoc.id;
+        const origem = storeProductDoc.data();
 
-        // Obter dados globais do produto
-        const globalProduct = productMap.get(productId);
-
-        if (!globalProduct) {
+        if (!produtosGlobais.has(productId)) {
           report.warnings.push(
             `Produto ${productId} em loja ${storeId} não tem correspondente global`
           );
           continue;
         }
 
-        // Criar entrada de stock na nova estrutura
-        const stockRef = doc(db, 'products', productId, 'stock', storeId);
-        const stockData = {
+        const dados: Record<string, unknown> = {
           storeId,
-          quantidadeDisponível: Number(storeProductData.quantidadeDisponível ?? 0),
-          quantidadeVendida: Number(storeProductData.quantidadeVendida ?? 0),
+          quantidadeDisponível: Number(origem.quantidadeDisponível ?? 0),
+          quantidadeVendida: Number(origem.quantidadeVendida ?? 0),
           lastUpdated: new Date().toISOString(),
-          lastMovementAt: storeProductData.lastMovementAt,
           migratedFrom: `stores/${storeId}/products/${productId}`,
+          migrationBackupId: backupId,
         };
-
-        batch.set(stockRef, stockData);
-        batchCount++;
-        report.stockEntriesMigrated++;
-
-        // Commit a cada 100 documentos
-        if (batchCount >= batchSize) {
-          await batch.commit();
-          console.log(`    ✓ Migraram ${batchCount} produtos`);
-          batchCount = 0;
+        // O Admin SDK rejeita valores undefined
+        if (origem.lastMovementAt !== undefined) {
+          dados.lastMovementAt = origem.lastMovementAt;
         }
-      }
 
-      // Commit final
-      if (batchCount > 0) {
-        await batch.commit();
-        console.log(`    ✓ Migraram ${batchCount} produtos (final)`);
+        planeado.push({
+          ref: db.doc(`products/${productId}/stock/${storeId}`),
+          productId,
+          storeId,
+          dados,
+        });
       }
     }
 
-    console.log(`  ✓ Total de ${report.stockEntriesMigrated} entradas de stock migradas`);
+    // STEP 5: Escrever sem sobrescrever stock existente
+    console.log('✍️  Passo 5: Escrevendo stock novo...');
+    const existentes = await lerExistentes(db, planeado.map(p => p.ref));
+    const novos: StockPlaneado[] = [];
 
-    // STEP 5: Validar integridade
-    console.log('✅ Passo 5: Validando integridade...');
-    const validation = await validateMigration();
+    for (const item of planeado) {
+      const atual = existentes.get(item.ref.path);
+      if (atual) {
+        report.stockEntriesSkipped++;
+        const qtdAtual = Number(atual.quantidadeDisponível ?? 0);
+        const qtdOrigem = Number(item.dados.quantidadeDisponível);
+        if (qtdAtual !== qtdOrigem) {
+          report.warnings.push(
+            `Stock já existente em ${item.ref.path} (${qtdAtual}) difere da origem (${qtdOrigem}); mantido`
+          );
+        }
+      } else {
+        novos.push(item);
+      }
+    }
 
-    if (!validation.valid) {
+    await escreverEmLotes(db, novos, dryRun);
+    report.stockEntriesMigrated = novos.length;
+    console.log(
+      `  ✓ ${novos.length} entradas ${dryRun ? 'a migrar (dry-run)' : 'migradas'}, ` +
+      `${report.stockEntriesSkipped} já existiam`
+    );
+
+    // STEP 6: Validar
+    if (dryRun) {
+      console.log('✅ Passo 6: Validação ignorada em dry-run');
+    } else {
+      console.log('✅ Passo 6: Validando integridade...');
+      const validation = await validateMigration(db, planeado, produtosGlobais, storeIds);
       report.warnings.push(...validation.issues);
     }
 
     report.status = 'completed';
-    console.log('✅ MIGRAÇÃO CONCLUÍDA COM SUCESSO!');
+    console.log(`✅ MIGRAÇÃO ${dryRun ? 'SIMULADA ' : ''}CONCLUÍDA COM SUCESSO!`);
 
   } catch (error: any) {
     report.status = 'failed';
@@ -186,133 +293,191 @@ export async function executeMigrationPhaseB(): Promise<MigrationReport> {
 }
 
 /**
- * Fazer backup da estrutura actual
+ * Fazer backup da estrutura actual (em lotes de TAMANHO_LOTE)
  */
-async function backupCurrentStructure(backupId: string): Promise<void> {
-  const batch = writeBatch(db);
+async function backupCurrentStructure(
+  db: Firestore,
+  backupId: string,
+  dryRun: boolean
+): Promise<void> {
+  const agora = new Date().toISOString();
+  const escritas: Escrita[] = [];
 
   // Backup de products (raiz)
-  const productsSnapshot = await getDocs(collection(db, 'products'));
+  const productsSnapshot = await db.collection('products').get();
   for (const productDoc of productsSnapshot.docs) {
-    const backupRef = doc(collection(db, 'products_backup'), `${backupId}_${productDoc.id}`);
-    batch.set(backupRef, {
-      ...productDoc.data(),
-      originalId: productDoc.id,
-      backupTimestamp: new Date().toISOString(),
+    escritas.push({
+      ref: db.doc(`products_backup/${backupId}_${productDoc.id}`),
+      dados: {
+        ...productDoc.data(),
+        originalId: productDoc.id,
+        backupId,
+        backupTimestamp: agora,
+      },
     });
   }
 
   // Backup de stores/*/products
-  const storesSnapshot = await getDocs(collection(db, 'stores'));
-  for (const storeDoc of storesSnapshot.docs) {
-    const storeProductsSnapshot = await getDocs(
-      collection(db, 'stores', storeDoc.id, 'products')
-    );
+  const storeRefs = await db.collection('stores').listDocuments();
+  for (const storeRef of storeRefs) {
+    const storeProductsSnapshot = await db.collection(`stores/${storeRef.id}/products`).get();
 
     for (const productDoc of storeProductsSnapshot.docs) {
-      const backupRef = doc(
-        collection(db, 'stores_products_backup'),
-        `${backupId}_${storeDoc.id}_${productDoc.id}`
-      );
-      batch.set(backupRef, {
-        ...productDoc.data(),
-        storeId: storeDoc.id,
-        productId: productDoc.id,
-        backupTimestamp: new Date().toISOString(),
+      escritas.push({
+        ref: db.doc(`stores_products_backup/${backupId}_${storeRef.id}_${productDoc.id}`),
+        dados: {
+          ...productDoc.data(),
+          storeId: storeRef.id,
+          productId: productDoc.id,
+          backupId,
+          backupTimestamp: agora,
+        },
       });
     }
   }
 
-  await batch.commit();
-  console.log(`  ✓ Backup criado com ID: ${backupId}`);
+  await escreverEmLotes(db, escritas, dryRun);
+  console.log(
+    `  ✓ Backup ${dryRun ? 'simulado' : 'criado'} com ID: ${backupId} (${escritas.length} documentos)`
+  );
 }
 
 /**
  * Validar integridade da migração
  */
-async function validateMigration(): Promise<{
-  valid: boolean;
-  issues: string[];
-}> {
+async function validateMigration(
+  db: Firestore,
+  planeado: StockPlaneado[],
+  produtosGlobais: Set<string>,
+  storeIds: string[]
+): Promise<{ valid: boolean; issues: string[] }> {
   const issues: string[] = [];
 
-  // Verificar se há produtos sem stock em nenhuma loja
-  const productsSnapshot = await getDocs(collection(db, 'products'));
-  for (const productDoc of productsSnapshot.docs) {
-    const storesSnapshot = await getDocs(
-      collection(db, 'products', productDoc.id, 'stock')
-    );
-
-    if (storesSnapshot.empty) {
-      // Se produto raiz não tem stock em nenhuma loja, pode ser válido
-      // (produto sem venda ainda, apenas criado)
+  // 1. Todo o stock planeado tem de existir
+  const existentes = await lerExistentes(db, planeado.map(p => p.ref));
+  for (const item of planeado) {
+    if (!existentes.has(item.ref.path)) {
+      issues.push(`Stock em falta após migração: ${item.ref.path}`);
     }
   }
 
-  // Verificar se há lojas sem nenhum produto
-  const storesSnapshot = await getDocs(collection(db, 'stores'));
-  for (const storeDoc of storesSnapshot.docs) {
-    const storeStocksSnapshot = await getDocs(
-      query(collection(db, 'products'))
-    );
+  // 2. Lojas sem nenhum produto migrado
+  const lojasComStock = new Set(planeado.map(p => p.storeId));
+  for (const storeId of storeIds) {
+    if (!lojasComStock.has(storeId)) {
+      issues.push(`Loja ${storeId} sem nenhum produto migrado`);
+    }
+  }
 
-    let storeHasStock = false;
-    for (const productDoc of storeStocksSnapshot.docs) {
-      const stockSnap = await getDoc(
-        doc(db, 'products', productDoc.id, 'stock', storeDoc.id)
-      );
-      if (stockSnap.exists()) {
-        storeHasStock = true;
-        break;
+  // 3. Produtos globais sem stock em nenhuma loja (aviso: pode ser válido)
+  const produtosComStock = new Set(planeado.map(p => p.productId));
+  const semStock = [...produtosGlobais].filter(id => !produtosComStock.has(id));
+  if (semStock.length > 0) {
+    const amostra = semStock.slice(0, 10).join(', ');
+    issues.push(
+      `${semStock.length} produto(s) sem stock em nenhuma loja` +
+      `${semStock.length > 10 ? ` (primeiros 10: ${amostra})` : ` (${amostra})`}`
+    );
+  }
+
+  return { valid: issues.length === 0, issues };
+}
+
+/**
+ * Rollback da migração
+ *
+ * 1. Remove o stock criado por esta migração (migrationBackupId === backupId)
+ * 2. Repõe, a partir do backup, apenas documentos originais que já NÃO existam
+ *    (nunca sobrescreve dados atuais)
+ *
+ * A estrutura antiga não é alterada pela migração, pelo que normalmente só o
+ * passo 1 tem efeito.
+ */
+export async function rollbackMigration(
+  db: Firestore,
+  backupId: string,
+  options: MigrationOptions = {}
+): Promise<RollbackReport> {
+  const dryRun = options.dryRun === true;
+  console.log(`⚠️ INICIANDO ROLLBACK de backup: ${backupId}${dryRun ? ' (DRY-RUN)' : ''}`);
+
+  const resultado: RollbackReport = {
+    backupId,
+    stockRemoved: 0,
+    productsRestored: 0,
+    storeProductsRestored: 0,
+  };
+
+  // 1. Remover stock migrado
+  const aApagar: DocumentReference[] = [];
+  const productRefs = await db.collection('products').listDocuments();
+  for (const productRef of productRefs) {
+    const stockSnapshot = await productRef.collection('stock').get();
+    for (const stockDoc of stockSnapshot.docs) {
+      if (stockDoc.data().migrationBackupId === backupId) {
+        aApagar.push(stockDoc.ref);
       }
     }
+  }
+  if (!dryRun) {
+    await apagarEmLotes(db, aApagar);
+  }
+  resultado.stockRemoved = aApagar.length;
+  console.log(`  ✓ Stock migrado ${dryRun ? 'a remover' : 'removido'}: ${aApagar.length}`);
 
-    if (!storeHasStock) {
-      issues.push(`Loja ${storeDoc.id} sem nenhum produto migrado`);
+  // 2. Repor originais em falta (nunca sobrescreve)
+  const repor: Escrita[] = [];
+
+  const backupProdutos = await db.collection('products_backup').where('backupId', '==', backupId).get();
+  const refsProdutos = backupProdutos.docs.map(d =>
+    db.doc(`products/${String(d.data().originalId)}`)
+  );
+  const produtosAtuais = await lerExistentes(db, refsProdutos);
+  backupProdutos.docs.forEach((d, i) => {
+    if (!produtosAtuais.has(refsProdutos[i].path)) {
+      repor.push({ ref: refsProdutos[i], dados: removerMetaBackup(d.data()) });
+      resultado.productsRestored++;
     }
-  }
+  });
 
-  return {
-    valid: issues.length === 0,
-    issues,
-  };
+  const backupLojas = await db.collection('stores_products_backup').where('backupId', '==', backupId).get();
+  const refsLojas = backupLojas.docs.map(d => {
+    const dados = d.data();
+    return db.doc(`stores/${String(dados.storeId)}/products/${String(dados.productId)}`);
+  });
+  const lojasAtuais = await lerExistentes(db, refsLojas);
+  backupLojas.docs.forEach((d, i) => {
+    if (!lojasAtuais.has(refsLojas[i].path)) {
+      repor.push({ ref: refsLojas[i], dados: removerMetaBackup(d.data()) });
+      resultado.storeProductsRestored++;
+    }
+  });
+
+  await escreverEmLotes(db, repor, dryRun);
+  console.log(
+    `  ✓ Repostos em falta: ${resultado.productsRestored} produtos, ` +
+    `${resultado.storeProductsRestored} produtos de loja`
+  );
+
+  console.log('✅ Rollback concluído');
+  return resultado;
 }
 
 /**
- * Rollback da migração (restaura de backup)
+ * Imprimir relatório de migração
  */
-export async function rollbackMigration(backupId: string): Promise<void> {
-  console.log(`⚠️ INICIANDO ROLLBACK de backup: ${backupId}`);
-
-  try {
-    // TODO: Implementar rollback
-    // 1. Restaurar products de products_backup
-    // 2. Restaurar stores/*/products de stores_products_backup
-    // 3. Deletar nova estrutura products/*/stock
-
-    console.log('✅ Rollback completado');
-  } catch (error: any) {
-    console.error('❌ Erro no rollback:', error);
-    throw error;
-  }
-}
-
-/**
- * Gerar relatório de migração
- */
-export async function generateMigrationReport(): Promise<void> {
-  const report = await executeMigrationPhaseB();
-
+export function printMigrationReport(report: MigrationReport): void {
   console.log('\n' + '='.repeat(70));
   console.log('📊 RELATÓRIO DA MIGRAÇÃO FASE B');
   console.log('='.repeat(70));
-  console.log(`Status: ${report.status}`);
+  console.log(`Status: ${report.status}${report.dryRun ? ' (DRY-RUN: nada foi escrito)' : ''}`);
   console.log(`Timestamp: ${report.timestamp}`);
   console.log(`Duração: ${report.duration}ms`);
   console.log(`\nDados:
     - Produtos processados: ${report.productsProcessed}
     - Lojas processadas: ${report.storesProcessed}
-    - Entradas de stock migradas: ${report.stockEntriesMigrated}`);
+    - Entradas de stock migradas: ${report.stockEntriesMigrated}
+    - Entradas de stock já existentes (mantidas): ${report.stockEntriesSkipped}`);
 
   if (report.errors.length > 0) {
     console.log(`\n❌ Erros (${report.errors.length}):`);

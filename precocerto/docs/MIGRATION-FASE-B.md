@@ -3,7 +3,7 @@
 **Migração de Estrutura de Produtos para Modelo Unificado**
 
 Data: 9 de outubro de 2026  
-Status: ✅ Pronto para Staging
+Status: ✅ Pronto para Staging (Admin SDK)
 
 ---
 
@@ -52,144 +52,95 @@ products/
 
 ## 🚀 Como Executar em Staging
 
-### Pré-requisitos:
-1. **Node.js 18+** instalado
-2. **npm** ou **yarn** disponível
-3. **Credenciais Firebase Staging** obtidas do console Firebase
+A migração usa o **Firebase Admin SDK** (ignora as Security Rules). Não usa o
+`.env.staging`: usa Application Default Credentials. Só aceita o projeto
+`precocerto-staging` e bloqueia `precocerto-cc04a` (produção).
 
-### Passo 1: Configurar Credenciais
+### Pré-requisitos
+1. **Node.js 18+** e `npm install` feito em `precocerto/`
+2. **Credenciais de staging** (uma das duas):
+   ```bash
+   gcloud auth application-default login
+   # ou
+   export GOOGLE_APPLICATION_CREDENTIALS=/caminho/service-account-staging.json
+   ```
+   A conta precisa de permissão de escrita no Firestore de `precocerto-staging`
+   (ex.: papel *Cloud Datastore User*).
 
+### Passo 1: (só se staging estiver vazio) criar dados de teste
+O Firestore de staging só tem `users`; a migração não teria nada para migrar.
 ```bash
-# Copiar arquivo de exemplo
-cp .env.staging.example .env.staging
-
-# Editar .env.staging com credenciais reais
-nano .env.staging
+npm run seed:staging             # cria 2 lojas, 3 produtos e 6 entradas de stock (IDs fasebseed_*)
+npm run seed:staging -- --limpar # remove os dados de teste (e stock/backups deles)
 ```
 
-**Credenciais necessárias:**
-- `VITE_FIREBASE_API_KEY`
-- `VITE_FIREBASE_AUTH_DOMAIN`
-- `VITE_FIREBASE_PROJECT_ID`
-- `VITE_FIREBASE_STORAGE_BUCKET`
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`
-- `VITE_FIREBASE_APP_ID`
-
-Obter em: **Firebase Console > Project Settings > Web App**
-
-### Passo 2: Instalar Dependências
-
+### Passo 2: simular (não escreve nada)
 ```bash
-cd precocerto
-npm install
+npm run migrate:staging -- --dry-run
 ```
 
-### Passo 3: Executar Migração
-
+### Passo 3: migrar
 ```bash
-# Executar migração em staging
-npm run migrate:staging
-
-# Ou versão de demonstração (não faz alterações):
-npm run migrate:demo
+npm run migrate:staging           # pede para escrever o ID do projeto
+npm run migrate:staging -- --sim  # sem pedir confirmação
 ```
 
 ---
 
 ## 📊 O que Acontece na Migração
 
-### 1️⃣ Backup Automático
-- Cria cópia completa de `products/`
-- Cria cópia completa de `stores/*/products/`
-- Armazena em `products_backup/` e `stores_products_backup/`
-- ID do backup: `backup_TIMESTAMP` (usado para rollback se necessário)
+### 1️⃣ Backup automático
+- Copia `products/` para `products_backup/{backupId}_{id}`
+- Copia `stores/*/products/` para `stores_products_backup/{backupId}_{storeId}_{id}`
+- Cada cópia leva o campo `backupId` (usado no rollback)
+- Escrita em lotes de 400 (limite do Firestore: 500)
 
-### 2️⃣ Migração de Dados
-Para cada loja:
-- Lê produtos originais
-- Lê stock de cada loja
-- Escreve em nova estrutura: `products/{id}/stock/{storeId}`
-- Preserva histórico de movimentos
+### 2️⃣ Migração de dados
+Para cada loja e cada produto da loja:
+- Lê o stock em `stores/{storeId}/products/{id}`
+- Escreve `products/{id}/stock/{storeId}` (com `migrationBackupId`)
+- **Não altera nem apaga a estrutura antiga**
+- **Não sobrescreve** stock já existente (avisa se a quantidade difere)
 
-### 3️⃣ Validação de Integridade
-- Verifica se há produtos órfãos
-- Verifica se há lojas vazias
-- Valida consistência de dados
-- Gera relatório detalhado
+### 3️⃣ Validação
+- Confirma que todo o stock planeado existe
+- Avisa sobre lojas sem produtos e produtos sem stock em nenhuma loja
 
-### 4️⃣ Relatório Final
-```
-╔════════════════════════════════════════════════════════════╗
-║  RELATÓRIO DE MIGRAÇÃO                                     ║
-╚════════════════════════════════════════════════════════════╝
-
-Status: ✅ SUCESSO
-Timestamp: 2026-10-09T23:45:12.345Z
-Backup ID: backup_2026-10-09T23:45:12.345Z
-
-📊 Estatísticas:
-   - Produtos processados: 145
-   - Lojas processadas: 3
-   - Stock entries migradas: 287
-   - Duração: 2543ms
-
-✅ Migração completada com sucesso!
-```
+### 4️⃣ Relatório
+Estado, contagens (produtos, lojas, stock migrado/já existente), avisos, erros e
+o `backupId`.
 
 ---
 
 ## ✅ Validação Pós-Migração
 
-Após a migração completar com sucesso:
-
-### 1️⃣ Verificar Dados em Staging
-```bash
-# Conectar ao Firebase Staging
-firebase use precocerto-staging
-
-# Verificar estrutura nova
-firebase firestore:inspect products --limit=5
-firebase firestore:inspect products/prod-001/stock --limit=5
-```
-
-### 2️⃣ Testar Fluxo de Vendas
-- [ ] Criar venda com 1 produto
-- [ ] Criar venda com múltiplos produtos
-- [ ] Validar stock atualizado corretamente
-- [ ] Testar anulação de venda
-- [ ] Validar reversão de stock
-
-### 3️⃣ Verificar Relatórios
-- [ ] Dashboard atualiza corretamente
-- [ ] Histórico de vendas mantido
-- [ ] KPIs calculam corretamente
-- [ ] Alertas de validade funcionam
-
-### 4️⃣ Obter Aprovação
-- [ ] Testar em ambiente staging
-- [ ] Validar com time
-- [ ] Aprovar para produção
+1. **Firestore Console** → `products` → um produto → subcoleção `stock`
+2. Coleções `products_backup` e `stores_products_backup` criadas
+3. ⚠️ **Antes de testar a app:** as `firestore.rules` ainda NÃO têm regras para
+   `products/{id}/stock` nem para as coleções de backup (caem no
+   `allow read, write: if false`). O código da FASE B no cliente não consegue
+   ler/escrever stock até as regras serem acrescentadas e publicadas.
+4. Testar fluxo de vendas: venda com 1 e vários produtos, stock atualizado,
+   anulação e reversão de stock
+5. Dashboard, histórico, KPIs e alertas de validade
+6. Obter aprovação antes de produção
 
 ---
 
-## 🔄 Rollback (Se Necessário)
+## 🔄 Rollback
 
-Se algo der errado durante a migração, é possível fazer rollback:
-
-```typescript
-import { rollbackMigration } from '../src/scripts/migrationPhaseB';
-
-// Rollback usando o backup ID
-await rollbackMigration('backup_2026-10-09T23:45:12.345Z');
+```bash
+npm run migrate:staging -- --rollback backup_2026-10-22T08:30:51.283Z --dry-run  # simula
+npm run migrate:staging -- --rollback backup_2026-10-22T08:30:51.283Z            # executa
 ```
 
-**O que rollback faz:**
-1. Restaura `products/` do backup
-2. Restaura `stores/*/products/` do backup
-3. Apaga nova estrutura `products/*/stock/`
-4. Retorna ao estado anterior
+O que faz:
+1. Remove o stock criado **por essa migração** (`migrationBackupId`); stock criado
+   por outras vias (ex.: vendas posteriores) não é tocado
+2. Repõe a partir do backup apenas documentos originais que **já não existam**
+   (nunca sobrescreve dados atuais)
 
-**Importante:** Rollback é seguro e reversível. Pode ser executado quantas vezes necessário.
+O `backupId` é impresso no fim de cada migração.
 
 ---
 
@@ -218,17 +169,23 @@ await rollbackMigration('backup_2026-10-09T23:45:12.345Z');
 
 ## 🆘 Troubleshooting
 
-### "Credenciais de staging incompletas"
-**Solução:** Preencher `.env.staging` com todas as variáveis necessárias
+### "Could not load the default credentials"
+Falta autenticação. Executar `gcloud auth application-default login` ou definir
+`GOOGLE_APPLICATION_CREDENTIALS`.
 
-### "Falha ao conectar ao Firebase"
-**Solução:** Verificar se credenciais estão corretas e projeto está ativo
+### "PERMISSION_DENIED" 
+A conta não tem permissão de escrita no Firestore de `precocerto-staging`.
 
-### "Stock não atualizado corretamente"
-**Solução:** Verificar integridade de dados com relatório de validação
+### "Migração com 0 produtos"
+Staging está vazio. Executar `npm run seed:staging` primeiro.
 
-### "Rollback falhou"
-**Solução:** Contatar administrador, backup está preservado
+### "projectId deve ser 'precocerto-staging'" / "SEGURANÇA CRÍTICA"
+O script recusa qualquer projeto que não seja staging. Verificar
+`VITE_FIREBASE_PROJECT_ID` no ambiente.
+
+### Avisos "Stock já existente ... difere da origem"
+A migração não sobrescreve stock já migrado. Confirmar qual valor está certo e
+corrigir manualmente, se necessário.
 
 ---
 
@@ -244,4 +201,4 @@ Em caso de dúvidas ou problemas:
 
 **Status Final: ✅ Pronto para Staging**
 
-A migração pode ser executada em staging a qualquer momento usando `npm run migrate:staging`.
+Comece sempre por `npm run migrate:staging -- --dry-run`.

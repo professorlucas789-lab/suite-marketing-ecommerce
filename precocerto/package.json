@@ -17,6 +17,7 @@
     "test:coverage": "vitest --coverage",
     "smoke:staging": "node scripts/staging-firestore-smoke.mjs",
     "migrate:staging": "tsx scripts/run-migration-staging.ts",
+    "seed:staging": "node scripts/staging-seed-fase-b.mjs",
     "migrate:demo": "tsx scripts/run-migration-demo.ts"
   },
   "dependencies": {
@@ -47,6 +48,7 @@
     "@vitest/ui": "^4.1.10",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "firebase-admin": "^14.5.0",
     "firebase-tools": "^15.29.0",
     "happy-dom": "^20.11.2",
     "tailwindcss": "^4.1.14",

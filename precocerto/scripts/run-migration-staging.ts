@@ -1,144 +1,148 @@
 #!/usr/bin/env node
 
 /**
- * Script para executar migração FASE B em Staging
+ * Script para executar migração FASE B em Staging (Firebase Admin SDK)
  *
- * INSTRUÇÕES:
- * 1. Configurar variáveis de ambiente para staging em `.env.staging`
- * 2. Executar: npm run migrate:staging
+ * USO:
+ *   npm run migrate:staging -- --dry-run            # simula, não escreve
+ *   npm run migrate:staging                         # migra (pede confirmação)
+ *   npm run migrate:staging -- --sim                # migra sem pedir confirmação
+ *   npm run migrate:staging -- --rollback <backupId>             # reverte
+ *   npm run migrate:staging -- --rollback <backupId> --dry-run   # simula reverter
  *
- * PROCEDIMENTO:
- * - Fazer backup automático de tudo
- * - Migrar estrutura de produtos
- * - Validar integridade
- * - Gerar relatório detalhado
+ * CREDENCIAIS:
+ * Usa Application Default Credentials (não precisa de .env.staging):
+ *   gcloud auth application-default login
+ * ou GOOGLE_APPLICATION_CREDENTIALS apontando para um service account de staging.
+ *
+ * SEGURANÇA:
+ * - Bloqueia o projeto de produção e só aceita precocerto-staging
+ * - Backup automático antes de escrever; não sobrescreve stock já migrado
  */
 
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import readline from 'node:readline/promises';
+import { initializeApp, applicationDefault } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import {
+  executeMigrationPhaseB,
+  rollbackMigration,
+  printMigrationReport,
+} from '../src/scripts/migrationPhaseB';
 
-// Carregar variáveis de ambiente de staging
-// (o projeto é ESM, por isso __dirname não existe)
-const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../.env.staging');
-dotenv.config({ path: envPath });
+const PRODUCTION_PROJECT_ID = 'precocerto-cc04a';
+const STAGING_PROJECT_ID = 'precocerto-staging';
 
-// Validar credenciais
-const requiredEnvVars = [
-  'VITE_FIREBASE_API_KEY',
-  'VITE_FIREBASE_AUTH_DOMAIN',
-  'VITE_FIREBASE_PROJECT_ID',
-  'VITE_FIREBASE_STORAGE_BUCKET',
-  'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID',
-];
-
-const missing = requiredEnvVars.filter(key => !process.env[key]);
-
-if (missing.length > 0) {
-  console.error('❌ ERRO: Credenciais de staging incompletas');
-  console.error('   Variáveis faltando:', missing);
-  console.error('');
-  console.error('📝 INSTRUÇÕES:');
-  console.error('1. Copiar .env.staging.example para .env.staging');
-  console.error('2. Preencher as credenciais do Firebase STAGING');
-  console.error('3. Executar novamente este script');
-  process.exit(1);
-}
-
-// Segurança: este script só pode correr contra staging
-if (process.env.VITE_APP_ENV !== 'staging') {
-  console.error('❌ ERRO: VITE_APP_ENV tem de ser "staging" no ficheiro .env.staging');
-  process.exit(1);
-}
-
-async function main() {
-  console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║  MIGRAÇÃO FASE B — Estrutura Unificada de Produtos         ║');
-  console.log('║  Ambiente: STAGING                                         ║');
-  console.log('╚════════════════════════════════════════════════════════════╝');
-  console.log('');
-
-  try {
-    // Confirmar execução
-    console.log('⚠️  AVISO:');
-    console.log('   - Este script vai migrar TODOS os produtos para a nova estrutura');
-    console.log('   - Um backup automático será criado antes da migração');
-    console.log('   - A operação é reversível com rollback se necessário');
-    console.log('');
-
-    // TODO: Adicionar confirmação interativa
-    // const answer = await prompt('Deseja continuar? (sim/não): ');
-    // if (answer.toLowerCase() !== 'sim') {
-    //   console.log('❌ Migração cancelada');
-    //   process.exit(0);
-    // }
-
-    // Import dinâmico: o firebase.ts lê as variáveis ao ser carregado, por isso
-    // só pode ser importado depois de o dotenv ter preenchido process.env
-    const { executeMigrationPhaseB } = await import('../src/scripts/migrationPhaseB');
-
-    console.log('🚀 Iniciando migração...');
-    console.log('');
-
-    const report = await executeMigrationPhaseB();
-
-    console.log('');
-    console.log('╔════════════════════════════════════════════════════════════╗');
-    console.log('║  RELATÓRIO DE MIGRAÇÃO                                     ║');
-    console.log('╚════════════════════════════════════════════════════════════╝');
-    console.log('');
-    console.log(`Status: ${report.status === 'completed' ? '✅ SUCESSO' : '❌ FALHOU'}`);
-    console.log(`Timestamp: ${report.timestamp}`);
-    console.log(`Backup ID: ${report.backupId}`);
-    console.log('');
-    console.log('📊 Estatísticas:');
-    console.log(`   - Produtos processados: ${report.productsProcessed}`);
-    console.log(`   - Lojas processadas: ${report.storesProcessed}`);
-    console.log(`   - Stock entries migradas: ${report.stockEntriesMigrated}`);
-    console.log(`   - Duração: ${report.duration}ms`);
-    console.log('');
-
-    if (report.errors.length > 0) {
-      console.log('❌ Erros encontrados:');
-      report.errors.forEach(error => console.log(`   - ${error}`));
-      console.log('');
-    }
-
-    if (report.warnings.length > 0) {
-      console.log('⚠️  Avisos:');
-      report.warnings.forEach(warning => console.log(`   - ${warning}`));
-      console.log('');
-    }
-
-    if (report.status === 'completed') {
-      console.log('✅ Migração completada com sucesso!');
-      console.log('');
-      console.log('📋 Próximos passos:');
-      console.log('1. Validar dados em staging');
-      console.log('2. Testar fluxo de vendas completo');
-      console.log('3. Verificar relatórios e dashboards');
-      console.log('4. Obter aprovação para deploy em produção');
-      console.log('');
-
-      if (report.errors.length === 0) {
-        console.log('🎉 Pronto para produção!');
-      } else {
-        console.log('⚠️  Resolver erros antes de deploy em produção');
-      }
-    } else {
-      console.log('❌ Migração falhou. Verifique os erros acima.');
-      console.log('   Rollback está disponível com backup ID:', report.backupId);
-      process.exit(1);
-    }
-
-    process.exit(0);
-  } catch (error: any) {
-    console.error('❌ Erro durante migração:', error.message);
-    console.error('');
-    console.error('Detalhes:', error.stack);
-    process.exit(1);
+function validarProjeto(projectId: string | undefined): void {
+  if (projectId === PRODUCTION_PROJECT_ID) {
+    throw new Error(
+      `SEGURANÇA CRÍTICA: projeto de PRODUÇÃO (${PRODUCTION_PROJECT_ID}). ` +
+      `Este script trabalha SOMENTE com ${STAGING_PROJECT_ID}. Operação abortada.`
+    );
+  }
+  if (projectId !== STAGING_PROJECT_ID) {
+    throw new Error(`projectId deve ser '${STAGING_PROJECT_ID}', obtido '${projectId}'`);
   }
 }
 
-main();
+async function confirmar(): Promise<boolean> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const resposta = await rl.question(
+      `Escreva o ID do projeto (${STAGING_PROJECT_ID}) para confirmar: `
+    );
+    return resposta.trim() === STAGING_PROJECT_ID;
+  } finally {
+    rl.close();
+  }
+}
+
+async function main(): Promise<number> {
+  const args = process.argv.slice(2);
+  const dryRun = args.includes('--dry-run');
+  const semConfirmacao = args.includes('--sim');
+  const indiceRollback = args.indexOf('--rollback');
+  const backupIdRollback = indiceRollback >= 0 ? args[indiceRollback + 1] : undefined;
+
+  if (indiceRollback >= 0 && !backupIdRollback) {
+    console.error('❌ ERRO: --rollback exige o backupId (ex.: backup_2026-10-22T08:30:51.283Z)');
+    return 1;
+  }
+
+  // Validar projeto antes de qualquer acesso (variável de ambiente, se definida)
+  if (process.env.VITE_FIREBASE_PROJECT_ID) {
+    validarProjeto(process.env.VITE_FIREBASE_PROJECT_ID);
+  }
+  validarProjeto(STAGING_PROJECT_ID);
+
+  const app = initializeApp({
+    credential: applicationDefault(),
+    projectId: STAGING_PROJECT_ID,
+  });
+  validarProjeto(app.options.projectId);
+
+  const db = getFirestore(app);
+
+  console.log('╔════════════════════════════════════════════════════════════╗');
+  console.log(`║  ${backupIdRollback ? 'ROLLBACK' : 'MIGRAÇÃO'} FASE B — Estrutura Unificada de Produtos`.padEnd(61) + '║');
+  console.log(`║  Projeto: ${app.options.projectId}${dryRun ? ' (DRY-RUN)' : ''}`.padEnd(61) + '║');
+  console.log('╚════════════════════════════════════════════════════════════╝');
+  console.log('');
+
+  if (!dryRun && !semConfirmacao) {
+    console.log('⚠️  AVISO:');
+    console.log('   - Vai ser criado backup e escritas entradas em products/{id}/stock');
+    console.log('   - A estrutura antiga (stores/*/products) NÃO é alterada');
+    console.log('   - Stock já migrado NÃO é sobrescrito');
+    console.log('');
+    if (!(await confirmar())) {
+      console.log('❌ Cancelado (confirmação incorreta)');
+      return 0;
+    }
+  }
+
+  if (backupIdRollback) {
+    await rollbackMigration(db, backupIdRollback, { dryRun });
+    return 0;
+  }
+
+  const report = await executeMigrationPhaseB(db, { dryRun });
+  printMigrationReport(report);
+
+  if (report.status !== 'completed') {
+    console.log('❌ Migração falhou. Verifique os erros acima.');
+    console.log(`   Reverter com: npm run migrate:staging -- --rollback ${report.backupId}`);
+    return 1;
+  }
+
+  if (dryRun) {
+    console.log('✅ Simulação concluída. Nada foi escrito.');
+  } else {
+    console.log('✅ Migração concluída.');
+    console.log(`   Reverter, se necessário: npm run migrate:staging -- --rollback ${report.backupId}`);
+    console.log('');
+    console.log('📋 Próximos passos:');
+    console.log('1. Validar dados em staging (Firestore > products > {id} > stock)');
+    console.log('2. Testar fluxo de vendas completo');
+    console.log('3. Publicar regras para stock/backups (ver docs) antes de usar a app');
+  }
+
+  return 0;
+}
+
+// Erros de credenciais do gRPC chegam fora do try/catch: mostrar mensagem amigável
+process.on('uncaughtException', error => {
+  console.error('');
+  console.error('❌ Erro:', error.message);
+  if (error.message.includes('default credentials')) {
+    console.error('   Falta autenticação. Execute: gcloud auth application-default login');
+    console.error('   (ou defina GOOGLE_APPLICATION_CREDENTIALS com um service account de staging)');
+  }
+  process.exit(1);
+});
+
+main()
+  .then(code => process.exit(code))
+  .catch(error => {
+    console.error('❌ Erro durante a execução:', error.message);
+    process.exit(1);
+  });
