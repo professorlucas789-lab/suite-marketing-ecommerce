@@ -19,6 +19,7 @@
     "runtime": "nodejs18"
   },
   "firestore": {
-    "rules": "precocerto/firestore.rules"
+    "rules": "precocerto/firestore.rules",
+    "indexes": "precocerto/firestore.indexes.json"
   }
 }

@@ -124,6 +124,18 @@ o `backupId`.
    firebase deploy --only firestore:rules --project precocerto-staging
    ```
    Testar as regras localmente (emulador): `npm run test:rules`
+
+   **Índices compostos** (`firestore.indexes.json`): histórico de vendas
+   (`sales` por loja/produto/utilizador + data), `audit_logs` e `expiryAlerts`.
+   Sem eles, essas consultas falham com "The query requires an index".
+   ```powershell
+   firebase deploy --only firestore:indexes --project precocerto-staging --dry-run
+   firebase deploy --only firestore:indexes --project precocerto-staging
+   ```
+   Se o CLI avisar que existem índices no projeto que **não** estão no ficheiro e
+   perguntar se os quer apagar, responda **N** (não): foram criados à mão na
+   consola e podem estar em uso. A criação dos índices demora alguns minutos
+   (estado "A criar" na consola, em Firestore > Índices).
 4. Testar fluxo de vendas: venda com 1 e vários produtos, stock atualizado,
    anulação e reversão de stock
 5. Dashboard, histórico, KPIs e alertas de validade

@@ -80,13 +80,28 @@ export async function recordUnifiedSaleTransaction(
     let totalCost = 0;
     let totalProfit = 0;
 
-    // PASSO 1: Validar e ler todos os produtos DENTRO DA TRANSAÇÃO
-    const productData: Map<string, { product: any; currentStock: number; unitCost: number }> = new Map();
+    // PASSO 0: Validar quantidades (uma quantidade negativa aumentaria o stock)
+    for (const item of items) {
+      if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+        throw new Error(`Quantidade inválida para o produto ${item.productId}: ${item.quantity}`);
+      }
+    }
+
+    // PASSO 1: Ler cada produto e o seu stock UMA vez, DENTRO DA TRANSAÇÃO
+    // (o mesmo produto pode aparecer em várias linhas; todas as leituras têm de
+    // ficar antes de qualquer escrita)
+    const estado: Map<string, {
+      product: Product;
+      saldo: number;      // stock disponível, atualizado linha a linha
+      vendida: number;    // quantidadeVendida da loja, atualizada linha a linha
+      unitCost: number;
+    }> = new Map();
 
     for (const item of items) {
+      if (estado.has(item.productId)) continue;
+
       // Ler produto global
-      const productRef = doc(db, 'products', item.productId);
-      const productSnap = await txn.get(productRef);
+      const productSnap = await txn.get(doc(db, 'products', item.productId));
 
       if (!productSnap.exists()) {
         throw new Error(`Produto não encontrado: ${item.productId}`);
@@ -95,19 +110,8 @@ export async function recordUnifiedSaleTransaction(
       const product = { id: productSnap.id, ...productSnap.data() } as Product;
 
       // Ler stock da loja
-      const stockRef = doc(db, 'products', item.productId, 'stock', storeId);
-      const stockSnap = await txn.get(stockRef);
-
-      const currentStock = stockSnap.exists()
-        ? (stockSnap.data().quantidadeDisponível || 0)
-        : 0;
-
-      // VALIDAÇÃO: Stock suficiente?
-      if (currentStock < item.quantity) {
-        throw new Error(
-          `Stock insuficiente para "${product.nome}". Disponível: ${currentStock}, solicitado: ${item.quantity}.`
-        );
-      }
+      const stockSnap = await txn.get(doc(db, 'products', item.productId, 'stock', storeId));
+      const stockAtual = stockSnap.exists() ? stockSnap.data() : {};
 
       const unitCost = Number(
         product.custoRealUnidadeVenda ??
@@ -116,12 +120,33 @@ export async function recordUnifiedSaleTransaction(
         0
       );
 
-      productData.set(item.productId, { product, currentStock, unitCost });
+      estado.set(item.productId, {
+        product,
+        saldo: stockAtual.quantidadeDisponível || 0,
+        vendida: stockAtual.quantidadeVendida || 0,
+        unitCost,
+      });
     }
 
-    // PASSO 2: Actualizar stock e registar vendas ATOMICAMENTE
+    // VALIDAÇÃO: stock suficiente para a SOMA das linhas de cada produto?
+    const pedido = new Map<string, number>();
     for (const item of items) {
-      const { product, currentStock, unitCost } = productData.get(item.productId)!;
+      pedido.set(item.productId, (pedido.get(item.productId) || 0) + item.quantity);
+    }
+    for (const [productId, quantidadePedida] of pedido) {
+      const { product, saldo } = estado.get(productId)!;
+      if (saldo < quantidadePedida) {
+        throw new Error(
+          `Stock insuficiente para "${product.nome}". Disponível: ${saldo}, solicitado: ${quantidadePedida}.`
+        );
+      }
+    }
+
+    // PASSO 2: Registar vendas e movimentos linha a linha, com saldos encadeados
+    for (const item of items) {
+      const linha = estado.get(item.productId)!;
+      const { product, unitCost } = linha;
+      const currentStock = linha.saldo;
 
       const itemTotal = roundMoney(item.unitPrice * item.quantity);
       const itemCost = roundMoney(unitCost * item.quantity);
@@ -129,14 +154,9 @@ export async function recordUnifiedSaleTransaction(
       const itemMargin = itemTotal > 0 ? roundMoney((itemProfit / itemTotal) * 100) : 0;
       const newStock = currentStock - item.quantity;
 
-      // Actualizar stock da loja
-      const stockRef = doc(db, 'products', item.productId, 'stock', storeId);
-      txn.update(stockRef, {
-        quantidadeDisponível: newStock,
-        quantidadeVendida: (product.quantidadeVendida || 0) + item.quantity,
-        lastUpdated: timestamp,
-        lastMovementAt: timestamp,
-      });
+      // Saldos desta linha (a próxima linha do mesmo produto parte daqui)
+      linha.saldo = newStock;
+      linha.vendida += item.quantity;
 
       // Registar venda individual
       const saleRef = doc(collection(db, 'sales'));
@@ -205,6 +225,16 @@ export async function recordUnifiedSaleTransaction(
       totalPrice += itemTotal;
       totalCost += itemCost;
       totalProfit += itemProfit;
+    }
+
+    // PASSO 3: Um único update de stock por produto, com o saldo final
+    for (const [productId, { saldo, vendida }] of estado) {
+      txn.update(doc(db, 'products', productId, 'stock', storeId), {
+        quantidadeDisponível: saldo,
+        quantidadeVendida: vendida,
+        lastUpdated: timestamp,
+        lastMovementAt: timestamp,
+      });
     }
 
     const profitMargin = totalPrice > 0 ? roundMoney((totalProfit / totalPrice) * 100) : 0;
