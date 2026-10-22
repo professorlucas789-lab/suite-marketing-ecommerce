@@ -70,7 +70,8 @@ A migração usa o **Firebase Admin SDK** (ignora as Security Rules). Não usa o
 ### Passo 1: (só se staging estiver vazio) criar dados de teste
 O Firestore de staging só tem `users`; a migração não teria nada para migrar.
 ```bash
-npm run seed:staging             # cria 2 lojas, 3 produtos (cada um com a sua loja) e 4 entradas de stock (IDs fasebseed_*)
+npm run seed:staging             # cria 2 lojas, 4 produtos (cada um com a sua loja) e 4 entradas em stores/{loja}/products;
+                                 # 1 produto tem o stock só no documento, como em produção (IDs fasebseed_*)
 npm run seed:staging -- --limpar # remove os dados de teste (e stock/backups deles)
 ```
 
@@ -121,10 +122,21 @@ de `products` (que hoje expõem custos só à loja proprietária) e rever este m
 - Escrita em lotes de 400 (limite do Firestore: 500)
 
 ### 2️⃣ Migração de dados
-Para cada loja e cada produto da loja:
-- Lê o stock em `stores/{storeId}/products/{id}`
-- Escreve `products/{id}/stock/{storeId}` (com `migrationBackupId`)
-- **Não altera nem apaga a estrutura antiga**
+Para cada produto, na sua **loja proprietária** (`Product.storeId`), o stock vem de:
+1. **`stores/{storeId}/products/{id}`**, se existir (tem prioridade); ou
+2. **o próprio documento do produto**, com a mesma regra da app antiga:
+   disponível = `quantidadeDisponivel ?? quantidade ?? 0`, vendido = `quantidadeVendida`.
+
+Em **produção** (auditoria de 22/10/2026: 52 produtos) todo o stock está no
+documento do produto e não há nada em `stores/*/products`, por isso é a origem 2
+que migra tudo.
+
+- Escreve `products/{id}/stock/{storeId}` (com `migrationBackupId` e `migratedFrom`)
+- Produto sem entrada nenhuma de stock fica com uma entrada a **0** (para poder
+  receber stock no modelo novo)
+- Valores negativos ou inválidos viram 0, com aviso
+- Produtos **sem `storeId`** não migram stock (avisa)
+- **Não altera nem apaga** o documento do produto nem a estrutura antiga
 - **Não sobrescreve** stock já existente (avisa se a quantidade difere)
 
 ### 3️⃣ Validação

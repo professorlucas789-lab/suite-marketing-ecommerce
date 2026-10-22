@@ -123,9 +123,11 @@
 - [ ] Duas lojas em simultâneo
 
 ### 7️⃣ Antes de produção (bloqueantes)
-- [ ] **Auditar o modelo de dados real** (`node scripts/audit-products-storeid.mjs`, **só leitura**, aponta sempre a **produção** `precocerto-cc04a`; precisa de credenciais com leitura nesse projeto). A migração assume stock em `stores/{id}/products`, mas o código da app lê `product.quantidadeDisponivel` do **documento do produto** (ex.: Dashboard). Se em produção o stock estiver só no documento do produto, a migração atual **não o leva** e esses produtos ficariam com stock 0 no modelo novo
-  - O auditor foi corrigido a 22/10/2026: `docSnap.exists()` → `docSnap.exists` (propriedade no Admin SDK; com o bug, todos os produtos saíam "órfãos" e todos os utilizadores "não encontrados"), caminho do JSON portável (`os.tmpdir()`) e novo bloco **"LOCALIZAÇÃO DO STOCK"** (produtos com stock no próprio documento, documentos em `stores/*/products`, stock fora da loja proprietária e **produtos com stock no documento sem entrada na loja**). Validado contra o emulador com dados de teste
-  - Se "produtos com stock no documento e SEM entrada na loja proprietária" for > 0, é preciso estender a migração para criar `products/{id}/stock/{loja}` a partir do documento do produto
+- [x] **Modelo de dados real auditado** (22/10/2026, `node scripts/audit-products-storeid.mjs`, só leitura sobre `precocerto-cc04a`): **52 produtos**, todos com `storeId` e `userId` válidos; **0** documentos em `stores/*/products`; **52** produtos com o stock só no documento (`quantidadeDisponivel`). Conclusão: a migração anterior migraria **0** entradas e os 52 produtos ficariam com stock 0
+  - O auditor foi corrigido (`docSnap.exists()` → `docSnap.exists`; com o bug, todos saíam "órfãos") e passou a mostrar a "LOCALIZAÇÃO DO STOCK"
+- [x] **Migração estendida** (22/10/2026): passa a criar `products/{id}/stock/{lojaProprietária}` a partir do documento do produto com a regra da app antiga (`quantidadeDisponivel ?? quantidade ?? 0`; vendido = `quantidadeVendida`); `stores/{loja}/products` tem prioridade se existir; negativos/inválidos → 0 com aviso; sem `storeId` → avisa e não migra. 8 testes novos (7 falham com a migração antiga) e cadeia completa validada com o Admin SDK real no emulador (seed → dry-run → migração → repetição)
+- [ ] **Refazer o teste em staging com o seed novo** (tem um produto com stock só no documento): `seed:staging -- --limpar`, `seed:staging`, `migrate:staging -- --dry-run`. Esperado: **5 entradas a migrar** (4 + 1 do documento), 1 fora da loja proprietária, 1 criada a partir do documento do produto, 1 aviso
+- [ ] **Bloqueante de produção — leituras de stock no documento do produto:** depois da FASE B, vendas e stock atualizam só `products/{id}/stock/{loja}`, mas vários ecrãs ainda leem o stock do documento do produto (`Dashboard.tsx`, `ProductDetailsModal.tsx`, `HealthCheckPanel.tsx`, e a lista de produtos via `useStoreData`) e mostrariam um stock **desatualizado** depois de uma venda. Ligar esses ecrãs ao stock por loja (ou manter o campo do documento sincronizado) antes de migrar produção
 - [x] **Modelo de produtos decidido e imposto** (22/10/2026): um produto pertence a uma loja (`Product.storeId`) e o stock vive nessa loja. Regra de stock exige produto da mesma loja (`getAfter`); `createUnifiedProduct` e `recordUnifiedSaleTransaction` recusam produtos de outra loja; a migração avisa de stock fora da loja proprietária e de produtos sem `storeId`. **Partilha de produtos entre lojas** fica como decisão futura (exigiria mudar as regras de leitura)
 - [x] **Regras com a regra de propriedade publicadas em staging** a 22/10/2026 (workflow `deploy-rules`, run #19, commit `0a24065`): projeto validado como `precocerto-staging`, passo de deploy com sucesso
 - [x] Seed refeito com dados coerentes (22/10/2026): `seed:staging -- --limpar` removeu 44 documentos (stock antigo e backups incluídos) e `seed:staging` criou 2 lojas, 3 produtos e 4 entradas de stock
@@ -183,7 +185,7 @@
 - [ ] Validação pós-migração confirmada na consola
 - [ ] Regras e índices publicados em staging
 - [ ] Fluxo de vendas e anulação testado na app em staging
-- [ ] Modelo de dados real auditado
+- [x] Modelo de dados real auditado (52 produtos, todo o stock no documento do produto; migração estendida)
 - [ ] Code review aprovado
 
 ---

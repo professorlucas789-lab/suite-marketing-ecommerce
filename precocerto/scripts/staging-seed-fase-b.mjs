@@ -5,7 +5,8 @@
  *
  * Cria, no formato anterior à migração:
  * - stores/{storeId}                      (2 lojas)
- * - products/{productId}                  (3 produtos, cada um com a sua loja proprietária)
+ * - products/{productId}                  (4 produtos, cada um com a sua loja proprietária;
+ *                                           1 deles com o stock só no documento, como em produção)
  * - stores/{storeId}/products/{productId} (stock por loja, 4 entradas: 3 na loja
  *                                           proprietária + 1 caso de teste fora dela)
  *
@@ -45,6 +46,12 @@ const PRODUTOS = [
   { id: `${PREFIXO}prod_001`, nome: 'Paracetamol 500mg', categoria: 'Medicamentos', preco: 2.5, lojaIdx: 0 },
   { id: `${PREFIXO}prod_002`, nome: 'Ibuprofeno 400mg', categoria: 'Medicamentos', preco: 3.0, lojaIdx: 0 },
   { id: `${PREFIXO}prod_003`, nome: 'Vitamina C', categoria: 'Suplementos', preco: 4.5, lojaIdx: 1 },
+  // Como em PRODUÇÃO: stock só no documento do produto (quantidadeDisponivel), sem
+  // entrada em stores/{loja}/products. A migração cria o stock a partir daqui.
+  {
+    id: `${PREFIXO}prod_004`, nome: 'Dipirona 500mg', categoria: 'Medicamentos', preco: 1.8, lojaIdx: 0,
+    stockNoDocumento: { quantidadeDisponivel: 40, quantidadeVendida: 7 },
+  },
 ];
 
 // [loja, produto, quantidadeDisponível, quantidadeVendida]
@@ -115,6 +122,7 @@ async function criar(db) {
       preco: produto.preco,
       storeId: LOJAS[produto.lojaIdx].id,
       userId: UTILIZADOR_SEED,
+      ...(produto.stockNoDocumento ?? {}),
       createdAt: agora,
       updatedAt: agora,
     });
@@ -134,7 +142,11 @@ async function criar(db) {
 
   await batch.commit();
 
-  log(`Criadas ${LOJAS.length} lojas, ${PRODUTOS.length} produtos e ${STOCKS.length} entradas de stock.`);
+  const soNoDocumento = PRODUTOS.filter(p => p.stockNoDocumento).length;
+  log(
+    `Criadas ${LOJAS.length} lojas, ${PRODUTOS.length} produtos e ${STOCKS.length} entradas de stock ` +
+    `em stores/{loja}/products (${soNoDocumento} produto com stock só no documento).`
+  );
 }
 
 async function apagarSubcolecao(db, caminho) {

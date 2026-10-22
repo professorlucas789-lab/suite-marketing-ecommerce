@@ -249,6 +249,131 @@ describe('migrationPhaseB (Admin SDK)', () => {
     expect(avisos[0]).toMatch(/p3/);
   });
 
+  describe('stock guardado no documento do produto (modelo antigo)', () => {
+    it('cria o stock na loja proprietária a partir do documento do produto', async () => {
+      const fs = criarCenario();
+      fs.semear('products/pr1', { nome: 'Só no documento', storeId: 's1', quantidadeDisponivel: 12, quantidadeVendida: 4 });
+
+      const report = await executeMigrationPhaseB(comoDb(fs));
+
+      expect(fs.dados.get('products/pr1/stock/s1')).toMatchObject({
+        storeId: 's1',
+        quantidadeDisponível: 12,
+        quantidadeVendida: 4,
+        migratedFrom: 'products/pr1',
+        migrationBackupId: report.backupId,
+      });
+      expect(report.stockEntriesFromProductDocument).toBe(1);
+      expect(report.stockEntriesMigrated).toBe(4); // 3 de stores/*/products + 1 do documento
+      expect(report.crossStoreStockEntries).toBe(1); // o caso de stores/s2/products/p1 do cenário
+    });
+
+    it('usa a mesma regra da app antiga: quantidadeDisponivel ?? quantidade ?? 0', async () => {
+      const fs = new FirestoreFalso();
+      fs.semear('stores/s1', {});
+      fs.semear('products/a', { storeId: 's1', quantidade: 30 }); // só quantidade
+      fs.semear('products/b', { storeId: 's1', quantidadeDisponivel: 0, quantidade: 30 }); // 0 é um valor válido
+      fs.semear('products/c', { storeId: 's1', quantidadeDisponível: 7 }); // variante com acento
+      fs.semear('products/d', { storeId: 's1', nome: 'sem campos de stock' });
+
+      await executeMigrationPhaseB(comoDb(fs));
+
+      expect(fs.dados.get('products/a/stock/s1')).toMatchObject({ quantidadeDisponível: 30, quantidadeVendida: 0 });
+      expect(fs.dados.get('products/b/stock/s1')).toMatchObject({ quantidadeDisponível: 0 });
+      expect(fs.dados.get('products/c/stock/s1')).toMatchObject({ quantidadeDisponível: 7 });
+      // Sem campos de stock: entrada a 0, para o produto poder receber stock no modelo novo
+      expect(fs.dados.get('products/d/stock/s1')).toMatchObject({ quantidadeDisponível: 0, quantidadeVendida: 0 });
+    });
+
+    it('a entrada em stores/{loja}/products tem prioridade sobre o documento do produto', async () => {
+      const fs = criarCenario();
+      fs.semear('products/p1', { nome: 'Paracetamol', storeId: 's1', quantidadeDisponivel: 999, quantidadeVendida: 999 });
+
+      const report = await executeMigrationPhaseB(comoDb(fs));
+
+      expect(fs.dados.get('products/p1/stock/s1')).toMatchObject({ quantidadeDisponível: 50, quantidadeVendida: 10 });
+      expect(report.stockEntriesFromProductDocument).toBe(0);
+    });
+
+    it('produto sem storeId não migra stock e fica avisado', async () => {
+      const fs = criarCenario();
+      fs.semear('products/sl', { nome: 'Sem loja', quantidadeDisponivel: 9 });
+
+      const report = await executeMigrationPhaseB(comoDb(fs));
+
+      expect([...fs.dados.keys()].some(k => k.startsWith('products/sl/stock/'))).toBe(false);
+      expect(report.warnings.some(w => w.includes('sem storeId') && w.includes('sl'))).toBe(true);
+    });
+
+    it('valores negativos ou inválidos viram 0 com aviso', async () => {
+      const fs = new FirestoreFalso();
+      fs.semear('stores/s1', {});
+      fs.semear('products/neg', { storeId: 's1', quantidadeDisponivel: -5 });
+      fs.semear('products/txt', { storeId: 's1', quantidadeDisponivel: 'abc' });
+      fs.semear('products/str', { storeId: 's1', quantidadeDisponivel: '15' }); // número em texto: válido
+
+      const report = await executeMigrationPhaseB(comoDb(fs));
+
+      expect(fs.dados.get('products/neg/stock/s1')).toMatchObject({ quantidadeDisponível: 0 });
+      expect(fs.dados.get('products/txt/stock/s1')).toMatchObject({ quantidadeDisponível: 0 });
+      expect(fs.dados.get('products/str/stock/s1')).toMatchObject({ quantidadeDisponível: 15 });
+      expect(report.warnings.some(w => w.includes('neg') && w.includes('negativo'))).toBe(true);
+      expect(report.warnings.some(w => w.includes('txt') && w.includes('inválido'))).toBe(true);
+      expect(report.warnings.some(w => w.includes('str'))).toBe(false);
+    });
+
+    it('não altera o documento do produto, é idempotente e o rollback remove só o stock criado', async () => {
+      const fs = new FirestoreFalso();
+      fs.semear('stores/s1', {});
+      fs.semear('products/p', { storeId: 's1', quantidadeDisponivel: 8, quantidadeVendida: 2 });
+      const antes = JSON.stringify(fs.dados.get('products/p'));
+
+      const primeira = await executeMigrationPhaseB(comoDb(fs));
+      expect(JSON.stringify(fs.dados.get('products/p'))).toBe(antes);
+
+      const segunda = await executeMigrationPhaseB(comoDb(fs));
+      expect(segunda.stockEntriesMigrated).toBe(0);
+      expect(segunda.stockEntriesSkipped).toBe(1);
+      expect(segunda.stockEntriesFromProductDocument).toBe(0);
+
+      const resultado = await rollbackMigration(comoDb(fs), primeira.backupId);
+      expect(resultado.stockRemoved).toBe(1);
+      expect(fs.dados.has('products/p/stock/s1')).toBe(false);
+      expect(JSON.stringify(fs.dados.get('products/p'))).toBe(antes);
+    });
+
+    it('dry-run calcula as entradas do documento sem escrever', async () => {
+      const fs = new FirestoreFalso();
+      fs.semear('stores/s1', {});
+      fs.semear('products/p', { storeId: 's1', quantidadeDisponivel: 8 });
+      const tamanho = fs.dados.size;
+
+      const report = await executeMigrationPhaseB(comoDb(fs), { dryRun: true });
+
+      expect(report.stockEntriesFromProductDocument).toBe(1);
+      expect(fs.dados.size).toBe(tamanho);
+    });
+
+    it('cenário de produção: vários produtos só com stock no documento e nenhuma subcoleção', async () => {
+      const fs = new FirestoreFalso();
+      fs.semear('stores/s1', {});
+      fs.semear('stores/s2', {});
+      for (let i = 0; i < 52; i++) {
+        fs.semear(`products/prod${i}`, { storeId: i % 2 === 0 ? 's1' : 's2', userId: 'u', quantidadeDisponivel: i, quantidadeVendida: i * 2 });
+      }
+
+      const report = await executeMigrationPhaseB(comoDb(fs));
+
+      expect(report.status).toBe('completed');
+      expect(report.stockEntriesMigrated).toBe(52);
+      expect(report.stockEntriesFromProductDocument).toBe(52);
+      expect(report.crossStoreStockEntries).toBe(0);
+      expect(fs.dados.get('products/prod10/stock/s1')).toMatchObject({ quantidadeDisponível: 10, quantidadeVendida: 20 });
+      expect(fs.dados.get('products/prod11/stock/s2')).toMatchObject({ quantidadeDisponível: 11, quantidadeVendida: 22 });
+      expect(report.warnings).toEqual([]);
+    });
+  });
+
   it('segunda execução não duplica nem sobrescreve (idempotente)', async () => {
     const fs = criarCenario();
     await executeMigrationPhaseB(comoDb(fs));

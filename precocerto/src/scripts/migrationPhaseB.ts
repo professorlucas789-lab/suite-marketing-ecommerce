@@ -3,9 +3,9 @@
  *
  * Migra de estrutura fragmentada para unificada:
  *
- * ANTES:
- *   products/{id}
- *   stores/{storeId}/products/{id}   (stock por loja)
+ * ANTES (duas origens possíveis para o stock):
+ *   products/{id}                    (stock no próprio documento: quantidadeDisponivel)
+ *   stores/{storeId}/products/{id}   (stock por loja, painéis de gestão de stock)
  *
  * DEPOIS:
  *   products/{id}/
@@ -17,6 +17,12 @@
  *   cobrem os caminhos novos (stock) nem as coleções de backup;
  * - a migração lê coleções inteiras (sem filtro por storeId), o que as regras
  *   multi-tenant rejeitam para qualquer utilizador de cliente.
+ *
+ * ORIGEM DO STOCK (por produto, na loja proprietária Product.storeId):
+ *   1. stores/{loja}/products/{id}, se existir (tem prioridade);
+ *   2. senão, o documento do produto, com a MESMA regra da app antiga:
+ *      disponível = quantidadeDisponivel ?? quantidade ?? 0, vendido = quantidadeVendida.
+ *   Produtos sem storeId não migram stock (avisa): não se sabe a que loja pertencem.
  *
  * SEGURANÇA:
  * - Backup automático antes de qualquer escrita (products_backup e
@@ -55,6 +61,8 @@ export interface MigrationReport {
   stockEntriesSkipped: number;
   /** Entradas de stock numa loja que NÃO é a proprietária do produto (ilegíveis para essa loja) */
   crossStoreStockEntries: number;
+  /** Entradas de stock criadas a partir do próprio documento do produto (não de stores/{loja}/products) */
+  stockEntriesFromProductDocument: number;
   errors: string[];
   warnings: string[];
   duration: number;
@@ -77,6 +85,8 @@ interface StockPlaneado {
   productId: string;
   storeId: string;
   dados: Record<string, unknown>;
+  /** true quando o stock vem do documento do produto e não de stores/{loja}/products */
+  deDocumentoProduto?: boolean;
 }
 
 /**
@@ -89,6 +99,26 @@ function removerMetaBackup(dados: Record<string, unknown>): Record<string, unkno
   return Object.fromEntries(
     Object.entries(dados).filter(([chave]) => !CAMPOS_META_BACKUP.includes(chave))
   );
+}
+
+/**
+ * Lê uma quantidade de stock de um documento legado. Valores em falta valem 0;
+ * valores inválidos ou negativos também (com aviso): as regras do Firestore
+ * rejeitam stock negativo em qualquer escrita posterior do cliente.
+ */
+function lerQuantidade(valor: unknown, rotulo: string, avisos: string[]): number {
+  if (valor === undefined || valor === null) return 0;
+
+  const numero = Number(valor);
+  if (!Number.isFinite(numero)) {
+    avisos.push(`${rotulo}: valor de stock inválido (${String(valor)}); usado 0`);
+    return 0;
+  }
+  if (numero < 0) {
+    avisos.push(`${rotulo}: stock negativo (${numero}); usado 0`);
+    return 0;
+  }
+  return numero;
 }
 
 function dividir<T>(itens: T[], tamanho: number): T[][] {
@@ -167,6 +197,7 @@ export async function executeMigrationPhaseB(
     stockEntriesMigrated: 0,
     stockEntriesSkipped: 0,
     crossStoreStockEntries: 0,
+    stockEntriesFromProductDocument: 0,
     errors: [],
     warnings: [],
     duration: 0,
@@ -193,8 +224,10 @@ export async function executeMigrationPhaseB(
     const produtosGlobais = new Set<string>();
     // Loja proprietária de cada produto (Product.storeId); undefined se não tiver
     const proprietarios = new Map<string, string | undefined>();
+    const dadosProdutos = new Map<string, Record<string, unknown>>();
     for (const productDoc of productsSnapshot.docs) {
       produtosGlobais.add(productDoc.id);
+      dadosProdutos.set(productDoc.id, productDoc.data());
       const proprietario = productDoc.data().storeId;
       proprietarios.set(productDoc.id, typeof proprietario === 'string' && proprietario ? proprietario : undefined);
       report.productsProcessed++;
@@ -260,6 +293,43 @@ export async function executeMigrationPhaseB(
       }
     }
 
+    // STEP 4b: stock guardado no próprio documento do produto (modelo antigo)
+    console.log('📋 Passo 4b: Stock guardado no documento do produto...');
+    const jaPlaneado = new Set(planeado.map(p => `${p.productId}/${p.storeId}`));
+    let doDocumento = 0;
+
+    for (const [productId, dadosProduto] of dadosProdutos) {
+      const proprietario = proprietarios.get(productId);
+      if (!proprietario) continue; // sem loja proprietária: avisado mais abaixo
+
+      // A entrada em stores/{loja}/products tem prioridade sobre o documento do produto
+      if (jaPlaneado.has(`${productId}/${proprietario}`)) continue;
+
+      const disponivel = lerQuantidade(
+        dadosProduto.quantidadeDisponivel ?? dadosProduto.quantidadeDisponível ?? dadosProduto.quantidade,
+        `Produto ${productId}`,
+        report.warnings
+      );
+      const vendida = lerQuantidade(dadosProduto.quantidadeVendida, `Produto ${productId} (vendido)`, report.warnings);
+
+      planeado.push({
+        ref: db.doc(`products/${productId}/stock/${proprietario}`),
+        productId,
+        storeId: proprietario,
+        deDocumentoProduto: true,
+        dados: {
+          storeId: proprietario,
+          quantidadeDisponível: disponivel,
+          quantidadeVendida: vendida,
+          lastUpdated: new Date().toISOString(),
+          migratedFrom: `products/${productId}`,
+          migrationBackupId: backupId,
+        },
+      });
+      doDocumento++;
+    }
+    console.log(`  ✓ ${doDocumento} produtos com stock só no documento (loja proprietária)`);
+
     const semProprietario = [...proprietarios.entries()].filter(([, loja]) => !loja).map(([id]) => id);
     if (semProprietario.length > 0) {
       const amostra = semProprietario.slice(0, 10).join(', ');
@@ -292,6 +362,7 @@ export async function executeMigrationPhaseB(
 
     await escreverEmLotes(db, novos, dryRun);
     report.stockEntriesMigrated = novos.length;
+    report.stockEntriesFromProductDocument = novos.filter(n => n.deDocumentoProduto).length;
     console.log(
       `  ✓ ${novos.length} entradas ${dryRun ? 'a migrar (dry-run)' : 'migradas'}, ` +
       `${report.stockEntriesSkipped} já existiam`
@@ -506,7 +577,8 @@ export function printMigrationReport(report: MigrationReport): void {
     - Lojas processadas: ${report.storesProcessed}
     - Entradas de stock migradas: ${report.stockEntriesMigrated}
     - Entradas de stock já existentes (mantidas): ${report.stockEntriesSkipped}
-    - Entradas de stock fora da loja proprietária: ${report.crossStoreStockEntries}`);
+    - Entradas de stock fora da loja proprietária: ${report.crossStoreStockEntries}
+    - Entradas de stock criadas a partir do documento do produto: ${report.stockEntriesFromProductDocument}`);
 
   if (report.errors.length > 0) {
     console.log(`\n❌ Erros (${report.errors.length}):`);
