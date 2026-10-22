@@ -459,7 +459,7 @@ export async function rollbackMigration(
     `${resultado.storeProductsRestored} produtos de loja`
   );
 
-  console.log('✅ Rollback concluído');
+  console.log(dryRun ? '✅ Rollback simulado (nada foi alterado)' : '✅ Rollback concluído');
   return resultado;
 }
 

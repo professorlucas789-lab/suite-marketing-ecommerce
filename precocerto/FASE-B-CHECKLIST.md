@@ -1,7 +1,7 @@
 # ✅ FASE B — CHECKLIST DE IMPLEMENTAÇÃO
 
 **Iniciado**: 9 de outubro de 2026  
-**Última atualização**: 22 de outubro de 2026 (idempotência confirmada em staging)  
+**Última atualização**: 22 de outubro de 2026 (idempotência e rollback em simulação confirmados em staging)  
 **Estado**: 🔄 MIGRAÇÃO VALIDADA EM STAGING (dados de teste) — falta publicar regras/índices, testar a app e auditar os dados reais
 
 ---
@@ -103,7 +103,7 @@
 - [ ] Confirmar na consola: `products/fasebseed_prod_001/stock` com 2 documentos; `products_backup` (3) e `stores_products_backup` (6)
 - [x] Repetir `npm run migrate:staging -- --sim` (22/10/2026) — `completed`, **0 migradas, 6 já existentes**, 0 erros, 0 avisos: confirma que não sobrescreve
   - Criou um 2.º backup (`backup_2026-10-22T12:04:44.558Z`). Cada execução faz backup, mesmo sem nada a migrar. **Para reverter usar o 1.º backup**: o stock leva o ID do backup que o criou, por isso o rollback do 2.º removeria 0 entradas
-- [ ] `npm run migrate:staging -- --rollback <backupId> --dry-run` → esperado: 6 entradas a remover
+- [x] `npm run migrate:staging -- --rollback backup_2026-10-22T11:14:14.170Z --dry-run` (22/10/2026) — **6 entradas de stock a remover, 0 produtos e 0 produtos de loja a repor**, como esperado. Rollback **real** ainda não executado em staging
 
 ### 5️⃣ Publicar em staging (sempre com `--project precocerto-staging`)
 > ⚠️ O `.firebaserc` aponta por defeito para **produção** (`precocerto-cc04a`).
@@ -124,7 +124,7 @@
 - [ ] **Decidir o modelo de produtos**: as regras só deixam uma loja ler produtos de que é proprietária; um produto com stock noutra loja fica ilegível para essa loja
 - [ ] Regras em falta para caminhos que a app usa: `audit_logs`, `stores/{id}/expiryAlerts`, `stores/{id}/products` (hoje caem no `deny` final)
 - [ ] Code review aprovado
-- [ ] Plano de rollback testado em staging
+- [ ] Plano de rollback testado em staging (simulação feita; falta executar o rollback real e repetir a migração)
 - [ ] Backup do Firestore de produção feito antes de migrar
 - [ ] Monitorização ativa
 
