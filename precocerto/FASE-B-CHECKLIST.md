@@ -1,224 +1,178 @@
 # ✅ FASE B — CHECKLIST DE IMPLEMENTAÇÃO
 
 **Iniciado**: 9 de outubro de 2026  
-**Status**: 🔄 EM IMPLEMENTAÇÃO  
+**Última atualização**: 22 de outubro de 2026  
+**Estado**: 🔄 MIGRAÇÃO VALIDADA EM STAGING (dados de teste) — falta publicar regras/índices, testar a app e auditar os dados reais
 
 ---
 
-## 📦 ARTEFATOS CRIADOS
+## 📌 RESUMO DO ESTADO
+
+| Área | Estado |
+|------|--------|
+| Serviços unificados (produtos e vendas) | ✅ Implementados e testados contra o emulador do Firestore |
+| Migração (Admin SDK, dry-run, rollback real) | ✅ Reescrita e testada |
+| Migração em **staging** (dados de seed) | ✅ Executada a 22/10/2026 (6 entradas de stock, 0 erros, 0 avisos) |
+| Regras do Firestore (stock, movimentos, vendas) | ✅ Escritas e testadas · ⏳ **por publicar** em staging |
+| Índices compostos (`firestore.indexes.json`) | ✅ Escritos · ⏳ **por publicar** em staging |
+| Teste funcional da app em staging | ⏳ Pendente (depende das regras e índices) |
+| Auditoria do modelo de dados **real** (produção) | ⏳ Pendente — bloqueia a produção |
+| Produção | ⛔ Não iniciar antes dos pontos acima |
+
+---
+
+## 📦 ARTEFACTOS
 
 ### Serviços
+- [x] `src/services/unifiedProductService.ts`
+  - [x] Criar produto com stock da loja (batch atómico)
+  - [x] Obter produto/produtos com stock por loja (`getUnifiedProductsForStore` filtra por `storeId`)
+  - [x] Atualizar dados globais e stock
+  - [x] Registar e consultar movimentos de stock
+  - [x] Arquivar stock (`stock_archive`)
+- [x] `src/services/unifiedSalesService.ts`
+  - [x] Venda em transação: cada produto lido uma vez, soma das linhas validada contra o stock, saldos encadeados, um único update de stock por produto
+  - [x] Rejeita quantidades inválidas (zero, negativas, `NaN`)
+  - [x] `quantidadeVendida` acumula sobre o stock da loja
+  - [x] `cancelUnifiedSale(storeId, receiptNumber, cancelledBy)`: leituras antes das escritas, estado relido na transação (anulações simultâneas só repõem o stock uma vez)
+  - [x] Histórico de vendas por loja
 
-- [x] `src/services/unifiedProductService.ts` ✅
-  - [x] Criar produtos com isolamento por loja
-  - [x] Obter produtos com stock
-  - [x] Actualizar dados globais
-  - [x] Actualizar stock por loja
-  - [x] Validar stock disponível
-  - [x] Registar movimentos
-  - [x] Histórico de movimentos
+### Migração e dados de teste
+- [x] `src/scripts/migrationPhaseB.ts` (Firebase **Admin SDK**)
+  - [x] Backup em lotes de 400 com campo `backupId`
+  - [x] Não sobrescreve stock já migrado (avisa se a quantidade difere)
+  - [x] Modo `--dry-run`
+  - [x] Rollback real (`--rollback <backupId>`): remove o stock dessa migração e repõe do backup só o que já não existe
+  - [x] Validação e relatório
+- [x] `scripts/run-migration-staging.ts` — só aceita `precocerto-staging`, pede confirmação
+- [x] `scripts/staging-seed-fase-b.mjs` — dados de teste (`fasebseed_*`), com `--limpar`
+- [x] `scripts/run-migration-demo.ts` — simulação sem Firebase
 
-- [x] `src/services/unifiedSalesService.ts` ✅
-  - [x] Registar venda com TRANSAÇÃO (sem race conditions)
-  - [x] Isolamento automático por storeId
-  - [x] Histórico de vendas
-  - [x] Anulação com reversão de stock
-  - [x] Validação de integridade pós-migração
-
-### Scripts de Migração
-
-- [x] `src/scripts/migrationPhaseB.ts` ✅
-  - [x] Backup automático (products_backup, stores_products_backup)
-  - [x] Migração dados fragmentados → unificado
-  - [x] Validação de integridade
-  - [x] Reversão (rollback) se falhar
-  - [x] Relatório detalhado
-
-### Testes
-
-- [x] `src/services/__tests__/unifiedProductService.test.ts` ✅
-  - [x] Criação de produtos
-  - [x] Isolamento por loja
-  - [x] Validação de stock
-  - [x] Histórico de movimentos
-
-- [x] `src/services/__tests__/unifiedSalesService.test.ts` ✅
-  - [x] Transações de venda
-  - [x] Cálculo de margens
-  - [x] Validação de stock
-  - [x] Prevenção de race conditions
-  - [x] Anulação de vendas
-  - [x] Múltiplos itens
+### Regras e índices
+- [x] `firestore.rules`: `products/{id}/stock/{storeId}`, `movements` e `stock_archive` (imutáveis), `sales` (coleção raiz), backups negados a clientes
+- [x] `firestore.indexes.json`: `sales` (4 combinações), `audit_logs`, `expiryAlerts`
 
 ### Documentação
-
-- [x] `docs/FASE-B-NORMALIZACAO-PRODUTOS.md` ✅
-  - [x] Explicação da solução
-  - [x] Estrutura de dados nova
-  - [x] Guia de uso (exemplos)
-  - [x] Prevenção de race conditions
-  - [x] Script de migração
-  - [x] Testes
-  - [x] Firestore Rules
-  - [x] Riscos e mitigação
-  - [x] Próximas fases
+- [x] `docs/FASE-B-NORMALIZACAO-PRODUTOS.md` (desenho técnico)
+- [x] `docs/MIGRATION-FASE-B.md` (guia de execução, rollback e deploy de regras/índices)
 
 ---
 
-## 🔄 PRÓXIMAS ETAPAS (Requer Autorização)
+## 🧪 TESTES (estado real)
 
-### 1️⃣ Atualizar App.tsx ✅ COMPLETO
-- [x] Remover imports do `stockService` (antigo) - N/A (não importado diretamente)
-- [x] Remover imports do `salesService` (antigo) - N/A (não importado diretamente)
-- [x] Adicionar imports de `unifiedProductService`
-- [x] Adicionar imports de `unifiedSalesService`
-- [x] Actualizar CRUD de produtos (handleSaveProduct, handleDeleteProduct, handleDuplicateProduct, handleSaveBatchProducts)
-- [x] Actualizar módulo de vendas (através de useSalesTransaction)
+| Conjunto | Resultado | Como correr |
+|----------|-----------|-------------|
+| Suite normal (sem emulador) | 1266 passam · 2 ficheiros falham (já falhavam antes da FASE B) | `npm test` |
+| Com emulador do Firestore | 183 passam | `npm run test:rules` |
 
-### 2️⃣ Atualizar Componentes
-- [x] useSalesTransaction.ts → usar recordUnifiedSaleTransaction
-- [ ] ProductForm.tsx → validações e isolamento (SE necessário)
-- [ ] ProductList.tsx → leitura de produtos (IF necessário)
-- [ ] SalesModule.tsx → já utiliza useSalesTransaction atualizado ✅
-- [ ] StockManagementPanel.tsx → usar novo serviço (OPCIONAL)
-- [ ] Dashboard.tsx → usar novo serviço (OPCIONAL)
+- [x] Migração: 12 testes unitários (Firestore em memória)
+- [x] Serviços: 18 testes de integração com o emulador (SDK modular real, transações reais)
+- [x] Regras: 19 testes novos + os de regras que já existiam
+- [x] Os problemas corrigidos foram reproduzidos no código anterior antes da correção
+- [x] `tsc --noEmit` sem erros
 
-### 3️⃣ Executar Testes ✅ COMPLETO
-- [x] `npm run test -- unifiedProductService` (100% passing)
-- [x] `npm run test -- unifiedSalesService` (100% passing)
-- [x] Coverage >80% em ambos
-- [x] Sem warnings TypeScript
-- [x] Validar integração App.tsx com novos serviços
+**Falhas que já existiam (não são da FASE B):**
+- `firestore-rules.integration.test.ts` — precisa do emulador (passa com `npm run test:rules`)
+- `automatedAlertsService.test.ts` — precisa de variáveis Firebase no ambiente de teste
 
-### 4️⃣ Migração de Dados ⏳ PRÓXIMO
-- [ ] Executar em **staging** (NUNCA em produção antes de testar)
-- [ ] Validar backup criado
-- [ ] Confirmar integridade
-- [ ] Testar fluxo de vendas
-- [ ] Testar anulações
+**Ressalvas honestas:**
+- Os testes antigos `unifiedProductService.test.ts` e `unifiedSalesService.test.ts` **não importam os serviços** (fazem contas com valores literais). Não contam como cobertura. A cobertura real está nos testes de emulador acima.
+- A cobertura (`npm run test:coverage`) **não foi medida** para os serviços unificados.
+- Concorrência testada com **2** vendas simultâneas, não com 50+.
 
-### 5️⃣ Validação Pós-Migração
-- [ ] Sem produtos órfãos
-- [ ] Sem lojas vazias
-- [ ] Stock consistente
-- [ ] Vendas registadas correctamente
-- [ ] Histórico completo mantido
+---
 
-### 6️⃣ Testes Funcionais
-- [ ] Criar produto em loja (usa createUnifiedProduct) ✅ IMPLEMENTADO
-- [ ] Registar venda (usa recordUnifiedSaleTransaction) ✅ IMPLEMENTADO
-- [ ] Validar stock actualizado
-- [ ] Anular venda
-- [ ] Confirmar reversão de stock
-- [ ] Múltiplas lojas simultâneas
+## 🔄 ETAPAS
 
-### 7️⃣ Deploy em Produção
+### 1️⃣ App.tsx ✅
+- [x] Imports e CRUD de produtos (`createUnifiedProduct`, `updateUnifiedProductData`, …)
+- [x] Vendas através de `useSalesTransaction` → `recordUnifiedSaleTransaction`
+- [ ] `cancelUnifiedSale` está importado no `App.tsx` mas **não é chamado** por nenhum ecrã: a anulação não tem interface
+
+### 2️⃣ Componentes
+- [x] `useSalesTransaction.ts`
+- [ ] `ProductForm.tsx`, `ProductList.tsx`, `StockManagementPanel.tsx`, `Dashboard.tsx` (só se necessário / opcional)
+
+### 3️⃣ Testes ✅ (ver secção acima)
+
+### 4️⃣ Migração em staging
+- [x] Dados de teste criados (`npm run seed:staging`): 2 lojas, 3 produtos, 6 entradas de stock
+- [x] Dry-run: 3 produtos, 2 lojas, 6 entradas a migrar
+- [x] Migração real em 22/10/2026 — `Status: completed`, 6 migradas, 0 já existentes, 0 erros, 0 avisos
+  - Backup ID: `backup_2026-10-22T11:14:14.170Z` (3 + 6 = 9 documentos)
+- [ ] Confirmar na consola: `products/fasebseed_prod_001/stock` com 2 documentos; `products_backup` (3) e `stores_products_backup` (6)
+- [ ] Repetir `npm run migrate:staging -- --sim` → esperado: 0 migradas, 6 já existentes
+- [ ] `npm run migrate:staging -- --rollback <backupId> --dry-run` → esperado: 6 entradas a remover
+
+### 5️⃣ Publicar em staging (sempre com `--project precocerto-staging`)
+> ⚠️ O `.firebaserc` aponta por defeito para **produção** (`precocerto-cc04a`).
+- [ ] `firebase deploy --only firestore:rules --project precocerto-staging`
+- [ ] `firebase deploy --only firestore:indexes --project precocerto-staging --dry-run`, depois sem `--dry-run` (responder **N** se perguntar por apagar índices)
+- [ ] Índices no estado "Ativo" (Firestore > Índices)
+
+### 6️⃣ Testes funcionais da app em staging
+- [ ] Criar produto numa loja
+- [ ] Venda com 1 produto e com vários produtos
+- [ ] Stock e `quantidadeVendida` atualizados corretamente
+- [ ] Anular venda e confirmar reversão de stock (requer ligar `cancelUnifiedSale` à interface)
+- [ ] Histórico de vendas (precisa dos índices)
+- [ ] Duas lojas em simultâneo
+
+### 7️⃣ Antes de produção (bloqueantes)
+- [ ] **Auditar o modelo de dados real**: a migração assume stock em `stores/{id}/products`. As regras antigas de `products` sugerem que, em produção, o stock pode estar no próprio documento do produto (com `storeId`). Se for assim, a migração atual **não migraria nada**. Usar `scripts/audit-products-storeid.mjs`
+- [ ] **Decidir o modelo de produtos**: as regras só deixam uma loja ler produtos de que é proprietária; um produto com stock noutra loja fica ilegível para essa loja
+- [ ] Regras em falta para caminhos que a app usa: `audit_logs`, `stores/{id}/expiryAlerts`, `stores/{id}/products` (hoje caem no `deny` final)
 - [ ] Code review aprovado
-- [ ] Testes passam
-- [ ] Staging validado
-- [ ] Rollback plan pronto
-- [ ] Monitoramento ativo
+- [ ] Plano de rollback testado em staging
+- [ ] Backup do Firestore de produção feito antes de migrar
+- [ ] Monitorização ativa
 
-### 8️⃣ Monitoramento (24h)
-- [ ] Sem erros de Firestore
-- [ ] Sem race conditions detectadas
-- [ ] Performance normal
-- [ ] Alertas configurados
+### 8️⃣ Monitorização (24h após produção)
+- [ ] Sem erros de Firestore (`PERMISSION_DENIED`, índices em falta)
+- [ ] Sem sobrevenda
+- [ ] Desempenho normal
 
 ---
 
-## 📊 PROBLEMAS RESOLVIDOS
+## 🛠️ PROBLEMAS ENCONTRADOS E CORRIGIDOS DURANTE A VALIDAÇÃO
 
-| Problema | ANTES | DEPOIS | Status |
-|----------|-------|--------|--------|
-| Fragmentação de produtos | ❌ Raiz + per-loja | ✅ Estrutura unificada | ✅ RESOLVIDO |
-| Race conditions (vendas) | ❌ getDoc + writeBatch | ✅ Firestore Transactions | ✅ RESOLVIDO |
-| Isolamento por loja | ❌ Não garantido | ✅ stock/{storeId} | ✅ RESOLVIDO |
-| Sobrevenda possível | ❌ Sem validação atómica | ✅ Transação isolada | ✅ RESOLVIDO |
-| Auditoria de stock | ⚠️ Parcial | ✅ Histórico completo | ✅ MELHORADO |
+| Problema | Correção |
+|----------|----------|
+| A migração usava o SDK de cliente: as regras (autenticação, sem coleções inteiras, sem caminhos novos) bloqueavam-na | Reescrita com Admin SDK |
+| `rollbackMigration` era um TODO que imprimia "completado" | Rollback real, testado |
+| Backup num único batch (limite de 500 operações) | Lotes de 400 |
+| Segunda execução da migração sobrescrevia stock já migrado | Não sobrescreve; avisa se difere |
+| As regras não cobriam `stock`, `movements`, `stock_archive`, `sales` | Regras novas + 19 testes com emulador |
+| `cancelUnifiedSale` falhava em recibos com mais de um produto (leituras depois de escritas) e consultava sem `storeId` | Reescrita |
+| `getUnifiedProductsForStore` listava sem filtro (rejeitado pelas regras) | Filtra por `storeId` |
+| `quantidadeVendida` nunca acumulava | Acumula sobre o stock da loja |
+| Linhas repetidas do mesmo produto permitiam sobrevenda | Soma validada, saldos encadeados |
+| Quantidades negativas aumentavam o stock | Rejeitadas |
+| Consultas compostas sem índices | `firestore.indexes.json` |
+| `firebase.ts` não funcionava fora do Vite (`import.meta.env`) | Usa `process.env` como alternativa |
+| `.env.staging.example` ignorado pelo `.gitignore` | Exceção adicionada |
 
 ---
 
 ## 🚨 PONTOS CRÍTICOS
 
-1. **Transações Firestore** — Implementadas 100% em `unifiedSalesService.ts`
-   - Sem getDoc fora da transação
-   - Validação dentro transação
-   - Atomicidade garantida
-
-2. **Isolamento por storeId** — Garantido em:
-   - `products/{id}/stock/{storeId}` (estrutura de dados)
-   - `validateStockAvailability()` (filtra por storeId)
-   - Firestore Rules (lê-se só sua loja)
-
-3. **Backup de Segurança** — Automático em:
-   - `products_backup/` (cópia de produtos raiz)
-   - `stores_products_backup/` (cópia de estoque)
-   - Rollback reversível em `migrationPhaseB.ts`
+1. **Transações Firestore** — vendas e anulações: todas as leituras antes das escritas; estado relido dentro da transação.
+2. **Isolamento por loja** — `products/{id}/stock/{storeId}`; nas regras o `storeId` vem do **caminho**, não do conteúdo do documento.
+3. **Backups** — `products_backup/` e `stores_products_backup/`, escritos só com o Admin SDK (negados a clientes pelas regras).
+4. **Projeto por defeito = produção** — usar sempre `--project precocerto-staging`.
 
 ---
 
-## 📈 MÉTRICAS
+## 🎯 CRITÉRIOS DE SUCESSO
 
-- **Serviços Novos**: 2 (unifiedProduct + unifiedSales)
-- **Linhas de Código**: ~1,200
-- **Testes Unitários**: 20+ casos
-- **Coverage Esperado**: >85%
-- **Documentação**: 50+ páginas (MD + código comentado)
-- **Transações Atómicas**: 100% (vendas)
-
----
-
-## 🎯 SUCESSO DEFINIDO COMO
-
-✅ Todos os testes passam (coverage >80%)  
-✅ Migração executada com sucesso  
-✅ Validação pós-migração OK  
-✅ Testes de venda com 50+ transações simultâneas — SEM sobrevenda  
-✅ Documentação completa  
-✅ Code review aprovado  
-
----
-
-## 📅 ESTIMATIVA
-
-- **Testes**: 30 min
-- **Actualizar App.tsx**: 1 hora
-- **Actualizar componentes**: 2 horas
-- **Teste manual**: 1 hora
-- **Migração staging**: 30 min
-- **Validação**: 30 min
-- **Deploy produção**: 30 min
-
-**Total**: ~6 horas de trabalho
+- [x] Testes dos serviços, regras e migração passam (com emulador)
+- [x] Migração executada com sucesso em staging (dados de seed)
+- [ ] Validação pós-migração confirmada na consola
+- [ ] Regras e índices publicados em staging
+- [ ] Fluxo de vendas e anulação testado na app em staging
+- [ ] Modelo de dados real auditado
+- [ ] Code review aprovado
 
 ---
 
 **NOTA**: Este checklist é guia de implementação. Qualquer desvio deve ser documentado.
-
----
-
-## 📈 PROGRESSO ACTUAL (9 de outubro de 2026)
-
-**Fase B - Integração Inicial**: ✅ 80% COMPLETO
-
-### Concluído:
-- ✅ Implementação de serviços unificados (unifiedProductService, unifiedSalesService, migrationPhaseB)
-- ✅ Testes unitários (27 testes passando com sucesso)
-- ✅ Documentação completa (FASE-B-NORMALIZACAO-PRODUTOS.md)
-- ✅ Integração em App.tsx (todos os handlers de produtos)
-- ✅ Integração em useSalesTransaction (módulo de vendas)
-- ✅ Testes de integração (1254 testes passando)
-- ✅ Validação de tipos TypeScript (sem erros)
-- ✅ Correção de erros de compilação TypeScript
-
-### Em Progresso:
-- 🔄 Migração de dados (staging)
-- 🔄 Validação pós-migração
-
-### Próximo:
-- ⏳ Execução em staging
-- ⏳ Testes funcionais de venda
-- ⏳ Deploy em produção
-
-Status: ✅ TESTES PASSANDO - PRONTO PARA MIGRAÇÃO EM STAGING
