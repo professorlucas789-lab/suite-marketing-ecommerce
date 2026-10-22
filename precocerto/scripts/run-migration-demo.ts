@@ -221,11 +221,12 @@ async function runDemoMigration() {
     const stocksForProduct = mockStocks.filter(s => s.productId === product.id);
     stocksForProduct.forEach((stock, idx) => {
       const isLast = idx === stocksForProduct.length - 1;
-      const prefix = isLast ? '          └──' : '          ├──';
+      const ramo = isLast ? '└──' : '├──';
+      const continuacao = isLast ? '    ' : '│   ';
       const storeName = mockStores.find(s => s.id === stock.storeId)?.nome;
-      console.log(`          ${prefix} ${stock.storeId}/ (${storeName})`);
-      console.log(`          ${isLast ? '    ' : '          │   '}├── quantidadeDisponível: ${stock.quantidadeDisponível}`);
-      console.log(`          ${isLast ? '    ' : '          │   '}└── lastUpdated: "2026-10-09T..."`);
+      console.log(`          ${ramo} ${stock.storeId}/ (${storeName})`);
+      console.log(`          ${continuacao}├── quantidadeDisponível: ${stock.quantidadeDisponível}`);
+      console.log(`          ${continuacao}└── lastUpdated: "2026-10-09T..."`);
     });
   }
   console.log('');
