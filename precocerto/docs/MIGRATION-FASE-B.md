@@ -113,6 +113,41 @@ de `products` (que hoje expõem custos só à loja proprietária) e rever este m
 
 ---
 
+## 🧑‍💻 Entrar na app de staging para testar
+
+A app de staging está em **https://precocerto-staging.web.app**. Para testar a
+FASE B é preciso (1) que o site tenha o código novo e (2) um utilizador com as
+lojas de teste.
+
+**1. Código novo no site.** O Hosting só muda quando se publica: workflow
+`deploy-firebase-staging.yml`, operação `deploy` (compila `main` e publica em
+`precocerto-staging`). Confirmar a data em Firebase Console > Hosting.
+
+**2. Utilizador de teste** (admin, com as lojas `fasebseed_*`). No PowerShell, em
+`precocerto\`, com `gcloud auth application-default login` já feito:
+```powershell
+$env:STG_APP_EMAIL = "o.seu.email@exemplo.pt"
+$env:STG_APP_PASSWORD = "uma-password-com-6-ou-mais-caracteres"
+npm.cmd run seed:staging            # se ainda não existirem as lojas de teste
+npm.cmd run seed:staging-user
+Remove-Item Env:STG_APP_PASSWORD    # a password não fica guardada
+```
+- A password vem só do ambiente da sessão; não passa pela linha de comandos nem fica em ficheiros
+- Se já existir uma conta com esse email, aborta; com `--usar-existente` reutiliza-a
+  sem alterar a password
+- `npm.cmd run seed:staging-user -- --limpar` remove a conta, mas **só** se foi
+  criada por este script
+- Acrescenta às lojas de teste os campos que a app espera (`tipo`, `endereco`, `ativo`, ...)
+- O login por email e password tem de estar ativo em Firebase Console > Authentication > Sign-in method
+
+**3. Teste manual** (produto **Dipirona 500mg**, começa com 40 unidades):
+1. Dashboard: stock = 40
+2. Vender 3 unidades: o Dashboard baixa para 37
+3. Vendas > Histórico > Anular: volta a 40
+4. Stock > ajuste (entrada de 5): passa a 45
+
+---
+
 ## 🪞 Espelho do stock no documento do produto
 
 Depois da FASE B o stock vive em `products/{id}/stock/{loja}` (fonte de verdade),
