@@ -131,7 +131,7 @@
   - Produtos **sem entrada de stock** (importados, ou ainda não migrados) partem do valor do documento e a entrada é criada na primeira escrita
   - Regras novas: qualquer membro da loja pode atualizar **só** os campos do espelho no produto (`hasOnly`); regras de `stockMovements` (ajustes/transferências); transferência cria o produto de destino com `userId` de quem transfere
   - Testes: 21 de integração (15 falham com o código anterior), 9 de regras (5 falham com as regras anteriores, incluindo venda de 6 produtos e transferência sob as regras reais) e 9 unitários do módulo partilhado
-- [ ] **Publicar as regras novas em staging** (espelho de stock + `stockMovements`): workflow `deploy-rules` ou `firebase deploy --only firestore:rules --project precocerto-staging`
+- [x] **Regras do espelho de stock e de `stockMovements` publicadas em staging** a 22/10/2026 (workflow `deploy-rules`, run #20, commit `e1769f3`): projeto validado como `precocerto-staging`, passo de deploy com sucesso. Ainda **não** corrido o `smoke-rules` nem testada a app em staging
 - [ ] **Limitações conhecidas do espelho** — rever antes de produção:
   - A importação do `BackupView` cria produtos sem entrada de stock (resolvido na 1.ª escrita, ou repetindo a migração, que é idempotente)
   - A exportação do `BackupView` e as estatísticas leem o documento do produto: corretas graças ao espelho, mas a fonte de verdade é o stock da loja
