@@ -50,7 +50,7 @@ import { ImportCSVModal } from "./components/ImportCSVModal"; // NOVO (Fase 5A)
 import { ExportExcelButton } from "./components/ExportExcelButton"; // NOVO (Fase 5A)
 import { ReportBuilder, ReportConfig } from "./components/ReportBuilder"; // NOVO (Fase 5B Item 3)
 import { NotificationSettingsPanel } from "./components/NotificationSettingsPanel"; // NOVO (Fase 10 - Automação de Alertas)
-import SalesModule from "./components/SalesModule"; // NOVO (Módulo de Vendas)
+import SalesScreen from "./components/SalesScreen"; // Vendas + histórico de recibos (anular)
 
 // Lazy-loaded components (Performance Optimization - Fase 12)
 const BatchProductForm = React.lazy(() => import("./components/BatchProductForm"));
@@ -1476,13 +1476,7 @@ export default function App() {
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <SalesModule
-                      products={products}
-                      onSaleComplete={(items, total) => {
-                        console.log("Venda registada:", { items, total });
-                        // TODO: Save to Firebase and emit audit log
-                      }}
-                    />
+                    <SalesScreen products={products} />
                   </motion.div>
                 )}
 
@@ -1580,11 +1574,11 @@ export default function App() {
                     transition={{ duration: 0.15 }}
                   >
                     <Suspense fallback={<LazyComponentLoader />}>
-                      <SalesModule
+                      <SalesScreen
                         products={products}
                         onSaleComplete={() => {
+                          // Fica no ecrã: o recibo novo aparece no histórico, com o botão Anular
                           triggerNotification("Venda registada com sucesso!");
-                          setActiveTab("products");
                         }}
                       />
                     </Suspense>
