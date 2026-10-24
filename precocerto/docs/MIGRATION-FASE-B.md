@@ -126,8 +126,9 @@ lojas de teste.
 **2. Utilizador de teste** (admin, com as lojas `fasebseed_*`). No PowerShell, em
 `precocerto\`, com `gcloud auth application-default login` já feito:
 ```powershell
-$env:STG_APP_EMAIL = "o.seu.email@exemplo.pt"
-$env:STG_APP_PASSWORD = "uma-password-com-6-ou-mais-caracteres"
+# Substitua os valores <entre parênteses> pelos SEUS (sem os parênteses): o script recusa os exemplos
+$env:STG_APP_EMAIL = "<O_SEU_EMAIL_REAL>"
+$env:STG_APP_PASSWORD = "<A_SUA_PASSWORD_COM_6_OU_MAIS_CARACTERES>"
 npm.cmd run seed:staging            # se ainda não existirem as lojas de teste
 npm.cmd run seed:staging-user
 Remove-Item Env:STG_APP_PASSWORD    # a password não fica guardada

@@ -10,11 +10,12 @@
  *   alterar os que já existam
  *
  * A password NUNCA passa pela linha de comandos nem fica em ficheiros: vem das
- * variáveis de ambiente da sessão.
+ * variáveis de ambiente da sessão. Os valores <entre parênteses> são exemplos: o
+ * script recusa-os (substitua-os pelos seus, sem os parênteses).
  *
  * Uso (PowerShell):
- *   $env:STG_APP_EMAIL = "o.seu.email@exemplo.pt"
- *   $env:STG_APP_PASSWORD = "uma-password-com-6-ou-mais-caracteres"
+ *   $env:STG_APP_EMAIL = "<O_SEU_EMAIL_REAL>"
+ *   $env:STG_APP_PASSWORD = "<A_SUA_PASSWORD_COM_6_OU_MAIS_CARACTERES>"
  *   npm run seed:staging-user
  *   Remove-Item Env:STG_APP_PASSWORD
  *
@@ -97,10 +98,30 @@ async function limpar(auth, db) {
   log(`${mascarar(email)}: conta e documento removidos.`);
 }
 
+/**
+ * Recusa os valores de exemplo do guia: uma conta admin com credenciais que estão
+ * escritas num ficheiro público não é segura, mesmo em staging.
+ */
+function recusarValoresDeExemplo(email, password) {
+  if (/exemplo\.|o\.seu\.email|[<>]/i.test(email)) {
+    throw new Error(
+      'STG_APP_EMAIL ainda tem o valor de exemplo do guia. Use o SEU email real.'
+    );
+  }
+  if (/uma-password|a-sua-password|[<>]/i.test(password) || password.toLowerCase() === 'password') {
+    throw new Error(
+      'STG_APP_PASSWORD ainda tem o valor de exemplo do guia (ou é demasiado óbvia). Escolha a SUA password.'
+    );
+  }
+}
+
 async function criar(auth, db) {
   const email = lerEmail();
   const password = process.env.STG_APP_PASSWORD || '';
   const usarExistente = process.argv.includes('--usar-existente');
+
+  // Antes de qualquer acesso a staging
+  recusarValoresDeExemplo(email, usarExistente ? '' : password);
 
   // 1. As lojas de teste têm de existir (criadas por: npm run seed:staging)
   const refsLojas = LOJAS.map(id => db.doc(`stores/${id}`));
