@@ -149,6 +149,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Criar objeto UserSession
         const userSession: UserSession = {
           ...userData,
+          // O documento users/{uid} nem sempre traz o id; o UID vem sempre do Firebase Auth
+          id: user.uid,
+          uid: user.uid,
           currentStore: storeContext,
           stores: storesData,
         };

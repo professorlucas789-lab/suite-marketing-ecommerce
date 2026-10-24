@@ -61,6 +61,7 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [quantity, setQuantity] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
   // State: Client selection
@@ -185,8 +186,9 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
       const result = await recordTransaction({
         storeId: currentStore.storeId,
         storeName: currentStore.storeName,
-        userId: currentUser.uid,
-        userName: currentUser.displayName || currentUser.email || "Unknown",
+        // A sessão é o documento users/{uid}: tem id/nome/email (uid vem do contexto)
+        userId: currentUser.uid || currentUser.id,
+        userName: currentUser.nome || currentUser.displayName || currentUser.email || "Unknown",
         customerName: selectedClient?.nome,
         customerNif: selectedClient?.nif,
         customerId: selectedClient?.id,
@@ -404,20 +406,29 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
             {/* Product Selector */}
             <div className="relative mb-4">
               <button
+                type="button"
+                onClick={() => setShowProductDropdown((aberto) => !aberto)}
+                aria-expanded={showProductDropdown}
                 className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600/50 rounded-lg text-white text-left flex items-center justify-between hover:bg-slate-700 transition-colors"
               >
                 <span className={selectedProduct ? "text-white" : "text-slate-400"}>
                   {selectedProduct ? selectedProduct.nome : "Selecione produto..."}
                 </span>
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className={`w-4 h-4 transition-transform ${showProductDropdown ? "rotate-180" : ""}`} />
               </button>
 
-              {/* Product Dropdown */}
+              {/* Product Dropdown: só aparece aberta; antes ficava sempre visível e tapava
+                  o campo de quantidade e o botão Adicionar */}
+              {showProductDropdown && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-40 max-h-48 overflow-y-auto">
                 {products.map((product) => (
                   <button
                     key={product.id}
-                    onClick={() => setSelectedProduct(product)}
+                    type="button"
+                    onClick={() => {
+                      setSelectedProduct(product);
+                      setShowProductDropdown(false);
+                    }}
                     className={`w-full px-4 py-3 text-left border-b border-slate-700/50 last:border-b-0 hover:bg-slate-700/50 transition-colors flex justify-between items-center group ${
                       selectedProduct?.id === product.id
                         ? "bg-emerald-500/20 border-l-2 border-emerald-500"
@@ -441,6 +452,7 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
                   </button>
                 ))}
               </div>
+              )}
             </div>
 
             {/* Quantity Input */}

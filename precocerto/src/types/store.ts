@@ -184,6 +184,9 @@ export interface StoreContext {
  * Sessão do utilizador com informações de lojas
  */
 export interface UserSession extends User {
+  /** UID do Firebase Auth (igual a id); preenchido pelo StoreContext */
+  uid?: string;
+  displayName?: string;
   currentStore: StoreContext;
   stores: Store[];
 }
