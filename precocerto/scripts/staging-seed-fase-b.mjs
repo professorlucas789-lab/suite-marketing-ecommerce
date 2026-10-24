@@ -109,7 +109,20 @@ async function criar(db) {
 
   for (const loja of LOJAS) {
     assertPrefixo(loja.id);
-    batch.set(db.doc(`stores/${loja.id}`), { nome: loja.nome, ativa: true, createdAt: agora });
+    // Campos que a app exige para carregar a loja (StoreContext / tipo de módulo)
+    batch.set(db.doc(`stores/${loja.id}`), {
+      nome: loja.nome,
+      tipo: 'farmacia',
+      endereco: 'Staging (dados de teste)',
+      telefone: '',
+      email: '',
+      ativo: true,
+      ativa: true,
+      dataCriacao: agora,
+      dataAtualizacao: agora,
+      criadoPor: UTILIZADOR_SEED,
+      createdAt: agora,
+    });
   }
 
   for (const produto of PRODUTOS) {
