@@ -19,6 +19,7 @@ import DocumentItemsTab from "./DocumentItemsTab";
 import DocumentSettingsPanel from "./DocumentSettingsPanel";
 import { useStore } from "../contexts/StoreContext";
 import { useSalesTransaction } from "../hooks/useSalesTransaction";
+import { lerStockAtual } from "../utils/unifiedStock";
 
 interface SaleItem {
   productId: string;
@@ -434,7 +435,7 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
                         Kz {product.precoVendaRecomendado?.toFixed(2) || "0.00"}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {product.quantidade || 0} stock
+                        {lerStockAtual(product, null).disponivel} stock
                       </p>
                     </div>
                   </button>
@@ -485,7 +486,7 @@ export default function SalesModule({ products, onSaleComplete }: SalesModulePro
                     <div>
                       <p className="text-xs text-slate-400 mb-1">Stock</p>
                       <p className="font-bold text-white">
-                        {selectedProduct.quantidade || 0}
+                        {lerStockAtual(selectedProduct, null).disponivel}
                       </p>
                     </div>
                   </div>

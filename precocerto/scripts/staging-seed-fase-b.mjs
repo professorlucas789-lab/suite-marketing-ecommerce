@@ -42,16 +42,14 @@ const LOJAS = [
 
 // lojaIdx = loja proprietária (Product.storeId). Modelo: um produto pertence a uma
 // loja e o stock vive nessa loja.
+// preco = preço de venda; custo = custo de compra; disponivel/vendida = stock inicial.
 const PRODUTOS = [
-  { id: `${PREFIXO}prod_001`, nome: 'Paracetamol 500mg', categoria: 'Medicamentos', preco: 2.5, lojaIdx: 0 },
-  { id: `${PREFIXO}prod_002`, nome: 'Ibuprofeno 400mg', categoria: 'Medicamentos', preco: 3.0, lojaIdx: 0 },
-  { id: `${PREFIXO}prod_003`, nome: 'Vitamina C', categoria: 'Suplementos', preco: 4.5, lojaIdx: 1 },
+  { id: `${PREFIXO}prod_001`, nome: 'Paracetamol 500mg', categoria: 'Medicamentos', preco: 2.5, custo: 1.2, lojaIdx: 0, disponivel: 50, vendida: 10 },
+  { id: `${PREFIXO}prod_002`, nome: 'Ibuprofeno 400mg', categoria: 'Medicamentos', preco: 3.0, custo: 1.5, lojaIdx: 0, disponivel: 30, vendida: 5 },
+  { id: `${PREFIXO}prod_003`, nome: 'Vitamina C', categoria: 'Suplementos', preco: 4.5, custo: 2.2, lojaIdx: 1, disponivel: 60, vendida: 12 },
   // Como em PRODUÇÃO: stock só no documento do produto (quantidadeDisponivel), sem
   // entrada em stores/{loja}/products. A migração cria o stock a partir daqui.
-  {
-    id: `${PREFIXO}prod_004`, nome: 'Dipirona 500mg', categoria: 'Medicamentos', preco: 1.8, lojaIdx: 0,
-    stockNoDocumento: { quantidadeDisponivel: 40, quantidadeVendida: 7 },
-  },
+  { id: `${PREFIXO}prod_004`, nome: 'Dipirona 500mg', categoria: 'Medicamentos', preco: 1.8, custo: 0.9, lojaIdx: 0, disponivel: 40, vendida: 7, soNoDocumento: true },
 ];
 
 // [loja, produto, quantidadeDisponível, quantidadeVendida]
@@ -116,13 +114,27 @@ async function criar(db) {
 
   for (const produto of PRODUTOS) {
     assertPrefixo(produto.id);
+    // Campos que a app espera (a venda usa precoVendaRecomendado e custoCompra; os
+    // ecrãs leem quantidadeDisponivel do documento: o espelho do stock da loja)
     batch.set(db.doc(`products/${produto.id}`), {
       nome: produto.nome,
       categoria: produto.categoria,
+      fornecedor: 'Fornecedor de teste',
+      numeroFatura: 'SEED-001',
+      dataEmissaoFatura: '2026-10-01',
+      custoCompra: produto.custo,
+      custoTransporte: 0,
+      custoEmbalagem: 0,
+      outrosCustos: 0,
+      margemDesejada: 30,
+      precoVendaRecomendado: produto.preco,
       preco: produto.preco,
+      quantidade: produto.disponivel + produto.vendida,
+      quantidadeDisponivel: produto.disponivel,
+      quantidadeVendida: produto.vendida,
       storeId: LOJAS[produto.lojaIdx].id,
+      storeName: LOJAS[produto.lojaIdx].nome,
       userId: UTILIZADOR_SEED,
-      ...(produto.stockNoDocumento ?? {}),
       createdAt: agora,
       updatedAt: agora,
     });
@@ -142,7 +154,7 @@ async function criar(db) {
 
   await batch.commit();
 
-  const soNoDocumento = PRODUTOS.filter(p => p.stockNoDocumento).length;
+  const soNoDocumento = PRODUTOS.filter(p => p.soNoDocumento).length;
   log(
     `Criadas ${LOJAS.length} lojas, ${PRODUTOS.length} produtos e ${STOCKS.length} entradas de stock ` +
     `em stores/{loja}/products (${soNoDocumento} produto com stock só no documento).`
